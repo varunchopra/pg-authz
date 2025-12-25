@@ -50,7 +50,10 @@ class AuthzClient:
     Example:
         authz = AuthzClient(cursor, namespace="production")
 
-        # Grant permission
+        # Set actor context for audit logging
+        authz.set_actor("admin@acme.com", "req-123", "Quarterly review")
+
+        # Grant permission (actor context automatically included in audit)
         authz.grant("admin", resource=("repo", "api"), subject=("team", "eng"))
 
         # Check permission
@@ -61,6 +64,10 @@ class AuthzClient:
     def __init__(self, cursor, namespace: str):
         self.cursor = cursor
         self.namespace = namespace
+        # Actor context stored as instance state
+        self._actor_id: str | None = None
+        self._request_id: str | None = None
+        self._reason: str | None = None
 
     def _scalar(self, sql: str, params: tuple):
         """Execute SQL and return single scalar value."""
@@ -74,6 +81,41 @@ class AuthzClient:
                 raise AuthzCycleError(str(e)) from e
             if "cannot be empty" in err_msg or "exceeds maximum" in err_msg:
                 raise AuthzValidationError(str(e)) from e
+            raise
+
+    def _write_scalar(self, sql: str, params: tuple):
+        """Execute a write operation with actor context if set.
+
+        When actor context is set:
+        - If already in a transaction: sets actor, caller manages commit
+        - If autocommit mode: wraps in BEGIN/COMMIT so actor context persists to trigger
+        """
+        if self._actor_id is None:
+            return self._scalar(sql, params)
+
+        # Check if already in a transaction (psycopg transaction_status: 0 = idle)
+        in_transaction = self.cursor.connection.info.transaction_status != 0
+
+        if in_transaction:
+            # Caller manages transaction - just set actor context
+            self.cursor.execute(
+                "SELECT authz.set_actor(%s, %s, %s)",
+                (self._actor_id, self._request_id, self._reason),
+            )
+            return self._scalar(sql, params)
+
+        # Autocommit mode - wrap in transaction so actor context persists
+        try:
+            self.cursor.execute("BEGIN")
+            self.cursor.execute(
+                "SELECT authz.set_actor(%s, %s, %s)",
+                (self._actor_id, self._request_id, self._reason),
+            )
+            result = self._scalar(sql, params)
+            self.cursor.execute("COMMIT")
+            return result
+        except Exception:
+            self.cursor.execute("ROLLBACK")
             raise
 
     def _fetchall(self, sql: str, params: tuple) -> list:
@@ -115,7 +157,7 @@ class AuthzClient:
         subject_type, subject_id = subject
 
         if subject_relation is not None:
-            return self._scalar(
+            return self._write_scalar(
                 "SELECT authz.write_tuple(%s, %s, %s, %s, %s, %s, %s)",
                 (
                     resource_type,
@@ -128,7 +170,7 @@ class AuthzClient:
                 ),
             )
         else:
-            return self._scalar(
+            return self._write_scalar(
                 "SELECT authz.write(%s, %s, %s, %s, %s, %s)",
                 (
                     resource_type,
@@ -169,7 +211,7 @@ class AuthzClient:
         subject_type, subject_id = subject
 
         if subject_relation is not None:
-            result = self._scalar(
+            result = self._write_scalar(
                 "SELECT authz.delete_tuple(%s, %s, %s, %s, %s, %s, %s)",
                 (
                     resource_type,
@@ -182,7 +224,7 @@ class AuthzClient:
                 ),
             )
         else:
-            result = self._scalar(
+            result = self._write_scalar(
                 "SELECT authz.delete(%s, %s, %s, %s, %s, %s)",
                 (
                     resource_type,
@@ -393,10 +435,7 @@ class AuthzClient:
             # Now admin implies write, write implies read
         """
         for i in range(len(permissions) - 1):
-            self.cursor.execute(
-                "SELECT authz.add_hierarchy(%s, %s, %s, %s)",
-                (resource_type, permissions[i], permissions[i + 1], self.namespace),
-            )
+            self.add_hierarchy_rule(resource_type, permissions[i], permissions[i + 1])
 
     def add_hierarchy_rule(self, resource_type: str, permission: str, implies: str):
         """
@@ -411,24 +450,156 @@ class AuthzClient:
             authz.add_hierarchy_rule("doc", "admin", "read")
             authz.add_hierarchy_rule("doc", "admin", "share")
         """
-        self._scalar(
+        self._write_scalar(
             "SELECT authz.add_hierarchy(%s, %s, %s, %s)",
             (resource_type, permission, implies, self.namespace),
         )
 
     def remove_hierarchy_rule(self, resource_type: str, permission: str, implies: str):
         """Remove a single hierarchy rule."""
-        self._scalar(
+        self._write_scalar(
             "SELECT authz.remove_hierarchy(%s, %s, %s, %s)",
             (resource_type, permission, implies, self.namespace),
         )
 
     def clear_hierarchy(self, resource_type: str) -> int:
         """Clear all hierarchy rules for a resource type."""
-        return self._scalar(
+        return self._write_scalar(
             "SELECT authz.clear_hierarchy(%s, %s)",
             (resource_type, self.namespace),
         )
+
+    # =========================================================================
+    # Audit logging
+    # =========================================================================
+
+    def set_actor(
+        self,
+        actor_id: str,
+        request_id: str | None = None,
+        reason: str | None = None,
+    ) -> None:
+        """
+        Set actor context for audit logging.
+
+        Call this before performing operations to record who made changes.
+        Context persists until clear_actor() is called or client is discarded.
+
+        When actor context is set, write operations (grant, revoke, etc.) are
+        automatically wrapped in a transaction to ensure the audit trigger
+        captures the actor information.
+
+        Args:
+            actor_id: The actor making changes (e.g., user ID, service name)
+            request_id: Optional request/correlation ID for tracing
+            reason: Optional reason for the changes
+
+        Example:
+            authz.set_actor("admin@acme.com", "req-123", "Quarterly review")
+            authz.grant("admin", resource=("repo", "api"), subject=("team", "eng"))
+            authz.clear_actor()  # optional, clears context
+        """
+        self._actor_id = actor_id
+        self._request_id = request_id
+        self._reason = reason
+
+    def clear_actor(self) -> None:
+        """Clear actor context."""
+        self._actor_id = None
+        self._request_id = None
+        self._reason = None
+
+    def get_audit_events(
+        self,
+        *,
+        limit: int = 100,
+        event_type: str | None = None,
+        actor_id: str | None = None,
+        resource: Entity | None = None,
+        subject: Entity | None = None,
+    ) -> list[dict]:
+        """
+        Query audit events with optional filters.
+
+        Args:
+            limit: Maximum number of events to return (default 100)
+            event_type: Filter by event type (e.g., 'tuple_created')
+            actor_id: Filter by actor ID
+            resource: Filter by resource as (type, id) tuple
+            subject: Filter by subject as (type, id) tuple
+
+        Returns:
+            List of audit event dictionaries with keys:
+            - event_id, event_type, event_time
+            - actor_id, request_id, reason
+            - session_user, current_user, client_addr, application_name
+            - resource (tuple), relation, subject (tuple), subject_relation
+
+        Example:
+            events = authz.get_audit_events(actor_id="admin@acme.com", limit=50)
+            for event in events:
+                print(f"{event['event_type']}: {event['resource']}")
+        """
+        conditions = ["namespace = %s"]
+        params: list = [self.namespace]
+
+        if event_type is not None:
+            conditions.append("event_type = %s")
+            params.append(event_type)
+
+        if actor_id is not None:
+            conditions.append("actor_id = %s")
+            params.append(actor_id)
+
+        if resource is not None:
+            conditions.append("resource_type = %s")
+            conditions.append("resource_id = %s")
+            params.extend(resource)
+
+        if subject is not None:
+            conditions.append("subject_type = %s")
+            conditions.append("subject_id = %s")
+            params.extend(subject)
+
+        params.append(limit)
+
+        sql = f"""
+            SELECT
+                event_id, event_type, event_time,
+                actor_id, request_id, reason,
+                session_user_name, current_user_name, client_addr, application_name,
+                resource_type, resource_id, relation,
+                subject_type, subject_id, subject_relation,
+                tuple_id
+            FROM authz.audit_events
+            WHERE {' AND '.join(conditions)}
+            ORDER BY event_time DESC, id DESC
+            LIMIT %s
+        """
+
+        self.cursor.execute(sql, tuple(params))
+        rows = self.cursor.fetchall()
+
+        return [
+            {
+                "event_id": str(row[0]),
+                "event_type": row[1],
+                "event_time": row[2],
+                "actor_id": row[3],
+                "request_id": row[4],
+                "reason": row[5],
+                "session_user": row[6],
+                "current_user": row[7],
+                "client_addr": str(row[8]) if row[8] else None,
+                "application_name": row[9],
+                "resource": (row[10], row[11]),
+                "relation": row[12],
+                "subject": (row[13], row[14]),
+                "subject_relation": row[15],
+                "tuple_id": row[16],
+            }
+            for row in rows
+        ]
 
     # =========================================================================
     # Admin/maintenance operations
@@ -526,7 +697,7 @@ class AuthzClient:
             authz.bulk_grant("read", resource=("doc", "1"), subject_ids=["alice", "bob", "carol"])
         """
         resource_type, resource_id = resource
-        return self._scalar(
+        return self._write_scalar(
             "SELECT authz.write_tuples_bulk(%s, %s, %s, 'user', %s, %s)",
             (resource_type, resource_id, permission, subject_ids, self.namespace),
         )
@@ -557,7 +728,7 @@ class AuthzClient:
             )
         """
         subject_type, subject_id = subject
-        return self._scalar(
+        return self._write_scalar(
             "SELECT authz.grant_to_resources_bulk(%s, %s, %s, %s, %s, %s, %s)",
             (
                 resource_type,

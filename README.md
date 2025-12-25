@@ -87,6 +87,14 @@ SELECT authz.check('charlie', 'read', 'repo', 'acme/api'); -- false (not on team
 | `authz.verify_computed(namespace)` | Check for consistency issues |
 | `authz.repair_computed(namespace)` | Rebuild computed permissions |
 
+### Audit Logging
+
+| Function | Description |
+|----------|-------------|
+| `authz.set_actor(actor_id, request_id, reason)` | Set actor context for audit trail |
+| `authz.ensure_audit_partitions(months_ahead)` | Create partitions for future months |
+| `authz.drop_audit_partitions(older_than_months)` | Drop old partitions (default: 84 months) |
+
 ## Usage Examples
 
 ### Check permissions in your app
@@ -120,6 +128,34 @@ All functions accept an optional namespace parameter (default: `'default'`):
 SELECT authz.write('doc', 'doc-1', 'owner', 'user', 'alice', NULL, 'tenant-acme');
 SELECT authz.check('alice', 'view', 'doc', 'doc-1', 'tenant-acme');  -- true
 SELECT authz.check('alice', 'view', 'doc', 'doc-1', 'tenant-other'); -- false
+```
+
+### Audit Logging
+
+All changes are logged to `authz.audit_events`:
+
+```sql
+-- Set actor context (recommended)
+SELECT authz.set_actor('admin@acme.com', 'req-123', 'Quarterly access review');
+
+-- Perform operations
+SELECT authz.write('repo', 'api', 'admin', 'team', 'platform');
+
+-- Query audit log
+SELECT * FROM authz.audit_events
+WHERE namespace = 'default'
+ORDER BY event_time DESC
+LIMIT 100;
+```
+
+Partition management:
+
+```sql
+-- Create partitions for next 6 months (run monthly via cron)
+SELECT authz.ensure_audit_partitions(6);
+
+-- Drop partitions older than 7 years
+SELECT authz.drop_audit_partitions(84);
 ```
 
 ## How It Works

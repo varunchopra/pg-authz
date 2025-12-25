@@ -46,6 +46,7 @@ def _make_namespace(request) -> str:
 
 def _cleanup(cursor, namespace: str):
     """Clean up all data for a namespace."""
+    cursor.execute("DELETE FROM authz.audit_events WHERE namespace = %s", (namespace,))
     cursor.execute("DELETE FROM authz.tuples WHERE namespace = %s", (namespace,))
     cursor.execute("DELETE FROM authz.computed WHERE namespace = %s", (namespace,))
     cursor.execute(

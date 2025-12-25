@@ -26,7 +26,11 @@ build:
 	@echo "$(GREEN)✓ Built dist/pg-authz.sql$(NC)"
 
 test: build
+ifdef TEST
+	@DATABASE_URL=$(DATABASE_URL) $(PYTEST) -v $(TEST)
+else
 	@DATABASE_URL=$(DATABASE_URL) $(PYTEST) -v tests/
+endif
 
 dev: build test
 	@echo "$(GREEN)✓ Build and tests passed$(NC)"
