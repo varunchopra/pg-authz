@@ -45,7 +45,6 @@ class TestLargeGroups:
         # Check stats
         stats = authz.stats()
         assert stats["tuple_count"] == num_users + 1
-        assert stats["computed_count"] >= num_users  # At least team memberships
 
         # Performance assertions (adjust thresholds for your environment)
         assert (
@@ -131,11 +130,16 @@ class TestDeepHierarchy:
 
 
 class TestAmplification:
-    """Test write amplification scenarios."""
+    """Test write amplification scenarios.
 
-    def test_amplification_factor(self, authz):
-        """Verify amplification stays reasonable."""
-        # Create a scenario with significant amplification:
+    With lazy evaluation, there's no precomputed table and thus no
+    write amplification. These tests verify that lazy evaluation
+    handles scenarios that would have caused amplification correctly.
+    """
+
+    def test_large_team_with_hierarchy(self, authz):
+        """Large team with hierarchy works correctly via lazy evaluation."""
+        # Create a scenario that would have significant amplification with precomputation:
         # - 1 team with 100 members
         # - Team has admin on 10 resources
         # - Hierarchy: admin -> write -> read (3 levels)
@@ -153,21 +157,24 @@ class TestAmplification:
         stats = authz.stats()
 
         # Tuples: 100 memberships + 10 team grants = 110
-        # Computed: 100 users * 10 resources * 3 permissions = 3000
-        #           + 100 membership entries = 3100
+        # With lazy evaluation, no computed table exists
         assert stats["tuple_count"] == 110
-        assert stats["computed_count"] >= 3000
-        assert stats["amplification_factor"] is not None
-        assert stats["amplification_factor"] > 25  # Significant amplification expected
+
+        # Verify permissions work correctly via lazy evaluation
+        assert authz.check("user-0", "admin", ("doc", "doc-0"))
+        assert authz.check("user-0", "write", ("doc", "doc-0"))
+        assert authz.check("user-0", "read", ("doc", "doc-0"))
+        assert authz.check("user-99", "admin", ("doc", "doc-9"))
+        assert not authz.check("user-0", "admin", ("doc", "doc-999"))  # Non-existent
 
 
 class TestEdgeCases:
     """Test edge cases at scale."""
 
     def test_max_hierarchy_depth(self, authz):
-        """Verify max hierarchy depth limit works."""
-        # The recompute function has a max_iterations limit of 100
-        # This test ensures we stay below it
+        """Verify deep hierarchy depth works correctly."""
+        # With lazy evaluation using recursive CTEs, we need to stay
+        # within PostgreSQL's max recursion depth (default: 100)
         depth = 50  # Safe margin below 100
 
         levels = [f"perm-{i}" for i in range(depth)]

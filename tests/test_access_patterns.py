@@ -1,16 +1,15 @@
 """
-Tests for incremental update functions in pg-authz.
+Tests for permission resolution patterns in pg-authz.
 
-These tests specifically target edge cases in the incremental update
-optimization that were identified during code review:
+These tests verify correct behavior for complex access patterns:
 
-1. Multi-level hierarchy in alternate path checks
-2. subject_relation filtering during incremental operations
+1. Multi-level hierarchy with alternate paths
+2. subject_relation filtering
 3. Cascade handling when users join/leave groups
 4. Multiple alternate paths to the same permission
 
-The incremental functions are an optimization that avoids full recompute
-when single tuples change. These tests ensure correctness is maintained.
+With lazy evaluation, permissions are computed at query time via recursive
+CTEs. These tests ensure the resolution logic handles edge cases correctly.
 """
 
 import pytest
@@ -18,14 +17,10 @@ import pytest
 
 class TestMultiLevelHierarchyAlternatePath:
     """
-    Bug #1 regression tests: Hierarchy check must walk full chain.
+    Hierarchy check must walk full permission chain.
 
-    When removing a user from a group, we check if they have an alternate
-    path to retain permissions. This check must handle multi-level hierarchies
-    like admin → write → read.
-
-    If user has 'admin' via another group, they should retain 'read' because
-    admin → write → read (two hops, not just one).
+    When a user loses one path to a permission, alternate paths through
+    multi-level hierarchies (admin -> write -> read) must still work.
     """
 
     def test_alternate_path_via_higher_permission_two_levels(self, authz):
@@ -171,11 +166,10 @@ class TestMultiLevelHierarchyAlternatePath:
 
 class TestSubjectRelationFiltering:
     """
-    Bug #2 regression tests: subject_relation must be respected.
+    subject_relation must be respected in permission grants.
 
     When a tuple specifies subject_relation (e.g., team#admin instead of
     team#member), only users with that specific relation should get access.
-    The incremental functions must filter appropriately.
     """
 
     def test_member_does_not_get_admin_only_permission(self, authz):
@@ -273,11 +267,10 @@ class TestSubjectRelationFiltering:
 
 class TestCascadeHandling:
     """
-    Bug #3 regression tests: Cascade to resources where group is subject.
+    Group membership changes cascade to all affected resources.
 
-    When a user joins a group, they need permissions on all resources
-    where that group has access. The incremental function must find
-    all such resources.
+    When a user joins or leaves a group, their effective permissions
+    on all resources where that group has access must update.
     """
 
     def test_joining_group_grants_access_to_all_group_resources(self, authz):
@@ -404,8 +397,8 @@ class TestMultipleAlternatePaths:
         assert authz.check("alice", "write", ("doc", "1"))
 
 
-class TestIncrementalDirectGrants:
-    """Tests for incremental handling of direct user grants."""
+class TestDirectGrants:
+    """Tests for direct user grants."""
 
     def test_direct_grant_with_hierarchy(self, authz):
         """Direct grant to user expands hierarchy correctly."""
@@ -438,8 +431,8 @@ class TestIncrementalDirectGrants:
         assert not authz.check("alice", "read", ("doc", "1"))
 
 
-class TestIncrementalGroupGrants:
-    """Tests for incremental handling of grants to groups."""
+class TestGroupGrants:
+    """Tests for grants to groups."""
 
     def test_grant_to_group_gives_all_members_access(self, authz):
         """Granting permission to group gives all members access."""

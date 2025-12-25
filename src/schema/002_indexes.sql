@@ -1,93 +1,31 @@
 -- =============================================================================
--- INDEXES - Optimized query access patterns
+-- INDEXES FOR PG-AUTHZ
 -- =============================================================================
---
--- DESIGN PRINCIPLES
--- -----------------
--- 1. Writes are expensive, reads are cheap (pre-computed permissions)
--- 2. Most queries hit the computed table, not tuples
--- 3. Recompute needs efficient group expansion
---
--- QUERY PATTERNS SUPPORTED
--- ------------------------
--- check():              computed unique constraint (namespace, resource_type, resource_id, permission, user_id)
--- list_resources():     computed_user_access_idx
--- list_users():         computed unique constraint
--- filter_authorized():  computed unique constraint
--- recompute (phase 2):  tuples_membership_expansion_idx
--- cascade detection:    tuples_subject_idx
--- cycle detection:      permission_hierarchy_cycle_idx
---
+-- Optimized for lazy evaluation with recursive CTEs.
 -- =============================================================================
+-- TUPLES INDEXES
+-- =============================================================================
+-- Primary lookup: find grants on a specific resource
+CREATE INDEX tuples_resource_grants_idx ON authz.tuples (namespace, resource_type, resource_id, relation);
 
--- Tuples: uniqueness constraint (enforced via index because COALESCE expression is needed)
--- This ensures no duplicate tuples exist, treating NULL and '' as equivalent for subject_relation
-CREATE UNIQUE INDEX tuples_unique_idx ON authz.tuples(
-    namespace,
-    resource_type,
-    resource_id,
-    relation,
-    subject_type,
-    subject_id,
-    COALESCE(subject_relation, '')
-);
+-- Find what groups/resources a subject belongs to (for recursive expansion)
+CREATE INDEX tuples_subject_memberships_idx ON authz.tuples (namespace, subject_type, subject_id, relation);
 
--- Tuples: lookup by resource
-CREATE INDEX tuples_resource_idx ON authz.tuples(
-    namespace,
-    resource_type,
-    resource_id
-);
+-- Note: tuples_unique_idx (defined in 001_tables.sql) covers queries needing
+-- (namespace, resource_type, resource_id, relation, subject_type, subject_id).
+-- A separate tuples_group_members_idx is not needed and was removed to avoid
+-- redundant storage and write overhead.
 
--- Tuples: lookup by subject (covering index for cascade queries)
--- INCLUDE clause enables index-only scans when looking up resources
--- where a given subject appears, avoiding heap fetches
-CREATE INDEX tuples_subject_idx ON authz.tuples(
-    namespace,
-    subject_type,
-    subject_id
-) INCLUDE (resource_type, resource_id);
-
--- Tuples: optimized for group membership expansion during recompute
--- Covers the join in recompute_resource Phase 2 where we look up all members
--- of a group (e.g., all users with 'member' relation on 'team:engineering')
-CREATE INDEX tuples_membership_expansion_idx ON authz.tuples(
-    namespace,
-    resource_type,
-    resource_id,
-    relation,
-    subject_type
-) INCLUDE (subject_id);
-
--- Computed: optimized for "what can user X access?" queries
--- Note: check() and list_users() use the UNIQUE constraint's index
--- (namespace, resource_type, resource_id, permission, user_id)
-CREATE INDEX computed_user_access_idx ON authz.computed(
-    namespace,
-    user_id,
-    resource_type,
-    permission,
-    resource_id
-);
-
--- Permission hierarchy: lookup during recompute
-CREATE INDEX permission_hierarchy_lookup_idx ON authz.permission_hierarchy(
-    namespace,
-    resource_type,
-    permission
-);
-
--- Permission hierarchy: lookup for cycle detection (follows 'implies' edges)
-CREATE INDEX permission_hierarchy_cycle_idx ON authz.permission_hierarchy(
-    namespace,
-    resource_type,
-    implies
-);
-
--- Tuples: expiration lookup for cleanup queries (partial index for efficiency)
+-- Expiration lookup for cleanup queries (partial index)
 CREATE INDEX tuples_expires_at_idx ON authz.tuples (namespace, expires_at)
-    WHERE expires_at IS NOT NULL;
+WHERE
+    expires_at IS NOT NULL;
 
--- Computed: expiration lookup for cleanup queries (partial index for efficiency)
-CREATE INDEX computed_expires_at_idx ON authz.computed (namespace, expires_at)
-    WHERE expires_at IS NOT NULL;
+-- =============================================================================
+-- PERMISSION HIERARCHY INDEXES
+-- =============================================================================
+-- Lookup: what does this permission imply?
+CREATE INDEX permission_hierarchy_lookup_idx ON authz.permission_hierarchy (namespace, resource_type, permission);
+
+-- Reverse lookup: what permissions imply this one?
+CREATE INDEX permission_hierarchy_reverse_idx ON authz.permission_hierarchy (namespace, resource_type, implies);

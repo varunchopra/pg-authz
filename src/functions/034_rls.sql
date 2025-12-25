@@ -5,7 +5,6 @@
 -- Functions for managing RLS tenant context.
 --
 -- =============================================================================
-
 -- =============================================================================
 -- SET TENANT CONTEXT
 -- =============================================================================
@@ -24,10 +23,13 @@
 -- =======
 --   SELECT authz.set_tenant('tenant-123');
 --   -- All subsequent queries now scoped to tenant-123
-
-CREATE OR REPLACE FUNCTION authz.set_tenant(p_tenant_id TEXT)
-RETURNS VOID AS $$
+CREATE OR REPLACE FUNCTION authz.set_tenant (p_tenant_id text)
+    RETURNS VOID
+    AS $$
 BEGIN
-    PERFORM set_config('authz.tenant_id', p_tenant_id, false);
+    PERFORM
+        set_config('authz.tenant_id', p_tenant_id, FALSE);
 END;
-$$ LANGUAGE plpgsql SET search_path = authz, pg_temp;
+$$
+LANGUAGE plpgsql
+SET search_path = authz, pg_temp;

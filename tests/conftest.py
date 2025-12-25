@@ -48,7 +48,6 @@ def _cleanup(cursor, namespace: str):
     """Clean up all data for a namespace."""
     cursor.execute("DELETE FROM authz.audit_events WHERE namespace = %s", (namespace,))
     cursor.execute("DELETE FROM authz.tuples WHERE namespace = %s", (namespace,))
-    cursor.execute("DELETE FROM authz.computed WHERE namespace = %s", (namespace,))
     cursor.execute(
         "DELETE FROM authz.permission_hierarchy WHERE namespace = %s", (namespace,)
     )
@@ -80,14 +79,12 @@ def authz(db_connection, request):
 @pytest.fixture
 def test_helpers(db_connection, request):
     """
-    Test helper utilities for corruption simulation and direct table access.
+    Test helper utilities for direct table access.
 
     Example:
-        def test_verify_detects_missing(authz, test_helpers):
+        def test_tuple_counts(authz, test_helpers):
             authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
-            test_helpers.delete_computed(("doc", "1"))
-            issues = authz.verify()
-            assert any(i["status"] == "missing" for i in issues)
+            assert test_helpers.count_tuples(resource=("doc", "1")) == 1
     """
     namespace = _make_namespace(request)
     cursor = db_connection.cursor()

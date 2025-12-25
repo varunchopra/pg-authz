@@ -1,11 +1,8 @@
 """
 Maintenance and operational tests for pg-authz.
 
-Tests for:
-- VACUUM behavior
-- pg_dump/pg_restore compatibility
-- verify/repair operations
-- Bulk operations
+With lazy evaluation, there is no computed table. These tests verify
+that the system works correctly under various operational conditions.
 """
 
 import os
@@ -22,7 +19,7 @@ class TestVacuumBehavior:
     """Test that VACUUM doesn't break authorization."""
 
     def test_vacuum_preserves_permissions(self, authz):
-        """VACUUM should not affect computed permissions."""
+        """VACUUM should not affect permissions."""
         # Setup permissions
         authz.set_hierarchy("doc", "admin", "write", "read")
         authz.grant("member", resource=("team", "eng"), subject=("user", "alice"))
@@ -35,7 +32,6 @@ class TestVacuumBehavior:
         conn = psycopg.connect(DATABASE_URL, autocommit=True)
         cursor = conn.cursor()
         cursor.execute("VACUUM authz.tuples")
-        cursor.execute("VACUUM authz.computed")
         cursor.execute("VACUUM authz.permission_hierarchy")
         conn.close()
 
@@ -43,7 +39,7 @@ class TestVacuumBehavior:
         assert authz.check("alice", "read", ("doc", "1"))
 
     def test_vacuum_full_preserves_permissions(self, authz):
-        """VACUUM FULL should not affect computed permissions."""
+        """VACUUM FULL should not affect permissions."""
         # Setup permissions
         authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
         authz.grant("write", resource=("doc", "2"), subject=("user", "bob"))
@@ -56,7 +52,6 @@ class TestVacuumBehavior:
         conn = psycopg.connect(DATABASE_URL, autocommit=True)
         cursor = conn.cursor()
         cursor.execute("VACUUM FULL authz.tuples")
-        cursor.execute("VACUUM FULL authz.computed")
         conn.close()
 
         # Permissions should still work
@@ -65,7 +60,7 @@ class TestVacuumBehavior:
 
 
 class TestVerifyRepair:
-    """Test verify and repair operations."""
+    """Test verify operations."""
 
     def test_verify_clean_state(self, authz):
         """verify() on clean state returns no issues."""
@@ -76,38 +71,9 @@ class TestVerifyRepair:
         issues = authz.verify()
         assert len(issues) == 0
 
-    def test_repair_fixes_inconsistencies(self, authz, db_connection):
-        """repair() fixes any inconsistencies in computed table."""
-        # Setup permissions normally
-        authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
-
-        # Manually corrupt the computed table (simulate a bug/crash)
-        cursor = db_connection.cursor()
-        cursor.execute(
-            "DELETE FROM authz.computed WHERE namespace = %s", (authz.namespace,)
-        )
-
-        # Verify detects the problem
-        issues = authz.verify()
-        assert len(issues) > 0, "Should detect missing computed entry"
-
-        # Repair fixes it
-        authz.repair()
-
-        # Verify clean now
-        issues = authz.verify()
-        assert len(issues) == 0
-
-        # Permission works again
-        assert authz.check("alice", "read", ("doc", "1"))
-
 
 class TestBackupRestore:
-    """Test pg_dump/pg_restore compatibility.
-
-    Runs pg_dump inside the Docker container to avoid version mismatch issues
-    between host pg_dump and server version.
-    """
+    """Test pg_dump/pg_restore compatibility."""
 
     PG_CONTAINER = os.environ.get("PG_CONTAINER", "pg-authz-test")
 
@@ -148,25 +114,10 @@ class TestBackupRestore:
 
         assert result.returncode == 0, f"pg_dump failed: {result.stderr}"
         assert "CREATE TABLE authz.tuples" in result.stdout
-        assert "CREATE TABLE authz.computed" in result.stdout
 
 
 class TestBulkOperations:
     """Bulk import functionality."""
-
-    def test_disable_enable_triggers(self, authz):
-        """Can disable and re-enable triggers for bulk imports."""
-        authz.disable_triggers()
-        authz.bulk_grant("read", resource=("doc", "bulk-1"), subject_ids=["alice"])
-
-        # Should NOT be in computed yet
-        assert not authz.check("alice", "read", ("doc", "bulk-1"))
-
-        authz.enable_triggers()
-        authz.recompute_all()
-
-        # NOW it should be there
-        assert authz.check("alice", "read", ("doc", "bulk-1"))
 
     def test_bulk_grant_many_users(self, authz):
         """bulk_grant handles many users efficiently."""
@@ -175,3 +126,41 @@ class TestBulkOperations:
 
         for user in users:
             assert authz.check(user, "read", ("doc", "1"))
+
+    def test_bulk_grant_resources(self, authz):
+        """bulk_grant_resources grants to subject on many resources."""
+        resource_ids = [f"doc-{i}" for i in range(50)]
+        count = authz.bulk_grant_resources(
+            "read",
+            resource_type="doc",
+            resource_ids=resource_ids,
+            subject=("team", "eng"),
+        )
+        assert count == 50
+
+        # Add a user to the team and verify access to all resources
+        authz.grant("member", resource=("team", "eng"), subject=("user", "alice"))
+        for rid in resource_ids:
+            assert authz.check("alice", "read", ("doc", rid))
+
+    def test_bulk_grant_resources_with_subject_relation(self, authz):
+        """bulk_grant_resources supports subject_relation parameter."""
+        resource_ids = ["secret-1", "secret-2", "secret-3"]
+        count = authz.bulk_grant_resources(
+            "admin",
+            resource_type="doc",
+            resource_ids=resource_ids,
+            subject=("team", "security"),
+            subject_relation="admin",
+        )
+        assert count == 3
+
+        # Member of team should NOT have access (grant is to team#admin)
+        authz.grant("member", resource=("team", "security"), subject=("user", "bob"))
+        for rid in resource_ids:
+            assert not authz.check("bob", "admin", ("doc", rid))
+
+        # Admin of team should have access
+        authz.grant("admin", resource=("team", "security"), subject=("user", "carol"))
+        for rid in resource_ids:
+            assert authz.check("carol", "admin", ("doc", rid))

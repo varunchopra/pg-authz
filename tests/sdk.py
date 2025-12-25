@@ -14,6 +14,15 @@ from datetime import datetime, timedelta
 import psycopg
 
 
+__all__ = [
+    "AuthzClient",
+    "AuthzError",
+    "AuthzValidationError",
+    "AuthzCycleError",
+    "Entity",
+]
+
+
 # Type alias for resource/subject tuples
 Entity = tuple[str, str]  # (type, id) e.g., ("repo", "payments-api")
 
@@ -88,11 +97,22 @@ class AuthzClient:
             raise
 
     def _write_scalar(self, sql: str, params: tuple):
-        """Execute a write operation with actor context if set.
+        """Execute a write operation with actor context for audit logging.
+
+        Actor context uses PostgreSQL's transaction-local settings (set_config with
+        is_local=true). This means the actor info only persists within a transaction.
 
         When actor context is set:
-        - If already in a transaction: sets actor, caller manages commit
-        - If autocommit mode: wraps in BEGIN/COMMIT so actor context persists to trigger
+        - In autocommit mode: Each statement is its own transaction, so we must:
+          1. Begin an explicit transaction
+          2. Set actor context
+          3. Execute the write (triggers capture actor from settings)
+          4. Commit
+        - In manual transaction mode: The caller controls the transaction, so we just
+          set the actor context and let them commit when ready.
+
+        Note: This method assumes single-threaded access to the cursor.
+        psycopg cursors are not thread-safe; do not share AuthzClient across threads.
         """
         if self._actor_id is None:
             return self._scalar(sql, params)
@@ -421,11 +441,11 @@ class AuthzClient:
         self, user_id: str, resource_type: str, permission: str, resource_ids: list[str]
     ) -> list[str]:
         """Filter resource IDs to only those the user can access."""
-        rows = self._fetchall(
-            "SELECT unnest(authz.filter_authorized(%s, %s, %s, %s, %s))",
+        result = self._scalar(
+            "SELECT authz.filter_authorized(%s, %s, %s, %s, %s)",
             (user_id, resource_type, permission, resource_ids, self.namespace),
         )
-        return [row[0] for row in rows]
+        return result if result else []
 
     # =========================================================================
     # Setup helpers
@@ -532,6 +552,11 @@ class AuthzClient:
         """
         Query audit events with optional filters.
 
+        Note: Unlike other SDK methods, this uses direct SQL rather than a stored
+        function. The dynamic filter combinations would require a complex function
+        signature with many optional parameters. Building the query client-side is
+        clearer and the parameterized queries prevent SQL injection.
+
         Args:
             limit: Maximum number of events to return (default 100)
             event_type: Filter by event type (e.g., 'tuple_created')
@@ -618,17 +643,17 @@ class AuthzClient:
 
     def verify(self) -> list[dict]:
         """
-        Check computed table consistency.
+        Check for data integrity issues (e.g., group membership cycles).
 
-        Returns list of discrepancies (empty if healthy).
+        Returns list of issues (empty if healthy).
 
         Example:
             issues = authz.verify()
-            if issues:
-                authz.repair()
+            for issue in issues:
+                print(f"{issue['status']}: {issue['details']}")
         """
         rows = self._fetchall(
-            "SELECT resource_type, resource_id, status, details FROM authz.verify_computed(%s)",
+            "SELECT resource_type, resource_id, status, details FROM authz.verify_integrity(%s)",
             (self.namespace,),
         )
         return [
@@ -641,18 +666,6 @@ class AuthzClient:
             for r in rows
         ]
 
-    def repair(self) -> int:
-        """
-        Rebuild computed permissions from tuples.
-
-        Returns count of permissions recomputed.
-
-        Example:
-            count = authz.repair()
-            print(f"Rebuilt {count} permissions")
-        """
-        return self._scalar("SELECT authz.repair_computed(%s)", (self.namespace,))
-
     def stats(self) -> dict:
         """
         Get namespace statistics for monitoring.
@@ -660,41 +673,24 @@ class AuthzClient:
         Returns:
             Dictionary with:
             - tuple_count: Number of relationship tuples
-            - computed_count: Number of pre-computed permissions
             - hierarchy_rule_count: Number of hierarchy rules
-            - amplification_factor: computed_count / tuple_count
             - unique_users: Distinct users with permissions
             - unique_resources: Distinct resources with permissions
 
         Example:
             stats = authz.stats()
-            if stats['amplification_factor'] > 100:
-                print("Warning: High write amplification")
+            print(f"Tuples: {stats['tuple_count']}, Users: {stats['unique_users']}")
         """
         self.cursor.execute("SELECT * FROM authz.get_stats(%s)", (self.namespace,))
         row = self.cursor.fetchone()
         if row:
             return {
                 "tuple_count": row[0],
-                "computed_count": row[1],
-                "hierarchy_rule_count": row[2],
-                "amplification_factor": float(row[3]) if row[3] else None,
-                "unique_users": row[4],
-                "unique_resources": row[5],
+                "hierarchy_rule_count": row[1],
+                "unique_users": row[2],
+                "unique_resources": row[3],
             }
         return {}
-
-    def disable_triggers(self):
-        """Disable recompute triggers for bulk operations."""
-        self.cursor.execute("SELECT authz.disable_recompute_triggers()")
-
-    def enable_triggers(self):
-        """Re-enable recompute triggers after bulk operations."""
-        self.cursor.execute("SELECT authz.enable_recompute_triggers()")
-
-    def recompute_all(self) -> int:
-        """Manually trigger full recompute. Use after bulk imports."""
-        return self._scalar("SELECT authz.recompute_all(%s)", (self.namespace,))
 
     def bulk_grant(
         self, permission: str, *, resource: Entity, subject_ids: list[str]
@@ -761,7 +757,8 @@ class AuthzClient:
         List grants expiring within the given timeframe.
 
         Args:
-            within: Time window to check (default 7 days)
+            within: Time window to check (default 7 days).
+                    psycopg automatically converts timedelta to PostgreSQL interval.
 
         Returns:
             List of grants with their expiration times
@@ -788,13 +785,13 @@ class AuthzClient:
 
     def cleanup_expired(self) -> dict:
         """
-        Remove expired grants and computed entries.
+        Remove expired grants.
 
         This is optional for storage management - expired entries are
         automatically filtered at query time.
 
         Returns:
-            Dictionary with counts of deleted tuples and computed entries
+            Dictionary with count of deleted tuples
 
         Example:
             result = authz.cleanup_expired()
@@ -805,7 +802,7 @@ class AuthzClient:
             (self.namespace,),
         )
         row = self.cursor.fetchone()
-        return {"tuples_deleted": row[0], "computed_deleted": row[1]}
+        return {"tuples_deleted": row[0]}
 
     def set_expiration(
         self,
@@ -929,76 +926,63 @@ class AuthzClient:
 
 class AuthzTestHelpers:
     """
-    Test helper methods for simulating corruption and direct table access.
+    Direct table access for test setup/teardown that bypasses the SDK.
 
-    These methods bypass the normal API to simulate edge cases.
-    Not part of the public API.
+    Use cases:
+    - Inserting invalid/expired data that SDK would reject
+    - Counting tuples for verification
+    - Cleaning up specific resources
+    - Testing edge cases that require direct table manipulation
+
+    For normal test operations, prefer AuthzClient (the `authz` fixture).
     """
 
     def __init__(self, cursor, namespace: str):
         self.cursor = cursor
         self.namespace = namespace
+        # Set tenant context for RLS (consistent with AuthzClient)
+        self.cursor.execute("SELECT authz.set_tenant(%s)", (namespace,))
 
-    def delete_computed(self, resource: Entity):
-        """Delete all computed entries for a resource (simulates corruption)."""
+    def delete_tuples(self, resource: Entity):
+        """Delete tuples directly."""
         resource_type, resource_id = resource
         self.cursor.execute(
             """
-            DELETE FROM authz.computed
+            DELETE FROM authz.tuples
             WHERE namespace = %s AND resource_type = %s AND resource_id = %s
         """,
             (self.namespace, resource_type, resource_id),
         )
 
-    def insert_computed(self, permission: str, resource: Entity, user_id: str):
-        """Insert a spurious computed entry (simulates corruption)."""
-        resource_type, resource_id = resource
-        self.cursor.execute(
-            """
-            INSERT INTO authz.computed
-            (namespace, resource_type, resource_id, permission, user_id)
-            VALUES (%s, %s, %s, %s, %s)
-        """,
-            (self.namespace, resource_type, resource_id, permission, user_id),
-        )
-
-    def delete_tuples(self, resource: Entity):
-        """Delete tuples without triggering recompute (simulates orphaned computed)."""
-        resource_type, resource_id = resource
-        self.cursor.execute("SELECT authz.disable_recompute_triggers()")
-        try:
-            self.cursor.execute(
-                """
-                DELETE FROM authz.tuples
-                WHERE namespace = %s AND resource_type = %s AND resource_id = %s
-            """,
-                (self.namespace, resource_type, resource_id),
-            )
-        finally:
-            self.cursor.execute("SELECT authz.enable_recompute_triggers()")
-
-    def count_computed(
+    def count_tuples(
         self,
         resource: Entity | None = None,
-        permission: str | None = None,
-        user_id: str | None = None,
+        relation: str | None = None,
     ) -> int:
-        """Count computed entries (for testing deduplication)."""
-        conditions = ["namespace = %s"]
-        params: list = [self.namespace]
-
-        if resource:
-            conditions.append("resource_type = %s")
-            conditions.append("resource_id = %s")
-            params.extend(resource)
-        if permission:
-            conditions.append("permission = %s")
-            params.append(permission)
-        if user_id:
-            conditions.append("user_id = %s")
-            params.append(user_id)
-
-        sql = f"SELECT COUNT(*) FROM authz.computed WHERE {' AND '.join(conditions)}"
-        self.cursor.execute(sql, tuple(params))
+        """Count tuples matching the given filters."""
+        if resource and relation:
+            self.cursor.execute(
+                """SELECT COUNT(*) FROM authz.tuples
+                   WHERE namespace = %s AND resource_type = %s
+                   AND resource_id = %s AND relation = %s""",
+                (self.namespace, resource[0], resource[1], relation),
+            )
+        elif resource:
+            self.cursor.execute(
+                """SELECT COUNT(*) FROM authz.tuples
+                   WHERE namespace = %s AND resource_type = %s AND resource_id = %s""",
+                (self.namespace, resource[0], resource[1]),
+            )
+        elif relation:
+            self.cursor.execute(
+                """SELECT COUNT(*) FROM authz.tuples
+                   WHERE namespace = %s AND relation = %s""",
+                (self.namespace, relation),
+            )
+        else:
+            self.cursor.execute(
+                "SELECT COUNT(*) FROM authz.tuples WHERE namespace = %s",
+                (self.namespace,),
+            )
         result = self.cursor.fetchone()
         return result[0] if result else 0

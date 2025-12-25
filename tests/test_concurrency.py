@@ -1,8 +1,9 @@
 """
 Concurrency tests for pg-authz.
 
-pg-authz serializes writes within each namespace to guarantee the computed
-table is always correct. Different namespaces can write in parallel.
+With lazy evaluation, writes don't require serialization for correctness
+since there's no precomputed table to maintain. These tests verify that
+concurrent operations work correctly.
 """
 
 import os
@@ -20,24 +21,22 @@ DATABASE_URL = os.environ.get(
 
 
 class TestWriteSerialization:
-    """Verify writes are serialized within namespace for correctness."""
+    """Verify concurrent writes work correctly with lazy evaluation."""
 
     def test_concurrent_writes_always_correct(self, db_connection):
         """
-        Concurrent writes to the same namespace are serialized.
-        This guarantees the computed table is always correct.
+        Concurrent writes produce correct results with lazy evaluation.
 
         Scenario:
         T1: Add Alice to team:eng
         T2: Add team:eng as admin on repo:api
 
-        Result: Alice MUST have admin on repo:api (no race condition possible)
+        Result: Alice MUST have admin on repo:api
         """
         namespace = "test_serialized_writes"
 
         cursor = db_connection.cursor()
         cursor.execute("DELETE FROM authz.tuples WHERE namespace = %s", (namespace,))
-        cursor.execute("DELETE FROM authz.computed WHERE namespace = %s", (namespace,))
 
         results = {"t1_done": False, "t2_done": False, "errors": []}
         barrier = threading.Barrier(2)
@@ -83,21 +82,15 @@ class TestWriteSerialization:
         assert results["t1_done"] and results["t2_done"]
 
         # The critical assertion: Alice MUST have access
-        # With serialization, this is guaranteed regardless of timing
+        # With lazy evaluation, this is computed at query time
         cursor.execute(
             "SELECT authz.check('alice', 'admin', 'repo', 'api', %s)", (namespace,)
         )
         has_permission = cursor.fetchone()[0]
         assert has_permission, "Alice MUST have admin on repo:api via team:eng"
 
-        # verify() should show no issues
-        cursor.execute("SELECT COUNT(*) FROM authz.verify_computed(%s)", (namespace,))
-        issues = cursor.fetchone()[0]
-        assert issues == 0, "Computed table should be consistent"
-
         # Cleanup
         cursor.execute("DELETE FROM authz.tuples WHERE namespace = %s", (namespace,))
-        cursor.execute("DELETE FROM authz.computed WHERE namespace = %s", (namespace,))
 
     def test_concurrent_same_resource_all_succeed(self, db_connection):
         """Multiple concurrent grants to the same resource should all succeed."""
@@ -105,7 +98,6 @@ class TestWriteSerialization:
 
         cursor = db_connection.cursor()
         cursor.execute("DELETE FROM authz.tuples WHERE namespace = %s", (namespace,))
-        cursor.execute("DELETE FROM authz.computed WHERE namespace = %s", (namespace,))
 
         num_users = 10
         results = {"completed": 0, "errors": []}
@@ -151,7 +143,6 @@ class TestWriteSerialization:
 
         # Cleanup
         cursor.execute("DELETE FROM authz.tuples WHERE namespace = %s", (namespace,))
-        cursor.execute("DELETE FROM authz.computed WHERE namespace = %s", (namespace,))
 
 
 class TestNamespaceIsolation:
@@ -165,7 +156,6 @@ class TestNamespaceIsolation:
         cursor = db_connection.cursor()
         for ns in [ns1, ns2]:
             cursor.execute("DELETE FROM authz.tuples WHERE namespace = %s", (ns,))
-            cursor.execute("DELETE FROM authz.computed WHERE namespace = %s", (ns,))
 
         results = {"start_times": {}, "end_times": {}, "errors": []}
         barrier = threading.Barrier(2)
@@ -197,7 +187,7 @@ class TestNamespaceIsolation:
 
         assert not results["errors"], f"Errors: {results['errors']}"
 
-        # Both should have overlapping execution (parallel, not serialized)
+        # Both should have overlapping execution (parallel)
         t1_start = results["start_times"]["T1"]
         t1_end = results["end_times"]["T1"]
         t2_start = results["start_times"]["T2"]
@@ -210,66 +200,6 @@ class TestNamespaceIsolation:
         # Cleanup
         for ns in [ns1, ns2]:
             cursor.execute("DELETE FROM authz.tuples WHERE namespace = %s", (ns,))
-            cursor.execute("DELETE FROM authz.computed WHERE namespace = %s", (ns,))
-
-
-class TestAdvisoryLockBehavior:
-    """Verify advisory lock serialization behavior."""
-
-    def test_advisory_lock_serializes_same_resource(self, db_connection):
-        """Concurrent recomputes of the same resource are serialized."""
-        namespace = "test_advisory_lock"
-
-        cursor = db_connection.cursor()
-        cursor.execute("DELETE FROM authz.tuples WHERE namespace = %s", (namespace,))
-        cursor.execute("DELETE FROM authz.computed WHERE namespace = %s", (namespace,))
-
-        # Setup: create a resource with some permissions
-        cursor.execute(
-            "SELECT authz.write('doc', '1', 'read', 'user', 'alice', %s)",
-            (namespace,),
-        )
-
-        results = {"completed": 0, "errors": []}
-        results_lock = threading.Lock()
-        barrier = threading.Barrier(3)
-
-        def force_recompute(thread_id):
-            try:
-                conn = psycopg.connect(DATABASE_URL)
-                cur = conn.cursor()
-                barrier.wait()
-                cur.execute(
-                    "SELECT authz.recompute_resource('doc', '1', %s)", (namespace,)
-                )
-                conn.commit()
-                with results_lock:
-                    results["completed"] += 1
-                conn.close()
-            except Exception as e:
-                with results_lock:
-                    results["errors"].append(f"Thread {thread_id}: {e}")
-
-        threads = [
-            threading.Thread(target=force_recompute, args=(i,)) for i in range(3)
-        ]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-
-        assert not results["errors"], f"Errors: {results['errors']}"
-        assert results["completed"] == 3
-
-        # Permission should still be correct
-        cursor.execute(
-            "SELECT authz.check('alice', 'read', 'doc', '1', %s)", (namespace,)
-        )
-        assert cursor.fetchone()[0]
-
-        # Cleanup
-        cursor.execute("DELETE FROM authz.tuples WHERE namespace = %s", (namespace,))
-        cursor.execute("DELETE FROM authz.computed WHERE namespace = %s", (namespace,))
 
 
 class TestConcurrentHierarchyChanges:
@@ -335,10 +265,6 @@ class TestConcurrentHierarchyChanges:
 
         assert not results["errors"], f"Errors: {results['errors']}"
 
-        # Verify consistency
-        issues = checker.verify()
-        assert len(issues) == 0, "Computed table must be consistent"
-
 
 class TestConcurrentIdempotency:
     """Test idempotency under concurrent access."""
@@ -347,7 +273,6 @@ class TestConcurrentIdempotency:
         """Multiple concurrent identical grants don't create duplicates."""
         namespace = "test_idempotent"
         checker = make_authz(namespace)
-        helpers = AuthzTestHelpers(db_connection.cursor(), namespace)
 
         results = {"ids": [], "errors": []}
         barrier = threading.Barrier(5)
@@ -383,10 +308,5 @@ class TestConcurrentIdempotency:
         # All threads should get the same tuple ID (idempotent)
         assert len(set(results["ids"])) == 1, "All grants should return same ID"
 
-        # Only one computed entry should exist
-        assert (
-            helpers.count_computed(
-                resource=("doc", "1"), permission="read", user_id="alice"
-            )
-            == 1
-        )
+        # With lazy evaluation, we just verify the permission works
+        assert checker.check("alice", "read", ("doc", "1"))

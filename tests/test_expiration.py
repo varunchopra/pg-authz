@@ -30,12 +30,11 @@ class TestExpiringPermissions:
         """,
             (authz.namespace,),
         )
-        cursor.execute("SELECT authz.recompute_all(%s)", (authz.namespace,))
 
         assert authz.check("alice", "read", ("doc", "1")) is False
 
     def test_expiration_propagates_through_groups(self, authz):
-        """Group membership expiration propagates to computed permissions."""
+        """Group membership expiration propagates to permissions."""
         expires = datetime.now(timezone.utc) + timedelta(hours=1)
 
         # Alice is member of team (expires in 1 hour)
@@ -52,38 +51,25 @@ class TestExpiringPermissions:
         # Alice has access (via team)
         assert authz.check("alice", "admin", ("repo", "api")) is True
 
-    def test_expiration_minimum_of_chain(self, authz, db_connection):
-        """Computed expiration is minimum of all expirations in chain."""
+    def test_expired_membership_blocks_access(self, authz, db_connection):
+        """Expired membership blocks access even if grant is valid."""
         cursor = db_connection.cursor()
 
-        membership_expires = datetime.now(timezone.utc) + timedelta(days=7)
-        grant_expires = datetime.now(timezone.utc) + timedelta(days=30)
-
-        authz.grant(
-            "member",
-            resource=("team", "eng"),
-            subject=("user", "alice"),
-            expires_at=membership_expires,
-        )
-        authz.grant(
-            "admin",
-            resource=("repo", "api"),
-            subject=("team", "eng"),
-            expires_at=grant_expires,
-        )
-
-        # Check computed expiration is the earlier one (membership)
+        # Insert expired membership
         cursor.execute(
             """
-            SELECT expires_at FROM authz.computed
-            WHERE namespace = %s AND user_id = 'alice' AND resource_id = 'api'
-            LIMIT 1
+            INSERT INTO authz.tuples
+                (namespace, resource_type, resource_id, relation, subject_type, subject_id, expires_at)
+            VALUES (%s, 'team', 'eng', 'member', 'user', 'alice', now() - interval '1 hour')
         """,
             (authz.namespace,),
         )
 
-        computed_expires = cursor.fetchone()[0]
-        assert abs((computed_expires - membership_expires).total_seconds()) < 1
+        # Team has admin on repo (no expiration)
+        authz.grant("admin", resource=("repo", "api"), subject=("team", "eng"))
+
+        # Alice does NOT have access because membership is expired
+        assert authz.check("alice", "admin", ("repo", "api")) is False
 
     def test_list_users_excludes_expired(self, authz, db_connection):
         """list_users does not return users with expired permissions."""
@@ -101,7 +87,6 @@ class TestExpiringPermissions:
         """,
             (authz.namespace,),
         )
-        cursor.execute("SELECT authz.recompute_all(%s)", (authz.namespace,))
 
         users = authz.list_users("read", ("doc", "1"))
         assert "alice" in users
@@ -123,7 +108,6 @@ class TestExpiringPermissions:
         """,
             (authz.namespace,),
         )
-        cursor.execute("SELECT authz.recompute_all(%s)", (authz.namespace,))
 
         resources = authz.list_resources("alice", "doc", "read")
         assert "1" in resources
@@ -167,9 +151,8 @@ class TestExpiringPermissions:
         assert len(expiring) == 1
         assert abs((expiring[0]["expires_at"] - extended).total_seconds()) < 1
 
-    def test_hierarchy_inherits_expiration(self, authz, db_connection):
-        """Implied permissions inherit expiration from source."""
-        cursor = db_connection.cursor()
+    def test_hierarchy_with_expiration(self, authz):
+        """Implied permissions work correctly with expiration."""
         expires = datetime.now(timezone.utc) + timedelta(days=7)
 
         # admin implies write implies read
@@ -183,17 +166,10 @@ class TestExpiringPermissions:
             expires_at=expires,
         )
 
-        # All permissions (admin, write, read) should have the same expiration
-        cursor.execute(
-            """
-            SELECT DISTINCT expires_at FROM authz.computed
-            WHERE namespace = %s AND user_id = 'alice' AND resource_id = 'api'
-        """,
-            (authz.namespace,),
-        )
-        expirations = [row[0] for row in cursor.fetchall()]
-        assert len(expirations) == 1  # All same
-        assert abs((expirations[0] - expires).total_seconds()) < 1
+        # All permissions should work
+        assert authz.check("alice", "admin", ("repo", "api"))
+        assert authz.check("alice", "write", ("repo", "api"))
+        assert authz.check("alice", "read", ("repo", "api"))
 
 
 class TestListExpiring:
@@ -260,7 +236,7 @@ class TestCleanupExpired:
     """Test cleanup_expired function."""
 
     def test_cleanup_removes_expired(self, authz, db_connection):
-        """Cleanup removes expired tuples and computed entries."""
+        """Cleanup removes expired tuples."""
         cursor = db_connection.cursor()
 
         # Insert expired tuple directly
@@ -272,7 +248,6 @@ class TestCleanupExpired:
         """,
             (authz.namespace,),
         )
-        cursor.execute("SELECT authz.recompute_all(%s)", (authz.namespace,))
 
         result = authz.cleanup_expired()
 
@@ -406,7 +381,6 @@ class TestExpirationWithBatchOperations:
         """,
             (authz.namespace,),
         )
-        cursor.execute("SELECT authz.recompute_all(%s)", (authz.namespace,))
 
         # Should find read but not write
         assert authz.check_any("alice", ["read", "write"], ("doc", "1")) is True
@@ -428,7 +402,6 @@ class TestExpirationWithBatchOperations:
         """,
             (authz.namespace,),
         )
-        cursor.execute("SELECT authz.recompute_all(%s)", (authz.namespace,))
 
         # Should fail because write is expired
         assert authz.check_all("alice", ["read", "write"], ("doc", "1")) is False
@@ -450,7 +423,6 @@ class TestExpirationWithBatchOperations:
         """,
             (authz.namespace,),
         )
-        cursor.execute("SELECT authz.recompute_all(%s)", (authz.namespace,))
 
         authorized = authz.filter_authorized("alice", "doc", "read", ["1", "2", "3"])
         assert "1" in authorized

@@ -62,7 +62,6 @@ class TestRowLevelSecurity:
             "DELETE FROM authz.audit_events WHERE namespace = 'tenant-a'"
         )
         db_connection.execute("DELETE FROM authz.tuples WHERE namespace = 'tenant-a'")
-        db_connection.execute("DELETE FROM authz.computed WHERE namespace = 'tenant-a'")
 
     def test_no_tenant_returns_empty(self, rls_connection):
         """Without tenant context, queries return nothing."""
@@ -200,4 +199,3 @@ class TestRowLevelSecurity:
             "DELETE FROM authz.audit_events WHERE namespace = 'tenant-a'"
         )
         db_connection.execute("DELETE FROM authz.tuples WHERE namespace = 'tenant-a'")
-        db_connection.execute("DELETE FROM authz.computed WHERE namespace = 'tenant-a'")

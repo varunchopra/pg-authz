@@ -112,6 +112,10 @@ class TestBatchChecks:
         # Vacuous truth: user has all zero required permissions
         assert authz.check_all("alice", [], ("doc", "1"))
 
+    def test_check_any_empty_list_returns_false(self, authz):
+        # No permissions to check means none match
+        assert not authz.check_any("alice", [], ("doc", "1"))
+
 
 class TestAudit:
     """Audit and listing operations."""

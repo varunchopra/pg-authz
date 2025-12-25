@@ -39,7 +39,7 @@ class TestGroupDeletion:
 
         assert not authz.check("alice", "read", ("doc", "1"))
 
-    def test_deleting_all_team_members_clears_access(self, authz, test_helpers):
+    def test_deleting_all_team_members_clears_access(self, authz):
         """Removing all members from team removes their access."""
         authz.grant("read", resource=("doc", "1"), subject=("team", "eng"))
         authz.grant("member", resource=("team", "eng"), subject=("user", "alice"))
@@ -52,9 +52,6 @@ class TestGroupDeletion:
         # No one can access via team anymore
         assert not authz.check("alice", "read", ("doc", "1"))
         assert not authz.check("bob", "read", ("doc", "1"))
-
-        # Team permission still exists, just no members
-        assert test_helpers.count_computed(resource=("doc", "1")) == 0
 
 
 class TestGroupMembership:
@@ -192,8 +189,9 @@ class TestGroupEdgeCases:
         for i in range(100):
             assert authz.check(f"user-{i}", "read", ("doc", "1"))
 
-    def test_empty_group(self, authz, test_helpers):
+    def test_empty_group(self, authz):
         """Group with no members grants no access."""
         authz.grant("read", resource=("doc", "1"), subject=("team", "empty-team"))
 
-        assert test_helpers.count_computed(resource=("doc", "1")) == 0
+        # No one has access since the team has no members
+        assert not authz.check("anyone", "read", ("doc", "1"))
