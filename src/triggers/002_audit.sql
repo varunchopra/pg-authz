@@ -9,7 +9,7 @@
 --
 -- TRIGGER TIMING
 -- ==============
--- AFTER INSERT OR DELETE - we log after the change succeeds.
+-- AFTER INSERT OR UPDATE OR DELETE - we log after the change succeeds.
 -- FOR EACH ROW - we need individual row data for the audit log.
 --
 -- SECURITY
@@ -35,6 +35,9 @@ BEGIN
     -- Determine event type and get the tuple record
     IF TG_OP = 'INSERT' THEN
         v_event_type := 'tuple_created';
+        v_tuple := NEW;
+    ELSIF TG_OP = 'UPDATE' THEN
+        v_event_type := 'tuple_updated';
         v_tuple := NEW;
     ELSIF TG_OP = 'DELETE' THEN
         v_event_type := 'tuple_deleted';
@@ -63,7 +66,8 @@ BEGIN
         subject_type,
         subject_id,
         subject_relation,
-        tuple_id
+        tuple_id,
+        expires_at
     ) VALUES (
         v_event_type,
         v_actor_id,
@@ -76,14 +80,15 @@ BEGIN
         v_tuple.subject_type,
         v_tuple.subject_id,
         v_tuple.subject_relation,
-        v_tuple.id
+        v_tuple.id,
+        v_tuple.expires_at
     );
 
     -- Return the tuple
-    IF TG_OP = 'INSERT' THEN
-        RETURN NEW;
-    ELSE
+    IF TG_OP = 'DELETE' THEN
         RETURN OLD;
+    ELSE
+        RETURN NEW;
     END IF;
 END;
 $$ LANGUAGE plpgsql
@@ -176,7 +181,7 @@ $$ LANGUAGE plpgsql
 
 -- Tuple audit trigger
 CREATE TRIGGER audit_tuples
-    AFTER INSERT OR DELETE ON authz.tuples
+    AFTER INSERT OR UPDATE OR DELETE ON authz.tuples
     FOR EACH ROW
     EXECUTE FUNCTION authz.audit_tuple_trigger();
 

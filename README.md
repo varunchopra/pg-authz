@@ -127,6 +127,12 @@ SELECT authz.set_actor('admin@acme.com', 'req-123', 'Quarterly review');
 SELECT * FROM authz.audit_events ORDER BY event_time DESC LIMIT 100;
 ```
 
+Event types:
+- `tuple_created` / `tuple_updated` / `tuple_deleted` — permission changes
+- `hierarchy_created` / `hierarchy_deleted` — hierarchy rule changes
+
+Expiration timestamps are captured in `expires_at`, enabling historical analysis of time-bound permissions.
+
 ## How It Works
 
 Permissions are evaluated at query time using recursive CTEs. When you call `authz.check()`:

@@ -4,6 +4,8 @@ Audit logging tests for pg-authz.
 Tests audit event capture, actor context, filtering, and partition management.
 """
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 
@@ -324,3 +326,126 @@ class TestSubjectRelation:
         events = authz.get_audit_events()
 
         assert events[0]["subject_relation"] is None
+
+
+class TestExpirationAudit:
+    """Tests for expiration tracking in audit events."""
+
+    def test_expiration_captured_on_create(self, authz):
+        """Grant with expiration logs expires_at in audit event."""
+        expires = datetime.now(timezone.utc) + timedelta(days=7)
+        authz.grant(
+            "read",
+            resource=("doc", "1"),
+            subject=("user", "alice"),
+            expires_at=expires,
+        )
+
+        events = authz.get_audit_events()
+
+        assert len(events) == 1
+        assert events[0]["event_type"] == "tuple_created"
+        assert events[0]["expires_at"] is not None
+        # Compare timestamps (allowing for small differences)
+        assert abs((events[0]["expires_at"] - expires).total_seconds()) < 1
+
+    def test_update_expiration_creates_audit(self, authz):
+        """set_expiration creates tuple_updated event with new expires_at."""
+        authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
+        new_expiration = datetime.now(timezone.utc) + timedelta(days=30)
+        authz.set_expiration(
+            "read",
+            resource=("doc", "1"),
+            subject=("user", "alice"),
+            expires_at=new_expiration,
+        )
+
+        events = authz.get_audit_events()
+
+        assert len(events) == 2
+        # Most recent first
+        assert events[0]["event_type"] == "tuple_updated"
+        assert events[0]["expires_at"] is not None
+        assert abs((events[0]["expires_at"] - new_expiration).total_seconds()) < 1
+        # Original create had no expiration
+        assert events[1]["event_type"] == "tuple_created"
+        assert events[1]["expires_at"] is None
+
+    def test_extend_expiration_creates_audit(self, authz):
+        """extend_expiration creates tuple_updated event."""
+        initial_expires = datetime.now(timezone.utc) + timedelta(days=7)
+        authz.grant(
+            "read",
+            resource=("doc", "1"),
+            subject=("user", "alice"),
+            expires_at=initial_expires,
+        )
+        authz.extend_expiration(
+            "read",
+            resource=("doc", "1"),
+            subject=("user", "alice"),
+            extension=timedelta(days=14),
+        )
+
+        events = authz.get_audit_events()
+
+        assert len(events) == 2
+        assert events[0]["event_type"] == "tuple_updated"
+        # Extended by 14 days from initial 7-day expiration
+        expected_expires = initial_expires + timedelta(days=14)
+        assert abs((events[0]["expires_at"] - expected_expires).total_seconds()) < 1
+
+    def test_clear_expiration_creates_audit(self, authz):
+        """clear_expiration creates tuple_updated event with NULL expires_at."""
+        expires = datetime.now(timezone.utc) + timedelta(days=7)
+        authz.grant(
+            "read",
+            resource=("doc", "1"),
+            subject=("user", "alice"),
+            expires_at=expires,
+        )
+        authz.clear_expiration(
+            "read",
+            resource=("doc", "1"),
+            subject=("user", "alice"),
+        )
+
+        events = authz.get_audit_events()
+
+        assert len(events) == 2
+        assert events[0]["event_type"] == "tuple_updated"
+        assert events[0]["expires_at"] is None
+        # Original had expiration
+        assert events[1]["event_type"] == "tuple_created"
+        assert events[1]["expires_at"] is not None
+
+    def test_expiration_in_filter_results(self, authz):
+        """expires_at is included in get_audit_events() results."""
+        expires1 = datetime.now(timezone.utc) + timedelta(days=7)
+        expires2 = datetime.now(timezone.utc) + timedelta(days=30)
+
+        authz.grant(
+            "read",
+            resource=("doc", "1"),
+            subject=("user", "alice"),
+            expires_at=expires1,
+        )
+        authz.grant(
+            "write",
+            resource=("doc", "1"),
+            subject=("user", "bob"),
+            expires_at=expires2,
+        )
+        authz.grant("admin", resource=("doc", "1"), subject=("user", "charlie"))
+
+        events = authz.get_audit_events()
+
+        assert len(events) == 3
+        # Find each event
+        alice_event = next(e for e in events if e["subject"][1] == "alice")
+        bob_event = next(e for e in events if e["subject"][1] == "bob")
+        charlie_event = next(e for e in events if e["subject"][1] == "charlie")
+
+        assert alice_event["expires_at"] is not None
+        assert bob_event["expires_at"] is not None
+        assert charlie_event["expires_at"] is None

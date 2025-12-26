@@ -570,6 +570,7 @@ class AuthzClient:
             - actor_id, request_id, reason
             - session_user, current_user, client_addr, application_name
             - resource (tuple), relation, subject (tuple), subject_relation
+            - tuple_id, expires_at
 
         Example:
             events = authz.get_audit_events(actor_id="admin@acme.com", limit=50)
@@ -606,7 +607,7 @@ class AuthzClient:
                 session_user_name, current_user_name, client_addr, application_name,
                 resource_type, resource_id, relation,
                 subject_type, subject_id, subject_relation,
-                tuple_id
+                tuple_id, expires_at
             FROM authz.audit_events
             WHERE {' AND '.join(conditions)}
             ORDER BY event_time DESC, id DESC
@@ -633,6 +634,7 @@ class AuthzClient:
                 "subject": (row[13], row[14]),
                 "subject_relation": row[15],
                 "tuple_id": row[16],
+                "expires_at": row[17],
             }
             for row in rows
         ]

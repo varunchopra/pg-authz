@@ -9,10 +9,11 @@
 --
 -- WHAT'S LOGGED
 -- =============
--- - Tuple changes: INSERT/DELETE on authz.tuples
+-- - Tuple changes: INSERT/UPDATE/DELETE on authz.tuples
 -- - Hierarchy changes: INSERT/DELETE on authz.permission_hierarchy
 -- - Actor context: Who made the change (set via set_actor())
 -- - Connection context: session_user, client_addr, etc.
+-- - Expiration: expires_at captured for time-bound permissions
 --
 -- PARTITIONING
 -- ============
@@ -56,10 +57,14 @@ CREATE TABLE authz.audit_events (
     subject_id text NOT NULL,
     subject_relation text,
     tuple_id bigint,
+    expires_at timestamptz,  -- The tuple's expiration at time of event
     -- Partition key must be in primary key for partitioned tables
     PRIMARY KEY (id, event_time),
     -- Validate event types
-    CONSTRAINT valid_event_type CHECK (event_type IN ('tuple_created', 'tuple_deleted', 'hierarchy_created', 'hierarchy_deleted'))
+    CONSTRAINT valid_event_type CHECK (event_type IN (
+        'tuple_created', 'tuple_updated', 'tuple_deleted',
+        'hierarchy_created', 'hierarchy_deleted'
+    ))
 )
 PARTITION BY RANGE (event_time);
 
