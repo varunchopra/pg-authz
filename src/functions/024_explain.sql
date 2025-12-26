@@ -17,32 +17,9 @@
 --      If so, recursively explain how they got the higher permission.
 --   4. Check resource ancestors: Is there a grant on a parent resource?
 --      If so, recursively explain the permission on the ancestor.
--- Return type for explain results
--- Create type idempotently. Using exception handler because
--- CREATE TYPE IF NOT EXISTS doesn't exist in PostgreSQL.
--- This allows the schema to be re-applied safely.
-DO $$
-BEGIN
-    CREATE TYPE authz.permission_path AS (
-        path_type text,        -- 'direct', 'group', 'hierarchy', or 'resource'
-        via_relation text,     -- The relation that granted access (e.g., 'admin')
-        via_subject_type text, -- For group/hierarchy: the group type (e.g., 'team')
-                               -- For resource: the ancestor resource type (e.g., 'folder')
-        via_subject_id text,   -- For group/hierarchy: the group id (e.g., 'engineering')
-                               -- For resource: the ancestor resource id (e.g., 'projects')
-        via_membership text,   -- For group/hierarchy: user's relation to group (e.g., 'member')
-        path_chain text[]      -- Path traversed (usage depends on path_type):
-                               --   'group': nested group chain, e.g., ['team:infra', 'team:platform']
-                               --   'hierarchy': permission chain, e.g., ['admin', 'write', 'read']
-                               --   'resource': resource chain, e.g., ['folder:projects', 'folder:root']
-                               --   'direct': NULL
-    );
-EXCEPTION
-    WHEN duplicate_object THEN
-        -- Type already exists, nothing to do
-        NULL;
-END
-$$;
+--
+-- The authz.permission_path type used by this function is defined in
+-- src/schema/004_types.sql.
 
 -- Explain how a user has (or doesn't have) a permission
 CREATE OR REPLACE FUNCTION authz.explain (p_user_id text, p_permission text, p_resource_type text, p_resource_id text, p_namespace text DEFAULT 'default', p_max_depth int DEFAULT NULL)

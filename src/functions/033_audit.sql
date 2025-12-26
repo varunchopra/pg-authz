@@ -40,6 +40,34 @@ LANGUAGE plpgsql
 SET search_path = authz, pg_temp;
 
 -- =============================================================================
+-- CLEAR ACTOR CONTEXT
+-- =============================================================================
+--
+-- PURPOSE
+-- -------
+-- Clears the actor context set by set_actor().
+-- Subsequent audit events will have NULL actor fields.
+--
+-- SCOPE
+-- =====
+-- Context is transaction-local, so this only affects the current transaction.
+--
+-- EXAMPLE
+-- =======
+--   SELECT authz.clear_actor();
+CREATE OR REPLACE FUNCTION authz.clear_actor()
+    RETURNS VOID
+    AS $$
+BEGIN
+    PERFORM set_config('authz.actor_id', '', TRUE);
+    PERFORM set_config('authz.request_id', '', TRUE);
+    PERFORM set_config('authz.reason', '', TRUE);
+END;
+$$
+LANGUAGE plpgsql
+SET search_path = authz, pg_temp;
+
+-- =============================================================================
 -- CREATE AUDIT PARTITION
 -- =============================================================================
 --

@@ -63,12 +63,20 @@ BEGIN
 
     -- Check for cycles when adding group-to-group membership
     IF p_relation = 'member' AND p_subject_type != 'user' THEN
-        -- Self-membership check
+        -- Fast path: self-reference (no locks needed)
         IF p_resource_type = p_subject_type AND p_resource_id = p_subject_id THEN
             RAISE EXCEPTION 'A group cannot be a member of itself'
                 USING ERRCODE = 'invalid_parameter_value';
         END IF;
-        -- Transitive cycle check
+
+        -- Lock both endpoints to prevent concurrent cycle creation
+        PERFORM authz._acquire_dual_lock(
+            p_namespace,
+            p_resource_type, p_resource_id,
+            p_subject_type, p_subject_id
+        );
+
+        -- Transitive cycle check (now safe under dual lock)
         IF authz._would_create_cycle(p_resource_type, p_resource_id, p_subject_type, p_subject_id, p_namespace) THEN
             RAISE EXCEPTION 'This would create a circular group membership'
                 USING ERRCODE = 'invalid_parameter_value';
@@ -77,12 +85,20 @@ BEGIN
 
     -- Check for cycles when adding parent relation (resource hierarchy)
     IF p_relation = 'parent' THEN
-        -- Self-reference check
+        -- Fast path: self-reference (no locks needed)
         IF p_resource_type = p_subject_type AND p_resource_id = p_subject_id THEN
             RAISE EXCEPTION 'A resource cannot be its own parent'
                 USING ERRCODE = 'invalid_parameter_value';
         END IF;
-        -- Transitive cycle check
+
+        -- Lock both endpoints to prevent concurrent cycle creation
+        PERFORM authz._acquire_dual_lock(
+            p_namespace,
+            p_resource_type, p_resource_id,
+            p_subject_type, p_subject_id
+        );
+
+        -- Transitive cycle check (now safe under dual lock)
         IF authz._would_create_resource_cycle(p_resource_type, p_resource_id, p_subject_type, p_subject_id, p_namespace) THEN
             RAISE EXCEPTION 'This would create a circular resource hierarchy'
                 USING ERRCODE = 'invalid_parameter_value';

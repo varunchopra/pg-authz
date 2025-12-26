@@ -15,6 +15,17 @@ RETURNS boolean AS $$
 DECLARE
     v_deleted int;
 BEGIN
+    -- Validate inputs (consistent with write_tuple)
+    PERFORM authz._validate_identifier(p_resource_type, 'resource_type');
+    PERFORM authz._validate_identifier(p_relation, 'relation');
+    PERFORM authz._validate_identifier(p_subject_type, 'subject_type');
+    PERFORM authz._validate_id(p_resource_id, 'resource_id');
+    PERFORM authz._validate_id(p_subject_id, 'subject_id');
+    PERFORM authz._validate_namespace(p_namespace);
+    IF p_subject_relation IS NOT NULL THEN
+        PERFORM authz._validate_identifier(p_subject_relation, 'subject_relation');
+    END IF;
+
     DELETE FROM authz.tuples
     WHERE namespace = p_namespace
         AND resource_type = p_resource_type

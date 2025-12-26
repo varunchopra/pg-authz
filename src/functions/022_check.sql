@@ -108,11 +108,14 @@ CREATE OR REPLACE FUNCTION authz.check(
     p_resource_id text,
     p_namespace text DEFAULT 'default'
 ) RETURNS boolean AS $$
-    SELECT EXISTS (
+BEGIN
+    PERFORM authz._warn_namespace_mismatch(p_namespace);
+    RETURN EXISTS (
         SELECT 1 FROM authz._get_user_permissions(p_user_id, p_resource_type, p_resource_id, p_namespace)
         WHERE permission = p_permission
     );
-$$ LANGUAGE sql STABLE PARALLEL SAFE SET search_path = authz, pg_temp;
+END;
+$$ LANGUAGE plpgsql STABLE PARALLEL SAFE SET search_path = authz, pg_temp;
 
 
 -- =============================================================================
@@ -125,11 +128,14 @@ CREATE OR REPLACE FUNCTION authz.check_any(
     p_resource_id text,
     p_namespace text DEFAULT 'default'
 ) RETURNS boolean AS $$
-    SELECT EXISTS (
+BEGIN
+    PERFORM authz._warn_namespace_mismatch(p_namespace);
+    RETURN EXISTS (
         SELECT 1 FROM authz._get_user_permissions(p_user_id, p_resource_type, p_resource_id, p_namespace)
         WHERE permission = ANY(p_permissions)
     );
-$$ LANGUAGE sql STABLE PARALLEL SAFE SET search_path = authz, pg_temp;
+END;
+$$ LANGUAGE plpgsql STABLE PARALLEL SAFE SET search_path = authz, pg_temp;
 
 
 -- =============================================================================
@@ -142,10 +148,13 @@ CREATE OR REPLACE FUNCTION authz.check_all(
     p_resource_id text,
     p_namespace text DEFAULT 'default'
 ) RETURNS boolean AS $$
-    SELECT COALESCE(array_length(p_permissions, 1), 0) = 0
+BEGIN
+    PERFORM authz._warn_namespace_mismatch(p_namespace);
+    RETURN COALESCE(array_length(p_permissions, 1), 0) = 0
         OR (
             SELECT COUNT(DISTINCT permission)
             FROM authz._get_user_permissions(p_user_id, p_resource_type, p_resource_id, p_namespace)
             WHERE permission = ANY(p_permissions)
         ) = array_length(p_permissions, 1);
-$$ LANGUAGE sql STABLE PARALLEL SAFE SET search_path = authz, pg_temp;
+END;
+$$ LANGUAGE plpgsql STABLE PARALLEL SAFE SET search_path = authz, pg_temp;

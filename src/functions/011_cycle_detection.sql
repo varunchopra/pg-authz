@@ -13,6 +13,42 @@
 -- cycles if they somehow exist.
 
 
+-- =============================================================================
+-- ADVISORY LOCK FOR CONCURRENT CYCLE PREVENTION
+-- =============================================================================
+-- Acquires advisory locks on both endpoints of an edge in deterministic order.
+-- This prevents race conditions where two concurrent transactions both pass
+-- cycle detection:
+--
+--   T1: write('B', 'member', 'A') → locks B, checks B not in ancestors of A
+--   T2: write('A', 'member', 'B') → locks A, checks A not in ancestors of B
+--   Both pass, both commit, cycle A→B→A exists
+--
+-- By locking BOTH endpoints in deterministic order, we ensure one transaction
+-- blocks until the other completes. The deterministic ordering also prevents
+-- deadlocks.
+CREATE OR REPLACE FUNCTION authz._acquire_dual_lock(
+    p_namespace text,
+    p_type1 text,
+    p_id1 text,
+    p_type2 text,
+    p_id2 text
+) RETURNS void AS $$
+DECLARE
+    v_key1 text := p_namespace || ':' || p_type1 || ':' || p_id1;
+    v_key2 text := p_namespace || ':' || p_type2 || ':' || p_id2;
+BEGIN
+    IF v_key1 < v_key2 THEN
+        PERFORM pg_advisory_xact_lock(hashtext(v_key1));
+        PERFORM pg_advisory_xact_lock(hashtext(v_key2));
+    ELSE
+        PERFORM pg_advisory_xact_lock(hashtext(v_key2));
+        PERFORM pg_advisory_xact_lock(hashtext(v_key1));
+    END IF;
+END;
+$$ LANGUAGE plpgsql SET search_path = authz, pg_temp;
+
+
 -- Check if adding a membership would create a cycle
 --
 -- Called before inserting: (parent, member, child) tuples where child is a group.

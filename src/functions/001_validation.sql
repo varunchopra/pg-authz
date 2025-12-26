@@ -88,23 +88,50 @@ $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE SET search_path = authz, pg_temp;
 
 -- Validate an array of IDs (for bulk operations)
 -- Applies the same rules as _validate_id to each element
+-- Reports the index of the first invalid element for easier debugging
 CREATE OR REPLACE FUNCTION authz._validate_id_array(p_values text[], p_field_name text)
 RETURNS void AS $$
+DECLARE
+    v_idx int;
+    v_id text;
+    v_reason text;
 BEGIN
-    IF EXISTS (
-        SELECT 1
-        FROM unnest(p_values) AS id
-        WHERE id IS NULL
-           OR trim(id) = ''
-           OR length(id) > 1024
-           OR id ~ '[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]'
-           OR id != trim(id)
-    ) THEN
-        RAISE EXCEPTION '% contains invalid values (null, empty, too long, or invalid characters)', p_field_name
+    FOR v_idx IN 1..COALESCE(array_length(p_values, 1), 0) LOOP
+        v_id := p_values[v_idx];
+        IF v_id IS NULL THEN
+            v_reason := 'is null';
+        ELSIF trim(v_id) = '' THEN
+            v_reason := 'is empty';
+        ELSIF length(v_id) > 1024 THEN
+            v_reason := 'exceeds 1024 characters';
+        ELSIF v_id ~ '[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]' THEN
+            v_reason := 'contains invalid control characters';
+        ELSIF v_id != trim(v_id) THEN
+            v_reason := 'has leading or trailing whitespace';
+        ELSE
+            CONTINUE;  -- Valid, check next
+        END IF;
+        RAISE EXCEPTION '%[%] %', p_field_name, v_idx, v_reason
             USING ERRCODE = 'invalid_parameter_value';
-    END IF;
+    END LOOP;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE SET search_path = authz, pg_temp;
+
+
+-- Warn if namespace doesn't match RLS tenant context
+-- Called at the start of query functions to alert developers of likely misconfiguration
+CREATE OR REPLACE FUNCTION authz._warn_namespace_mismatch(p_namespace text)
+RETURNS void AS $$
+DECLARE
+    v_tenant_id text;
+BEGIN
+    v_tenant_id := current_setting('authz.tenant_id', true);
+    IF v_tenant_id IS NOT NULL AND v_tenant_id != '' AND p_namespace != v_tenant_id THEN
+        RAISE WARNING 'Querying namespace "%" but RLS tenant context is "%". Results will be empty due to row-level security.',
+            p_namespace, v_tenant_id;
+    END IF;
+END;
+$$ LANGUAGE plpgsql STABLE PARALLEL SAFE SET search_path = authz, pg_temp;
 
 
 -- Validate namespace

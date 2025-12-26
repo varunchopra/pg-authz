@@ -266,6 +266,161 @@ class TestConcurrentHierarchyChanges:
         assert not results["errors"], f"Errors: {results['errors']}"
 
 
+class TestConcurrentCyclePrevention:
+    """Test that concurrent transactions cannot create cycles."""
+
+    def test_concurrent_cycle_one_rejected(self, db_connection):
+        """
+        Two concurrent transactions cannot both create edges that form a cycle.
+
+        Scenario:
+        T1: write('team', 'B', 'member', 'team', 'A')  -- A is member of B
+        T2: write('team', 'A', 'member', 'team', 'B')  -- B is member of A
+
+        Only ONE should succeed. The other should be rejected by cycle detection
+        (after waiting for the first to commit/rollback due to dual advisory lock).
+        """
+        namespace = "test_concurrent_cycle"
+
+        cursor = db_connection.cursor()
+        cursor.execute("DELETE FROM authz.tuples WHERE namespace = %s", (namespace,))
+
+        results = {
+            "t1_success": False,
+            "t2_success": False,
+            "t1_error": None,
+            "t2_error": None,
+        }
+        barrier = threading.Barrier(2)
+
+        def transaction_1():
+            try:
+                conn = psycopg.connect(DATABASE_URL)
+                cur = conn.cursor()
+                barrier.wait()
+                cur.execute(
+                    "SELECT authz.write_tuple('team', 'B', 'member', 'team', 'A', NULL, %s)",
+                    (namespace,),
+                )
+                conn.commit()
+                results["t1_success"] = True
+                conn.close()
+            except Exception as e:
+                results["t1_error"] = str(e)
+
+        def transaction_2():
+            try:
+                conn = psycopg.connect(DATABASE_URL)
+                cur = conn.cursor()
+                barrier.wait()
+                cur.execute(
+                    "SELECT authz.write_tuple('team', 'A', 'member', 'team', 'B', NULL, %s)",
+                    (namespace,),
+                )
+                conn.commit()
+                results["t2_success"] = True
+                conn.close()
+            except Exception as e:
+                results["t2_error"] = str(e)
+
+        t1 = threading.Thread(target=transaction_1)
+        t2 = threading.Thread(target=transaction_2)
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        # Exactly one should succeed, one should fail with cycle error
+        successes = sum([results["t1_success"], results["t2_success"]])
+        assert successes == 1, (
+            f"Expected exactly 1 success, got {successes}. "
+            f"T1: success={results['t1_success']}, error={results['t1_error']}. "
+            f"T2: success={results['t2_success']}, error={results['t2_error']}"
+        )
+
+        # The failure should be a cycle error
+        error = results["t1_error"] or results["t2_error"]
+        assert "circular" in error.lower(), f"Expected cycle error, got: {error}"
+
+        # Cleanup
+        cursor.execute("DELETE FROM authz.tuples WHERE namespace = %s", (namespace,))
+
+    def test_lock_ordering_prevents_deadlock(self, db_connection):
+        """
+        Deterministic lock ordering prevents deadlocks.
+
+        Both transactions lock in the same order (lexicographically smaller key first),
+        so no deadlock is possible even with concurrent cycle-forming writes.
+
+        With idempotent writes:
+        - All threads trying one direction (e.g., X→Y) succeed (same edge, idempotent)
+        - All threads trying the opposite direction (Y→X) fail with cycle error
+        """
+        namespace = "test_lock_ordering"
+
+        cursor = db_connection.cursor()
+        cursor.execute("DELETE FROM authz.tuples WHERE namespace = %s", (namespace,))
+
+        # Run many concurrent potential-cycle writes to stress test lock ordering
+        num_attempts = 20
+        results = {"successes": 0, "cycle_errors": 0, "other_errors": []}
+        lock = threading.Lock()
+
+        def attempt_cycle_edge(i):
+            """Each thread tries to create one edge of a potential cycle."""
+            try:
+                conn = psycopg.connect(DATABASE_URL)
+                cur = conn.cursor()
+                # Alternate direction to create potential cycles
+                if i % 2 == 0:
+                    cur.execute(
+                        "SELECT authz.write_tuple('team', 'X', 'member', 'team', 'Y', NULL, %s)",
+                        (namespace,),
+                    )
+                else:
+                    cur.execute(
+                        "SELECT authz.write_tuple('team', 'Y', 'member', 'team', 'X', NULL, %s)",
+                        (namespace,),
+                    )
+                conn.commit()
+                with lock:
+                    results["successes"] += 1
+                conn.close()
+            except Exception as e:
+                with lock:
+                    if "circular" in str(e).lower():
+                        results["cycle_errors"] += 1
+                    else:
+                        results["other_errors"].append(str(e))
+
+        threads = [
+            threading.Thread(target=attempt_cycle_edge, args=(i,))
+            for i in range(num_attempts)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # No deadlock errors (would show as timeout or other_errors)
+        # This is the key assertion - deadlocks would appear here
+        assert not results[
+            "other_errors"
+        ], f"Unexpected errors: {results['other_errors']}"
+
+        # With idempotent writes: half succeed (one direction), half fail (opposite direction)
+        # All threads of one direction succeed (idempotent), all of other direction fail (cycle)
+        assert (
+            results["successes"] == num_attempts // 2
+        ), f"Expected {num_attempts // 2} successes (one direction), got {results['successes']}"
+        assert (
+            results["cycle_errors"] == num_attempts // 2
+        ), f"Expected {num_attempts // 2} cycle errors (opposite direction), got {results['cycle_errors']}"
+
+        # Cleanup
+        cursor.execute("DELETE FROM authz.tuples WHERE namespace = %s", (namespace,))
+
+
 class TestConcurrentIdempotency:
     """Test idempotency under concurrent access."""
 

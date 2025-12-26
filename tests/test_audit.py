@@ -133,6 +133,69 @@ class TestActorContext:
         assert events[0]["request_id"] is None
         assert events[0]["reason"] is None
 
+    def test_clear_actor(self, authz):
+        """clear_actor() removes actor context."""
+        # Set actor context
+        authz.set_actor("admin@acme.com", "req-123", "Initial setup")
+        authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
+
+        # Clear actor context using SDK method
+        authz.clear_actor()
+        authz.grant("read", resource=("doc", "2"), subject=("user", "bob"))
+
+        events = authz.get_audit_events()
+
+        # Most recent event (doc:2) should have no actor
+        assert events[0]["actor_id"] is None
+        assert events[0]["request_id"] is None
+        assert events[0]["reason"] is None
+
+        # Earlier event (doc:1) should have actor
+        assert events[1]["actor_id"] == "admin@acme.com"
+        assert events[1]["request_id"] == "req-123"
+        assert events[1]["reason"] == "Initial setup"
+
+    def test_clear_actor_sql_function(self, db_connection, request):
+        """SQL clear_actor() function clears session context."""
+        # Need non-autocommit connection for transaction-local settings
+        info = db_connection.info
+        import psycopg
+
+        conn = psycopg.connect(
+            host=info.host,
+            port=info.port,
+            dbname=info.dbname,
+            user=info.user,
+            password=info.password,
+            autocommit=False,
+        )
+        cursor = conn.cursor()
+        try:
+            # Set actor context via SQL (transaction-local)
+            cursor.execute(
+                "SELECT authz.set_actor(%s, %s, %s)",
+                ("admin@acme.com", "req-123", "Test reason"),
+            )
+
+            # Verify it's set (same transaction)
+            cursor.execute("SELECT current_setting('authz.actor_id', true)")
+            assert cursor.fetchone()[0] == "admin@acme.com"
+
+            # Clear via SQL function
+            cursor.execute("SELECT authz.clear_actor()")
+
+            # Verify it's cleared (empty string)
+            cursor.execute("SELECT current_setting('authz.actor_id', true)")
+            assert cursor.fetchone()[0] == ""
+            cursor.execute("SELECT current_setting('authz.request_id', true)")
+            assert cursor.fetchone()[0] == ""
+            cursor.execute("SELECT current_setting('authz.reason', true)")
+            assert cursor.fetchone()[0] == ""
+        finally:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+
 
 class TestAuditFiltering:
     """Tests for audit event filtering."""

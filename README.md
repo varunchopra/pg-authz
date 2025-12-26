@@ -1,19 +1,31 @@
 # pg-authz
 
-Authorization for Postgres. No external services, no SDKs -- just SQL functions.
+Relationship-Based Access Control (ReBAC) that runs inside your Postgres. No external services.
 
 ```sql
 SELECT authz.check('alice', 'read', 'document', 'doc-123');  -- true/false
 ```
 
-## Why?
+## What is this?
 
-- Runs inside your existing Postgres
+Authorization answers "can user X do Y to resource Z?" This library stores and evaluates
+relationships — users belong to teams, teams have permissions on resources, resources contain
+other resources. Permissions flow through these relationships.
+
+**Good fit:** SaaS apps, internal tools, document systems — anywhere you need "users and teams
+with permissions on things."
+
+**Not a fit:** Attribute-based rules (location, time, IP), AWS IAM-style policies, or simple
+role-only systems where users just need roles without resource-level grants.
+
+## Features
+
 - Nested teams (groups can contain groups)
-- Permission hierarchies (admin -> write -> read)
+- Permission hierarchies (admin → write → read)
+- Resource hierarchies (folders contain docs)
 - Multi-tenant with row-level security
 - Time-bound permissions with expiration
-- Built-in audit logging
+- Audit logging
 
 ## Install
 
@@ -24,15 +36,15 @@ psql $DATABASE_URL -f https://raw.githubusercontent.com/varunchopra/pg-authz/mai
 ## Quick Start
 
 ```sql
--- Create a permission hierarchy: admin -> write -> read
+-- Permission hierarchy: admin -> write -> read
 SELECT authz.add_hierarchy('repo', 'admin', 'write');
 SELECT authz.add_hierarchy('repo', 'write', 'read');
 
--- Create a team and add members
+-- Create a team
 SELECT authz.write('team', 'engineering', 'member', 'user', 'alice');
 SELECT authz.write('team', 'engineering', 'member', 'user', 'bob');
 
--- Grant the team admin access to a repo
+-- Grant the team admin access
 SELECT authz.write('repo', 'acme/api', 'admin', 'team', 'engineering');
 
 -- Check permissions
@@ -41,25 +53,26 @@ SELECT authz.check('alice', 'admin', 'repo', 'acme/api');  -- true (via team)
 SELECT authz.check('charlie', 'read', 'repo', 'acme/api'); -- false (not on team)
 ```
 
-## Core API
+## API
 
 ```sql
--- Grant/revoke permissions
+-- Grant/revoke
 authz.write(resource_type, resource_id, relation, subject_type, subject_id)
 authz.delete(resource_type, resource_id, relation, subject_type, subject_id)
 
--- Check permissions
+-- Check
 authz.check(user_id, permission, resource_type, resource_id)
 authz.check_any(user_id, permissions[], resource_type, resource_id)
 authz.check_all(user_id, permissions[], resource_type, resource_id)
 
--- List/filter
+-- List
 authz.list_resources(user_id, resource_type, permission)
 authz.list_users(resource_type, resource_id, permission)
 authz.filter_authorized(user_id, resource_type, permission, resource_ids[])
 
 -- Hierarchy
 authz.add_hierarchy(resource_type, permission, implies)
+authz.remove_hierarchy(resource_type, permission, implies)
 
 -- Debug
 authz.explain_text(user_id, permission, resource_type, resource_id)
@@ -67,136 +80,70 @@ authz.explain_text(user_id, permission, resource_type, resource_id)
 
 ## Nested Teams
 
-Teams can contain other teams:
-
 ```sql
--- alice is in infrastructure, which is in platform, which is in engineering
 SELECT authz.write('team', 'infrastructure', 'member', 'user', 'alice');
 SELECT authz.write('team', 'platform', 'member', 'team', 'infrastructure');
 SELECT authz.write('team', 'engineering', 'member', 'team', 'platform');
 
--- Grant engineering access to a repo
 SELECT authz.write('repo', 'api', 'read', 'team', 'engineering');
-
--- alice has access through the chain
-SELECT authz.check('alice', 'read', 'repo', 'api');  -- true
+SELECT authz.check('alice', 'read', 'repo', 'api');  -- true (via nested teams)
 ```
-
-Circular memberships are detected and rejected.
 
 ## Resource Hierarchies
 
-Resources can contain other resources:
-
 ```sql
--- doc:spec is inside folder:projects
 SELECT authz.write('doc', 'spec', 'parent', 'folder', 'projects');
-
--- folder:projects is inside folder:root
 SELECT authz.write('folder', 'projects', 'parent', 'folder', 'root');
-
--- Grant read on the root folder
 SELECT authz.write('folder', 'root', 'read', 'user', 'alice');
 
--- alice can read doc:spec (inherited through hierarchy)
-SELECT authz.check('alice', 'read', 'doc', 'spec');  -- true
+SELECT authz.check('alice', 'read', 'doc', 'spec');  -- true (inherited from folder)
 ```
-
-This combines with nested teams and permission hierarchies:
-
-```sql
--- team:eng has admin on folder:projects
-SELECT authz.write('folder', 'projects', 'admin', 'team', 'eng');
-
--- alice is in team:eng
-SELECT authz.write('team', 'eng', 'member', 'user', 'alice');
-
--- alice has read on doc:spec (via: eng membership -> admin on folder -> admin implies read -> folder contains doc)
-SELECT authz.check('alice', 'read', 'doc', 'spec');  -- true
-```
-
-Circular hierarchies are detected and rejected.
 
 ## Time-Bound Permissions
 
 ```sql
--- Grant access that expires in 30 days
 SELECT authz.write('repo', 'api', 'read', 'user', 'contractor', NULL, 'default',
                    now() + interval '30 days');
 
--- Find expiring grants
 SELECT * FROM authz.list_expiring('7 days');
-
--- Clean up expired (run via cron)
-SELECT authz.cleanup_expired();
+SELECT authz.cleanup_expired();  -- run via cron
 ```
 
 ## Multi-Tenancy
-
-All functions accept an optional `namespace` parameter (default: `'default'`):
 
 ```sql
 SELECT authz.write('doc', '1', 'read', 'user', 'alice', NULL, 'tenant-acme');
 SELECT authz.check('alice', 'read', 'doc', '1', 'tenant-acme');  -- true
 SELECT authz.check('alice', 'read', 'doc', '1', 'tenant-other'); -- false
-```
 
-Row-level security enforces tenant isolation for non-superusers:
-
-```sql
-SELECT authz.set_tenant('acme');
--- All queries now scoped to 'acme' namespace
+SELECT authz.set_tenant('acme');  -- RLS enforces isolation for non-superusers
 ```
 
 ## Audit Logging
 
-All changes are logged to `authz.audit_events`:
-
 ```sql
--- Set actor context before operations
 SELECT authz.set_actor('admin@acme.com', 'req-123', 'Quarterly review');
-
--- Query audit log
+-- do stuff...
 SELECT * FROM authz.audit_events ORDER BY event_time DESC LIMIT 100;
 ```
 
-Event types:
-- `tuple_created` / `tuple_updated` / `tuple_deleted` — permission changes
-- `hierarchy_created` / `hierarchy_deleted` — hierarchy rule changes
+## Why No SDK?
 
-Expiration timestamps are captured in `expires_at`, enabling historical analysis of time-bound permissions.
+Teams build their own data access layers with specific drivers (`asyncpg`, `psycopg`, `pg`, etc.),
+connection pooling, and caching. A generic SDK either forces opinions or adds a layer you'll
+bypass anyway. Call the SQL directly:
 
-## Dry Run / What-If
-
-Use transactions to preview the impact of permission changes:
-
-```sql
-BEGIN;
-
--- Make the change
-SELECT authz.delete('team', 'eng', 'member', 'user', 'alice');
-
--- See the impact
-SELECT * FROM authz.list_resources('alice', 'repo', 'read');
-SELECT * FROM authz.list_users('read', ('repo', 'api'));
-
--- Undo
-ROLLBACK;
+```python
+cursor.execute("SELECT authz.check(%s, %s, %s, %s)", (user_id, "read", "doc", doc_id))
 ```
 
-## How It Works
+```typescript
+await pool.query("SELECT authz.check($1, $2, $3, $4)", [userId, "read", "doc", docId]);
+```
 
-Permissions are evaluated at query time using recursive CTEs. When you call `authz.check()`:
-
-1. Find all groups the user belongs to (including nested teams)
-2. Find resource and all ancestor resources (via parent relations)
-3. Find all grants on resource or ancestors (direct + via groups)
-4. Expand permission hierarchy (admin -> write -> read)
-5. Check if the requested permission exists
-
-## Limitations
-
-- Nested teams and resource hierarchies limited to 50 levels
+```go
+db.QueryRow(ctx, "SELECT authz.check($1, $2, $3, $4)", userID, "read", "doc", docID).Scan(&ok)
+```
 
 ## Development
 

@@ -4,6 +4,16 @@
 -- Returns resources the user can access with the given permission.
 -- Supports nested teams, permission hierarchy, and resource hierarchy.
 -- Includes descendants of accessible resources.
+--
+-- NAMESPACE NOTE: Unlike check(), this function does not warn on namespace/tenant
+-- mismatch. These listing functions are SQL (not plpgsql) for performance, and
+-- check() is the primary API that developers use. If namespace != tenant_id,
+-- RLS will return empty results (fail-closed).
+--
+-- PERF NOTE: The CROSS JOIN LATERAL in accessible_resources fires a recursive
+-- CTE per granted resource. This is O(n) where n = number of accessible resources.
+-- Known scaling limit: ~1000 accessible resources before query time degrades.
+-- For high-volume use cases, consider denormalizing or caching at the application layer.
 CREATE OR REPLACE FUNCTION authz.list_resources (p_user_id text, p_resource_type text, p_permission text, p_namespace text DEFAULT 'default', p_limit int DEFAULT 100, p_cursor text DEFAULT NULL)
     RETURNS TABLE (
         resource_id text

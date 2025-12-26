@@ -12,6 +12,11 @@ CREATE OR REPLACE FUNCTION authz.set_expiration (p_resource_type text, p_resourc
 DECLARE
     v_updated int;
 BEGIN
+    -- Validate expiration is in the future (consistent with write_tuple)
+    IF p_expires_at IS NOT NULL AND p_expires_at <= now() THEN
+        RAISE EXCEPTION 'expires_at must be in the future'
+            USING ERRCODE = 'check_violation';
+    END IF;
     UPDATE
         authz.tuples
     SET

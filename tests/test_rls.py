@@ -199,3 +199,32 @@ class TestRowLevelSecurity:
             "DELETE FROM authz.audit_events WHERE namespace = 'tenant-a'"
         )
         db_connection.execute("DELETE FROM authz.tuples WHERE namespace = 'tenant-a'")
+
+    def test_clear_tenant(self, rls_connection, db_connection, cleanup_tenant_a):
+        """clear_tenant() removes tenant context."""
+        # Setup: create data as superuser
+        superuser_cursor = db_connection.cursor()
+        tenant_a_admin = AuthzClient(superuser_cursor, "tenant-a")
+        tenant_a_admin.grant(
+            "read", resource=("doc", "rls-clear"), subject=("user", "alice")
+        )
+
+        cursor = rls_connection.cursor()
+
+        # Set tenant context
+        cursor.execute("SELECT authz.set_tenant('tenant-a')")
+        cursor.execute("SELECT current_setting('authz.tenant_id', true)")
+        assert cursor.fetchone()[0] == "tenant-a"
+
+        # Can see data
+        cursor.execute("SELECT * FROM authz.tuples WHERE namespace = 'tenant-a'")
+        assert len(cursor.fetchall()) >= 1
+
+        # Clear tenant context
+        cursor.execute("SELECT authz.clear_tenant()")
+        cursor.execute("SELECT current_setting('authz.tenant_id', true)")
+        assert cursor.fetchone()[0] == ""
+
+        # No longer see data (RLS filters out)
+        cursor.execute("SELECT * FROM authz.tuples WHERE namespace = 'tenant-a'")
+        assert cursor.fetchall() == []

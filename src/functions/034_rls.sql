@@ -33,3 +33,26 @@ END;
 $$
 LANGUAGE plpgsql
 SET search_path = authz, pg_temp;
+
+-- =============================================================================
+-- CLEAR TENANT CONTEXT
+-- =============================================================================
+--
+-- PURPOSE
+-- -------
+-- Clears the tenant context, disabling RLS filtering.
+-- After calling this, RLS policies will not match any rows (fail-closed).
+--
+-- EXAMPLE
+-- =======
+--   SELECT authz.clear_tenant();
+--   -- Subsequent queries will return no rows due to RLS
+CREATE OR REPLACE FUNCTION authz.clear_tenant()
+    RETURNS VOID
+    AS $$
+BEGIN
+    PERFORM set_config('authz.tenant_id', '', FALSE);
+END;
+$$
+LANGUAGE plpgsql
+SET search_path = authz, pg_temp;
