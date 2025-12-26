@@ -79,7 +79,7 @@ class TestInternalDevPlatform:
         # 1. SETUP: Permission hierarchy
         # =================================================================
         # Acme uses the same hierarchy across all resource types:
-        #   admin → write → read
+        #   admin -> write -> read
         #
         # If you have "admin", you automatically have "write" and "read".
 
@@ -105,10 +105,10 @@ class TestInternalDevPlatform:
         # =================================================================
         # Alice and Bob automatically have access to everything their team owns.
 
-        # Alice can write (team has admin → admin implies write)
+        # Alice can write (team has admin -> admin implies write)
         assert authz.check("alice", "write", ("repo", "payments-api"))
 
-        # Alice can read (admin → write → read)
+        # Alice can read (admin -> write -> read)
         assert authz.check("alice", "read", ("repo", "payments-api"))
 
         # Alice can read the secret (team has read)

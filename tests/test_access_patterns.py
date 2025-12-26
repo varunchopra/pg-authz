@@ -25,13 +25,13 @@ class TestMultiLevelHierarchyAlternatePath:
 
     def test_alternate_path_via_higher_permission_two_levels(self, authz):
         """
-        User retains 'read' when alternate path has 'admin' (admin→write→read).
+        User retains 'read' when alternate path has 'admin' (admin->write->read).
 
         Setup:
         - alice is member of team:eng AND team:platform
         - team:eng has 'read' on repo:api
         - team:platform has 'admin' on repo:api
-        - Hierarchy: admin → write → read
+        - Hierarchy: admin -> write -> read
 
         When alice is removed from team:eng, she should still have read
         via team:platform's admin (which implies write, which implies read).
@@ -61,7 +61,7 @@ class TestMultiLevelHierarchyAlternatePath:
 
     def test_alternate_path_via_middle_permission(self, authz):
         """
-        User retains 'read' when alternate path has 'write' (write→read).
+        User retains 'read' when alternate path has 'write' (write->read).
 
         This tests the hierarchy at one level deep, which should work
         even without the recursive CTE fix.
@@ -105,7 +105,7 @@ class TestMultiLevelHierarchyAlternatePath:
         Scenario:
         - Alice is BOTH member AND admin of team:eng
         - team:eng#member has read on doc:1
-        - team:eng#admin has write on doc:1 (and write→read hierarchy)
+        - team:eng#admin has write on doc:1 (and write->read hierarchy)
         - Removing Alice's member should NOT remove her read (she has it via admin)
         """
         authz.set_hierarchy("doc", "write", "read")
@@ -135,7 +135,7 @@ class TestMultiLevelHierarchyAlternatePath:
         # Remove Alice's member relation
         authz.revoke("member", resource=("team", "eng"), subject=("user", "alice"))
 
-        # Alice should STILL have read via admin→write→read
+        # Alice should STILL have read via admin->write->read
         assert authz.check("alice", "read", ("doc", "1"))
         assert authz.check("alice", "write", ("doc", "1"))
 
@@ -392,7 +392,7 @@ class TestMultipleAlternatePaths:
         # Remove from eng (had direct read)
         authz.revoke("member", resource=("team", "eng"), subject=("user", "alice"))
 
-        # Still has read via ops's write → read
+        # Still has read via ops's write -> read
         assert authz.check("alice", "read", ("doc", "1"))
         assert authz.check("alice", "write", ("doc", "1"))
 

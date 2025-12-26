@@ -18,7 +18,7 @@ $$ LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 
 
 -- Maximum recursion depth for resource hierarchy traversal.
--- Limits how deep parent relations are followed (doc → folder → root).
+-- Limits how deep parent relations are followed (doc -> folder -> root).
 -- 50 levels is generous - most real hierarchies are under 10.
 CREATE OR REPLACE FUNCTION authz._max_resource_depth()
 RETURNS int AS $$

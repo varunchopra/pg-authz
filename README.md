@@ -9,10 +9,10 @@ SELECT authz.check('alice', 'read', 'document', 'doc-123');  -- true/false
 ## What is this?
 
 Authorization answers "can user X do Y to resource Z?" This library stores and evaluates
-relationships — users belong to teams, teams have permissions on resources, resources contain
+relationships - users belong to teams, teams have permissions on resources, resources contain
 other resources. Permissions flow through these relationships.
 
-**Good fit:** SaaS apps, internal tools, document systems — anywhere you need "users and teams
+**Good fit:** SaaS apps, internal tools, document systems - anywhere you need "users and teams
 with permissions on things."
 
 **Not a fit:** Attribute-based rules (location, time, IP), AWS IAM-style policies, or simple
@@ -21,7 +21,7 @@ role-only systems where users just need roles without resource-level grants.
 ## Features
 
 - Nested teams (groups can contain groups)
-- Permission hierarchies (admin → write → read)
+- Permission hierarchies (admin -> write -> read)
 - Resource hierarchies (folders contain docs)
 - Multi-tenant with row-level security
 - Time-bound permissions with expiration

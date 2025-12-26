@@ -20,9 +20,9 @@
 -- This prevents race conditions where two concurrent transactions both pass
 -- cycle detection:
 --
---   T1: write('B', 'member', 'A') → locks B, checks B not in ancestors of A
---   T2: write('A', 'member', 'B') → locks A, checks A not in ancestors of B
---   Both pass, both commit, cycle A→B→A exists
+--   T1: write('B', 'member', 'A') -> locks B, checks B not in ancestors of A
+--   T2: write('A', 'member', 'B') -> locks A, checks A not in ancestors of B
+--   Both pass, both commit, cycle A->B->A exists
 --
 -- By locking BOTH endpoints in deterministic order, we ensure one transaction
 -- blocks until the other completes. The deterministic ordering also prevents

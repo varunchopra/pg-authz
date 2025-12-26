@@ -353,8 +353,8 @@ class TestConcurrentCyclePrevention:
         so no deadlock is possible even with concurrent cycle-forming writes.
 
         With idempotent writes:
-        - All threads trying one direction (e.g., X→Y) succeed (same edge, idempotent)
-        - All threads trying the opposite direction (Y→X) fail with cycle error
+        - All threads trying one direction (e.g., X->Y) succeed (same edge, idempotent)
+        - All threads trying the opposite direction (Y->X) fail with cycle error
         """
         namespace = "test_lock_ordering"
 
