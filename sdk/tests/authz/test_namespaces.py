@@ -8,7 +8,7 @@ Verifies that namespaces provide complete multi-tenant isolation:
 """
 
 import pytest
-from authz_sdk import AuthzClient
+from postkit.authz import AuthzClient
 
 
 class TestNamespaceIsolation:

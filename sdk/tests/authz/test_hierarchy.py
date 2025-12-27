@@ -11,7 +11,7 @@ Tests for:
 """
 
 import pytest
-from authz_sdk import AuthzError
+from postkit.authz import AuthzError
 
 
 class TestHierarchyModification:

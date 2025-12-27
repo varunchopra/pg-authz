@@ -1,5 +1,7 @@
 # postkit
 
+[![PyPI](https://img.shields.io/pypi/v/postkit)](https://pypi.org/project/postkit/)
+
 Postgres-native authentication, authorization, and organization management. No external services.
 
 ```sql
@@ -43,6 +45,27 @@ await pool.query("SELECT authz.check($1, $2, $3, $4)", [userId, "read", "doc", d
 ```go
 db.QueryRow(ctx, "SELECT authz.check($1, $2, $3, $4)", userID, "read", "doc", docID).Scan(&ok)
 ```
+
+## Python SDK
+
+For Python projects, there's an optional SDK with a typed client:
+
+```bash
+pip install postkit
+```
+
+```python
+from postkit.authz import AuthzClient
+from postkit.authn import AuthnClient
+
+authz = AuthzClient(cursor, namespace="my-app")
+authz.grant("admin", resource=("repo", "api"), subject=("user", "alice"))
+
+if authz.check("alice", "read", ("repo", "api")):
+    print("Access granted")
+```
+
+See [sdk/](sdk/) for details.
 
 ## Development
 

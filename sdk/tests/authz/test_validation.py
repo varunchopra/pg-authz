@@ -12,7 +12,7 @@ Tests for:
 
 import pytest
 import psycopg
-from authz_sdk import AuthzError
+from postkit.authz import AuthzError
 
 
 class TestBoundaryConditions:

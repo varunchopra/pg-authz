@@ -1,19 +1,12 @@
-"""Pytest fixtures for postkit/authz tests."""
+"""Pytest fixtures for postkit.authz tests."""
 
-import os
-import sys
 import pytest
 import psycopg
 from pathlib import Path
 
-# Add tests directory to path for local imports
-sys.path.insert(0, str(Path(__file__).parent))
-from authz_sdk import AuthzClient, AuthzTestHelpers
-
-
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL", "postgresql://postgres:postgres@localhost:5433/postgres"
-)
+from postkit.authz import AuthzClient
+from tests.conftest import DATABASE_URL
+from tests.authz.helpers import AuthzTestHelpers
 
 
 @pytest.fixture(scope="session")
@@ -27,8 +20,8 @@ def db_connection():
     # Install fresh schema
     conn.execute("DROP SCHEMA IF EXISTS authz CASCADE")
 
-    # Load the built SQL file (authz/tests/ -> root/dist/)
-    dist_sql = Path(__file__).parent.parent.parent / "dist" / "authz.sql"
+    # Load the built SQL file (sdk/tests/authz/ -> root/dist/)
+    dist_sql = Path(__file__).parent.parent.parent.parent / "dist" / "authz.sql"
     if not dist_sql.exists():
         pytest.fail(f"dist/authz.sql not found. Run 'make build' first.")
 

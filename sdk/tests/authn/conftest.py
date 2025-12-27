@@ -1,19 +1,12 @@
-"""Pytest fixtures for postkit/authn tests."""
+"""Pytest fixtures for postkit.authn tests."""
 
-import os
-import sys
 import pytest
 import psycopg
 from pathlib import Path
 
-# Add tests directory to path for local imports
-sys.path.insert(0, str(Path(__file__).parent))
-from authn_sdk import AuthnClient, AuthnTestHelpers
-
-
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL", "postgresql://postgres:postgres@localhost:5433/postgres"
-)
+from postkit.authn import AuthnClient
+from tests.conftest import DATABASE_URL
+from tests.authn.helpers import AuthnTestHelpers
 
 
 @pytest.fixture(scope="session")
@@ -27,8 +20,8 @@ def db_connection():
     # Install fresh schema
     conn.execute("DROP SCHEMA IF EXISTS authn CASCADE")
 
-    # Load the built SQL file (authn/tests/ -> root/dist/)
-    dist_sql = Path(__file__).parent.parent.parent / "dist" / "authn.sql"
+    # Load the built SQL file (sdk/tests/authn/ -> root/dist/)
+    dist_sql = Path(__file__).parent.parent.parent.parent / "dist" / "authn.sql"
     if not dist_sql.exists():
         pytest.fail(f"dist/authn.sql not found. Run 'make build' first.")
 

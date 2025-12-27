@@ -1,5 +1,5 @@
 """
-postkit/authz SDK - Python client for the authorization system.
+postkit.authz - Authorization client for PostgreSQL-native ReBAC.
 
 This module provides:
 - AuthzClient: SDK-style interface for authorization operations
@@ -30,7 +30,6 @@ Entity = tuple[str, str]  # (type, id) e.g., ("repo", "payments-api")
 # =============================================================================
 # EXCEPTIONS
 # =============================================================================
-# Domain-specific exceptions for better error handling in applications.
 
 
 class AuthzError(Exception):
@@ -49,6 +48,11 @@ class AuthzCycleError(AuthzError):
     """Raised when a hierarchy cycle is detected."""
 
     pass
+
+
+# =============================================================================
+# CLIENT
+# =============================================================================
 
 
 class AuthzClient:
@@ -551,11 +555,6 @@ class AuthzClient:
         """
         Query audit events with optional filters.
 
-        Note: Unlike other SDK methods, this uses direct SQL rather than a stored
-        function. The dynamic filter combinations would require a complex function
-        signature with many optional parameters. Building the query client-side is
-        clearer and the parameterized queries prevent SQL injection.
-
         Args:
             limit: Maximum number of events to return (default 100)
             event_type: Filter by event type (e.g., 'tuple_created')
@@ -564,12 +563,7 @@ class AuthzClient:
             subject: Filter by subject as (type, id) tuple
 
         Returns:
-            List of audit event dictionaries with keys:
-            - event_id, event_type, event_time
-            - actor_id, request_id, reason
-            - session_user, current_user, client_addr, application_name
-            - resource (tuple), relation, subject (tuple), subject_relation
-            - tuple_id, expires_at
+            List of audit event dictionaries
 
         Example:
             events = authz.get_audit_events(actor_id="admin@acme.com", limit=50)
@@ -759,7 +753,6 @@ class AuthzClient:
 
         Args:
             within: Time window to check (default 7 days).
-                    psycopg automatically converts timedelta to PostgreSQL interval.
 
         Returns:
             List of grants with their expiration times
@@ -918,72 +911,3 @@ class AuthzClient:
                 self.namespace,
             ),
         )
-
-
-# =============================================================================
-# Test helpers - for internal testing only
-# =============================================================================
-
-
-class AuthzTestHelpers:
-    """
-    Direct table access for test setup/teardown that bypasses the SDK.
-
-    Use cases:
-    - Inserting invalid/expired data that SDK would reject
-    - Counting tuples for verification
-    - Cleaning up specific resources
-    - Testing edge cases that require direct table manipulation
-
-    For normal test operations, prefer AuthzClient (the `authz` fixture).
-    """
-
-    def __init__(self, cursor, namespace: str):
-        self.cursor = cursor
-        self.namespace = namespace
-        # Set tenant context for RLS (consistent with AuthzClient)
-        self.cursor.execute("SELECT authz.set_tenant(%s)", (namespace,))
-
-    def delete_tuples(self, resource: Entity):
-        """Delete tuples directly."""
-        resource_type, resource_id = resource
-        self.cursor.execute(
-            """
-            DELETE FROM authz.tuples
-            WHERE namespace = %s AND resource_type = %s AND resource_id = %s
-        """,
-            (self.namespace, resource_type, resource_id),
-        )
-
-    def count_tuples(
-        self,
-        resource: Entity | None = None,
-        relation: str | None = None,
-    ) -> int:
-        """Count tuples matching the given filters."""
-        if resource and relation:
-            self.cursor.execute(
-                """SELECT COUNT(*) FROM authz.tuples
-                   WHERE namespace = %s AND resource_type = %s
-                   AND resource_id = %s AND relation = %s""",
-                (self.namespace, resource[0], resource[1], relation),
-            )
-        elif resource:
-            self.cursor.execute(
-                """SELECT COUNT(*) FROM authz.tuples
-                   WHERE namespace = %s AND resource_type = %s AND resource_id = %s""",
-                (self.namespace, resource[0], resource[1]),
-            )
-        elif relation:
-            self.cursor.execute(
-                """SELECT COUNT(*) FROM authz.tuples
-                   WHERE namespace = %s AND relation = %s""",
-                (self.namespace, relation),
-            )
-        else:
-            self.cursor.execute(
-                "SELECT COUNT(*) FROM authz.tuples WHERE namespace = %s",
-                (self.namespace,),
-            )
-        result = self.cursor.fetchone()
-        return result[0] if result else 0

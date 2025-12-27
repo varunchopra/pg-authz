@@ -1,7 +1,7 @@
 """Tests for MFA management functions."""
 
 import pytest
-from authn_sdk import AuthnError
+from postkit.authn import AuthnError
 
 
 class TestAddMfa:

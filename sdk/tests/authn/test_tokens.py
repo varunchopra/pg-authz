@@ -2,7 +2,7 @@
 
 import pytest
 from datetime import timedelta
-from authn_sdk import AuthnError
+from postkit.authn import AuthnError
 
 
 class TestCreateToken:

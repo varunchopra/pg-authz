@@ -7,7 +7,7 @@ separate role to verify RLS policies work correctly.
 import pytest
 import psycopg
 
-from authz_sdk import AuthzClient
+from postkit.authz import AuthzClient
 
 
 class TestRowLevelSecurity:

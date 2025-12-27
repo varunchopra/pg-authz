@@ -15,7 +15,7 @@ import os
 import pytest
 import time
 
-from authz_sdk import AuthzClient
+from postkit.authz import AuthzClient
 
 
 class TestLargeGroups:

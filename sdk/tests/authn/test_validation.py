@@ -1,7 +1,7 @@
 """Tests for input validation functions."""
 
 import pytest
-from authn_sdk import AuthnError
+from postkit.authn import AuthnError
 
 
 class TestEmailValidation:
