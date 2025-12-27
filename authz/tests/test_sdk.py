@@ -1,5 +1,5 @@
 """
-SDK core behavior tests for pg-authz.
+SDK core behavior tests for postkit/authz.
 
 Tests the AuthzClient SDK through its public API - the "happy path" tests.
 Edge cases and specialized functionality are in dedicated test files.

@@ -1,5 +1,5 @@
 """
-Permission hierarchy tests for pg-authz.
+Permission hierarchy tests for postkit/authz.
 
 Tests for:
 - Adding/removing hierarchy rules

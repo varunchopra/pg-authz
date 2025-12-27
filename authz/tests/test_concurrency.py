@@ -1,5 +1,5 @@
 """
-Concurrency tests for pg-authz.
+Concurrency tests for postkit/authz.
 
 With lazy evaluation, writes don't require serialization for correctness
 since there's no precomputed table to maintain. These tests verify that

@@ -1,5 +1,5 @@
 """
-Input validation tests for pg-authz.
+Input validation tests for postkit/authz.
 
 Tests for:
 - Boundary conditions (max length, min length)

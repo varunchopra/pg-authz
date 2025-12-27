@@ -1,5 +1,5 @@
 """
-Tests for permission resolution patterns in pg-authz.
+Tests for permission resolution patterns in postkit/authz.
 
 These tests verify correct behavior for complex access patterns:
 

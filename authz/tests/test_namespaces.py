@@ -1,5 +1,5 @@
 """
-Namespace isolation tests for pg-authz.
+Namespace isolation tests for postkit/authz.
 
 Verifies that namespaces provide complete multi-tenant isolation:
 - Permissions in one namespace are not visible in another

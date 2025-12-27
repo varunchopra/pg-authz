@@ -1,5 +1,5 @@
 -- =============================================================================
--- SCHEMA AND TABLES FOR PG-AUTHZ
+-- SCHEMA AND TABLES FOR POSTKIT/AUTHZ
 -- =============================================================================
 CREATE SCHEMA IF NOT EXISTS authz;
 

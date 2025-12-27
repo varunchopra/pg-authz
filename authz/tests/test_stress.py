@@ -1,5 +1,5 @@
 """
-Stress tests for pg-authz.
+Stress tests for postkit/authz.
 
 Tests performance and correctness under high load:
 - Large groups (1000+ users)

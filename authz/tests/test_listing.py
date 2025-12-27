@@ -1,5 +1,5 @@
 """
-Listing and filtering tests for pg-authz.
+Listing and filtering tests for postkit/authz.
 
 Tests for:
 - filter_authorized: batch filtering of resources

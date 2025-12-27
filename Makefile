@@ -1,7 +1,7 @@
 .PHONY: setup build test dev release clean
 
 PG_VERSION ?= 16
-PG_CONTAINER = pg-authz-test
+PG_CONTAINER = postkit-test
 PG_PORT = 5433
 DATABASE_URL = postgresql://postgres:postgres@localhost:$(PG_PORT)/postgres
 PYTEST = uv run --with pytest --with 'psycopg[binary]' pytest
@@ -18,22 +18,23 @@ setup:
 	@echo "Waiting for Postgres..."
 	@sleep 3
 	@until docker exec $(PG_CONTAINER) pg_isready -q; do sleep 1; done
-	@echo "$(GREEN)✓ Postgres $(PG_VERSION) ready$(NC)"
+	@echo "$(GREEN) Postgres $(PG_VERSION) ready$(NC)"
 
 build:
 	@mkdir -p dist
-	@./scripts/build.sh > dist/pg-authz.sql
-	@echo "$(GREEN)✓ Built dist/pg-authz.sql$(NC)"
+	@./scripts/build.sh > dist/postkit.sql
+	@./scripts/build.sh authz > dist/authz.sql
+	@echo "$(GREEN) Built dist/postkit.sql and dist/authz.sql$(NC)"
 
 test: build
 ifdef TEST
 	@DATABASE_URL=$(DATABASE_URL) $(PYTEST) -v $(TEST)
 else
-	@DATABASE_URL=$(DATABASE_URL) $(PYTEST) -v tests/
+	@DATABASE_URL=$(DATABASE_URL) $(PYTEST) -v authz/tests/
 endif
 
 dev: build test
-	@echo "$(GREEN)✓ Build and tests passed$(NC)"
+	@echo "$(GREEN) Build and tests passed$(NC)"
 
 release:
 ifndef VERSION
@@ -42,7 +43,7 @@ endif
 	@echo "Releasing v$(VERSION)..."
 	@make build
 	@make test
-	@echo "$(GREEN)✓ Ready to release$(NC)"
+	@echo "$(GREEN) Ready to release$(NC)"
 	@echo ""
 	@echo "Next steps:"
 	@echo "  git tag v$(VERSION) && git push --tags"
@@ -50,4 +51,4 @@ endif
 clean:
 	@docker rm -f $(PG_CONTAINER) 2>/dev/null || true
 	@rm -rf dist/
-	@echo "$(GREEN)✓ Cleaned up$(NC)"
+	@echo "$(GREEN) Cleaned up$(NC)"

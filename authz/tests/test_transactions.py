@@ -1,5 +1,5 @@
 """
-Transaction semantics tests for pg-authz.
+Transaction semantics tests for postkit/authz.
 
 Tests for:
 - Rollback behavior

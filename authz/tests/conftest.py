@@ -1,4 +1,4 @@
-"""Pytest fixtures for pg-authz tests."""
+"""Pytest fixtures for postkit/authz tests."""
 
 import os
 import pytest
@@ -17,17 +17,17 @@ DATABASE_URL = os.environ.get(
 def db_connection():
     """
     Session-scoped database connection.
-    Installs the pg-authz schema once at the start of the test session.
+    Installs the authz schema once at the start of the test session.
     """
     conn = psycopg.connect(DATABASE_URL, autocommit=True)
 
     # Install fresh schema
     conn.execute("DROP SCHEMA IF EXISTS authz CASCADE")
 
-    # Load the built SQL file
-    dist_sql = Path(__file__).parent.parent / "dist" / "pg-authz.sql"
+    # Load the built SQL file (authz/tests/ -> root/dist/)
+    dist_sql = Path(__file__).parent.parent.parent / "dist" / "authz.sql"
     if not dist_sql.exists():
-        pytest.fail(f"dist/pg-authz.sql not found. Run 'make build' first.")
+        pytest.fail(f"dist/authz.sql not found. Run 'make build' first.")
 
     conn.execute(dist_sql.read_text())
 

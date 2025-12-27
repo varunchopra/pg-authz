@@ -1,5 +1,5 @@
 """
-pg-authz SDK - Python client for the authorization system.
+postkit/authz SDK - Python client for the authorization system.
 
 This module provides:
 - AuthzClient: SDK-style interface for authorization operations
@@ -34,7 +34,7 @@ Entity = tuple[str, str]  # (type, id) e.g., ("repo", "payments-api")
 
 
 class AuthzError(Exception):
-    """Base exception for pg-authz operations."""
+    """Base exception for authz operations."""
 
     pass
 
@@ -53,7 +53,7 @@ class AuthzCycleError(AuthzError):
 
 class AuthzClient:
     """
-    SDK-style client for pg-authz.
+    SDK-style client for postkit/authz.
 
     This is the interface customers would use. It wraps the SQL functions
     with a Pythonic API using named parameters and tuple-based entities.

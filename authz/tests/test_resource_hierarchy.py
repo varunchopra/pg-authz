@@ -1,5 +1,5 @@
 """
-Resource hierarchy tests for pg-authz.
+Resource hierarchy tests for postkit/authz.
 
 Tests for resource containment (e.g., folder contains doc, org contains project).
 Access to a parent resource grants access to child resources.

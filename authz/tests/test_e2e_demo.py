@@ -3,19 +3,19 @@ End-to-End Demo: Central Permissions Service for an Internal Developer Platform
 
 This test demonstrates two things:
 
-1. The pg-authz SDK (AuthzClient) - the generic, tuple-based API
+1. The postkit/authz SDK (AuthzClient) - the generic, tuple-based API
 2. Domain-specific helpers (AcmeAuthz) - how customers layer their own abstractions
 
 SCENARIO: Acme Corp
 ===================
-Acme uses pg-authz as their central authorization service across all internal
+Acme uses postkit/authz as their central authorization service across all internal
 tools: repos, services, secrets, and incident management.
 
 Rather than each tool managing its own permissions, they all ask one question:
 
     "Can user X do action Y on object Z?"
 
-The answer comes from pg-authz, which knows about team memberships, permission
+The answer comes from postkit/authz, which knows about team memberships, permission
 hierarchies, and direct grants.
 """
 
@@ -62,13 +62,13 @@ class AcmeAuthz:
 
 class TestInternalDevPlatform:
     """
-    Acme Corp's internal developer platform uses pg-authz as a
+    Acme Corp's internal developer platform uses postkit/authz as a
     central permissions service.
     """
 
     def test_central_permissions_service(self, authz: AuthzClient):
         """
-        Full workflow demonstrating pg-authz as a central permissions service.
+        Full workflow demonstrating postkit/authz as a central permissions service.
 
         Shows both the generic SDK (authz) and domain helpers (acme).
         """

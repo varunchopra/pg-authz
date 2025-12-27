@@ -1,5 +1,5 @@
 """
-Audit logging tests for pg-authz.
+Audit logging tests for postkit/authz.
 
 Tests audit event capture, actor context, filtering, and partition management.
 """

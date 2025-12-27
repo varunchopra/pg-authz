@@ -1,5 +1,5 @@
 """
-Maintenance and operational tests for pg-authz.
+Maintenance and operational tests for postkit/authz.
 
 With lazy evaluation, there is no computed table. These tests verify
 that the system works correctly under various operational conditions.
@@ -75,7 +75,7 @@ class TestVerifyRepair:
 class TestBackupRestore:
     """Test pg_dump/pg_restore compatibility."""
 
-    PG_CONTAINER = os.environ.get("PG_CONTAINER", "pg-authz-test")
+    PG_CONTAINER = os.environ.get("PG_CONTAINER", "postkit-test")
 
     @pytest.fixture
     def check_docker_container(self):

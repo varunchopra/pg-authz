@@ -1,6 +1,6 @@
-# pg-authz
+# postkit
 
-Relationship-Based Access Control (ReBAC) that runs inside your Postgres. No external services.
+Postgres-native authentication, authorization, and organization management. No external services.
 
 ```sql
 SELECT authz.check('alice', 'read', 'document', 'doc-123');  -- true/false
@@ -8,9 +8,29 @@ SELECT authz.check('alice', 'read', 'document', 'doc-123');  -- true/false
 
 ## What is this?
 
-Authorization answers "can user X do Y to resource Z?" This library stores and evaluates
-relationships - users belong to teams, teams have permissions on resources, resources contain
-other resources. Permissions flow through these relationships.
+A monorepo of PostgreSQL schemas for common SaaS patterns:
+
+| Module | Schema | Purpose |
+|--------|--------|---------|
+| `authn` | `authn` | Authentication (users, sessions, tokens) |
+| `authz` | `authz` | Authorization (ReBAC permissions) |
+| `orgs` | `orgs` | Organizations (tenants, members, invites) |
+
+Each module is independent - use what you need.
+
+## Install
+
+```bash
+# Install everything
+psql $DATABASE_URL -f https://raw.githubusercontent.com/varunchopra/postkit/main/dist/postkit.sql
+
+# Or just authz
+psql $DATABASE_URL -f https://raw.githubusercontent.com/varunchopra/postkit/main/dist/authz.sql
+```
+
+## authz - Authorization
+
+Relationship-Based Access Control (ReBAC) that answers "can user X do Y to resource Z?"
 
 **Good fit:** SaaS apps, internal tools, document systems - anywhere you need "users and teams
 with permissions on things."
@@ -18,7 +38,7 @@ with permissions on things."
 **Not a fit:** Attribute-based rules (location, time, IP), AWS IAM-style policies, or simple
 role-only systems where users just need roles without resource-level grants.
 
-## Features
+### Features
 
 - Nested teams (groups can contain groups)
 - Permission hierarchies (admin -> write -> read)
@@ -27,13 +47,7 @@ role-only systems where users just need roles without resource-level grants.
 - Time-bound permissions with expiration
 - Audit logging
 
-## Install
-
-```bash
-psql $DATABASE_URL -f https://raw.githubusercontent.com/varunchopra/pg-authz/main/dist/pg-authz.sql
-```
-
-## Quick Start
+### Quick Start
 
 ```sql
 -- Permission hierarchy: admin -> write -> read
@@ -53,7 +67,7 @@ SELECT authz.check('alice', 'admin', 'repo', 'acme/api');  -- true (via team)
 SELECT authz.check('charlie', 'read', 'repo', 'acme/api'); -- false (not on team)
 ```
 
-## API
+### API
 
 ```sql
 -- Grant/revoke
@@ -78,7 +92,7 @@ authz.remove_hierarchy(resource_type, permission, implies)
 authz.explain_text(user_id, permission, resource_type, resource_id)
 ```
 
-## Nested Teams
+### Nested Teams
 
 ```sql
 SELECT authz.write('team', 'infrastructure', 'member', 'user', 'alice');
@@ -89,7 +103,7 @@ SELECT authz.write('repo', 'api', 'read', 'team', 'engineering');
 SELECT authz.check('alice', 'read', 'repo', 'api');  -- true (via nested teams)
 ```
 
-## Resource Hierarchies
+### Resource Hierarchies
 
 ```sql
 SELECT authz.write('doc', 'spec', 'parent', 'folder', 'projects');
@@ -99,7 +113,7 @@ SELECT authz.write('folder', 'root', 'read', 'user', 'alice');
 SELECT authz.check('alice', 'read', 'doc', 'spec');  -- true (inherited from folder)
 ```
 
-## Time-Bound Permissions
+### Time-Bound Permissions
 
 ```sql
 SELECT authz.write('repo', 'api', 'read', 'user', 'contractor', NULL, 'default',
@@ -109,7 +123,7 @@ SELECT * FROM authz.list_expiring('7 days');
 SELECT authz.cleanup_expired();  -- run via cron
 ```
 
-## Multi-Tenancy
+### Multi-Tenancy
 
 ```sql
 SELECT authz.write('doc', '1', 'read', 'user', 'alice', NULL, 'tenant-acme');
@@ -119,13 +133,21 @@ SELECT authz.check('alice', 'read', 'doc', '1', 'tenant-other'); -- false
 SELECT authz.set_tenant('acme');  -- RLS enforces isolation for non-superusers
 ```
 
-## Audit Logging
+### Audit Logging
 
 ```sql
 SELECT authz.set_actor('admin@acme.com', 'req-123', 'Quarterly review');
 -- do stuff...
 SELECT * FROM authz.audit_events ORDER BY event_time DESC LIMIT 100;
 ```
+
+## authn - Authentication
+
+*Coming soon*
+
+## orgs - Organizations
+
+*Coming soon*
 
 ## Why No SDK?
 
@@ -149,6 +171,7 @@ db.QueryRow(ctx, "SELECT authz.check($1, $2, $3, $4)", userID, "read", "doc", do
 
 ```bash
 make setup   # Start Postgres in Docker
+make build   # Build dist/postkit.sql and dist/authz.sql
 make test    # Run tests
 make clean   # Cleanup
 ```

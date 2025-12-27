@@ -9,11 +9,11 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     strategy:
       matrix:
         postgres: [14, 15, 16, 17]
-    
+
     services:
       postgres:
         image: postgres:${{ matrix.postgres }}
@@ -37,10 +37,11 @@ jobs:
         run: |
           chmod +x scripts/*.sh
           mkdir -p dist
-          ./scripts/build.sh > dist/pg-authz.sql
+          ./scripts/build.sh > dist/postkit.sql
+          ./scripts/build.sh authz > dist/authz.sql
 
       - name: Run tests
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
           PG_CONTAINER: ${{ job.services.postgres.id }}
-        run: uv run --with pytest --with 'psycopg[binary]' pytest tests/ -v
+        run: uv run --with pytest --with 'psycopg[binary]' pytest authz/tests/ -v

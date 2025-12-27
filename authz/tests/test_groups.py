@@ -1,5 +1,5 @@
 """
-Group membership tests for pg-authz.
+Group membership tests for postkit/authz.
 
 Tests for:
 - Team/group permission inheritance
