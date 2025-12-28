@@ -1,7 +1,6 @@
 """Tests for token management functions."""
 
 import pytest
-from datetime import timedelta
 from postkit.authn import AuthnError
 
 

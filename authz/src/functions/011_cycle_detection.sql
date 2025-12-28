@@ -1,32 +1,14 @@
--- =============================================================================
--- CYCLE DETECTION
--- =============================================================================
--- Prevents and detects circular memberships in groups and resource hierarchies.
---
--- Cycles are bad because they cause infinite recursion during permission
--- checks. Example group cycle: team:A contains team:B contains team:C contains team:A
--- Example resource cycle: folder:A contains folder:B contains folder:A
---
--- would_create_cycle() is called before inserting group-to-group memberships.
--- would_create_resource_cycle() is called before inserting parent relations.
--- detect_cycles() and detect_resource_cycles() are maintenance tools to find
--- cycles if they somehow exist.
+-- @group Internal
 
-
--- =============================================================================
--- ADVISORY LOCK FOR CONCURRENT CYCLE PREVENTION
--- =============================================================================
--- Acquires advisory locks on both endpoints of an edge in deterministic order.
--- This prevents race conditions where two concurrent transactions both pass
--- cycle detection:
---
---   T1: write('B', 'member', 'A') -> locks B, checks B not in ancestors of A
---   T2: write('A', 'member', 'B') -> locks A, checks A not in ancestors of B
---   Both pass, both commit, cycle A->B->A exists
---
--- By locking BOTH endpoints in deterministic order, we ensure one transaction
--- blocks until the other completes. The deterministic ordering also prevents
--- deadlocks.
+-- @function authz._acquire_dual_lock
+-- @brief Acquires advisory locks on both endpoints of an edge
+-- @param p_namespace Namespace
+-- @param p_type1 First endpoint type
+-- @param p_id1 First endpoint ID
+-- @param p_type2 Second endpoint type
+-- @param p_id2 Second endpoint ID
+-- Prevents race conditions where two concurrent transactions both pass cycle detection.
+-- Locks both endpoints in deterministic order to prevent deadlocks.
 CREATE OR REPLACE FUNCTION authz._acquire_dual_lock(
     p_namespace text,
     p_type1 text,
@@ -49,11 +31,15 @@ END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authz, pg_temp;
 
 
--- Check if adding a membership would create a cycle
---
--- Called before inserting: (parent, member, child) tuples where child is a group.
--- Returns true if p_parent is already a descendant of p_child (which would
--- make adding p_child as a member of p_parent create a cycle).
+-- @function authz._would_create_cycle
+-- @brief Check if adding a membership would create a cycle
+-- @param p_parent_type Parent group type
+-- @param p_parent_id Parent group ID
+-- @param p_child_type Child group type
+-- @param p_child_id Child group ID
+-- @param p_namespace Namespace (default: 'default')
+-- @returns True if adding this edge would create a cycle
+-- Called before inserting group-to-group membership tuples.
 CREATE OR REPLACE FUNCTION authz._would_create_cycle(
     p_parent_type text,
     p_parent_id text,
@@ -92,12 +78,11 @@ RETURNS boolean AS $$
 $$ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = authz, pg_temp;
 
 
--- Find existing cycles in the group membership graph
---
--- Use this to diagnose problems if cycles somehow get created (e.g., by
--- direct SQL inserts bypassing write_tuple validation).
---
--- Returns the path of each cycle found.
+-- @function authz._detect_cycles
+-- @brief Find existing cycles in the group membership graph
+-- @param p_namespace Namespace (default: 'default')
+-- @returns Table of cycle paths
+-- Use to diagnose problems if cycles get created (e.g., by direct SQL inserts).
 CREATE OR REPLACE FUNCTION authz._detect_cycles(p_namespace text DEFAULT 'default')
 RETURNS TABLE(cycle_path text[]) AS $$
     WITH RECURSIVE
@@ -148,15 +133,15 @@ RETURNS TABLE(cycle_path text[]) AS $$
 $$ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = authz, pg_temp;
 
 
--- =============================================================================
--- RESOURCE HIERARCHY CYCLE DETECTION
--- =============================================================================
-
--- Check if adding a parent relation would create a cycle
---
--- Called before inserting: (child, parent, parent_resource) tuples.
--- Returns true if the proposed parent is already a descendant of the child
--- (which would create a cycle).
+-- @function authz._would_create_resource_cycle
+-- @brief Check if adding a parent relation would create a cycle
+-- @param p_child_type Child resource type
+-- @param p_child_id Child resource ID
+-- @param p_parent_type Parent resource type
+-- @param p_parent_id Parent resource ID
+-- @param p_namespace Namespace (default: 'default')
+-- @returns True if adding this edge would create a cycle
+-- Called before inserting parent relation tuples.
 CREATE OR REPLACE FUNCTION authz._would_create_resource_cycle(
     p_child_type text,
     p_child_id text,
@@ -195,12 +180,11 @@ RETURNS boolean AS $$
 $$ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = authz, pg_temp;
 
 
--- Find existing cycles in the resource hierarchy graph
---
--- Use this to diagnose problems if cycles somehow get created (e.g., by
--- direct SQL inserts bypassing write_tuple validation).
---
--- Returns the path of each cycle found.
+-- @function authz._detect_resource_cycles
+-- @brief Find existing cycles in the resource hierarchy graph
+-- @param p_namespace Namespace (default: 'default')
+-- @returns Table of cycle paths
+-- Use to diagnose problems if cycles get created (e.g., by direct SQL inserts).
 CREATE OR REPLACE FUNCTION authz._detect_resource_cycles(p_namespace text DEFAULT 'default')
 RETURNS TABLE(cycle_path text[]) AS $$
     WITH RECURSIVE

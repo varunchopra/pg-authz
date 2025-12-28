@@ -1,30 +1,10 @@
--- =============================================================================
--- INPUT VALIDATION
--- =============================================================================
---
--- Authorization data is security-critical. Bad data causes:
---   - Silent failures (empty strings match nothing)
---   - Hard debugging ("why doesn't this permission work?")
---   - Injection risks (control characters, null bytes)
---   - Performance issues (very long strings bloat indexes)
---
--- We validate at the database level as the last line of defense. It's better
--- to reject bad data with a clear error than to debug weird behavior later.
---
--- Two categories of fields:
---
--- IDENTIFIERS (resource_type, subject_type, relation)
---   Schema-like fields that define permission model structure.
---   Strict: lowercase alphanumeric, underscores, hyphens only.
---   Examples: "repo", "team", "admin", "member"
---
--- IDS (resource_id, subject_id)
---   Data fields that reference entities in your system.
---   Flexible: allows paths, URIs, emails, UUIDs.
---   Examples: "acme/api", "user@example.com", "550e8400-e29b-41d4"
+-- @group Internal
 
-
--- Validate an identifier (resource_type, subject_type, relation)
+-- @function authz._validate_identifier
+-- @brief Validates resource_type, subject_type, or relation
+-- @param p_value The value to validate
+-- @param p_field_name Field name for error messages
+-- Must start with lowercase letter, contain only lowercase letters, numbers, underscores, hyphens.
 CREATE OR REPLACE FUNCTION authz._validate_identifier(p_value text, p_field_name text)
 RETURNS void AS $$
 BEGIN
@@ -52,7 +32,11 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE SECURITY INVOKER SET search_path = authz, pg_temp;
 
 
--- Validate an ID (resource_id, subject_id)
+-- @function authz._validate_id
+-- @brief Validates resource_id or subject_id
+-- @param p_value The value to validate
+-- @param p_field_name Field name for error messages
+-- Flexible: allows paths, URIs, emails, UUIDs. Rejects control characters and leading/trailing whitespace.
 CREATE OR REPLACE FUNCTION authz._validate_id(p_value text, p_field_name text)
 RETURNS void AS $$
 BEGIN
@@ -86,9 +70,11 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE SECURITY INVOKER SET search_path = authz, pg_temp;
 
 
--- Validate an array of IDs (for bulk operations)
--- Applies the same rules as _validate_id to each element
--- Reports the index of the first invalid element for easier debugging
+-- @function authz._validate_id_array
+-- @brief Validates an array of IDs for bulk operations
+-- @param p_values The array to validate
+-- @param p_field_name Field name for error messages
+-- Reports the index of the first invalid element for easier debugging.
 CREATE OR REPLACE FUNCTION authz._validate_id_array(p_values text[], p_field_name text)
 RETURNS void AS $$
 DECLARE
@@ -118,8 +104,10 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE SECURITY INVOKER SET search_path = authz, pg_temp;
 
 
--- Warn if namespace doesn't match RLS tenant context
--- Called at the start of query functions to alert developers of likely misconfiguration
+-- @function authz._warn_namespace_mismatch
+-- @brief Warns if namespace doesn't match RLS tenant context
+-- @param p_namespace The namespace being queried
+-- Called at start of query functions to alert developers of likely misconfiguration.
 CREATE OR REPLACE FUNCTION authz._warn_namespace_mismatch(p_namespace text)
 RETURNS void AS $$
 DECLARE
@@ -134,8 +122,10 @@ END;
 $$ LANGUAGE plpgsql STABLE PARALLEL SAFE SECURITY INVOKER SET search_path = authz, pg_temp;
 
 
--- Validate namespace
--- More flexible than identifiers: allows UUIDs, numeric tenant IDs
+-- @function authz._validate_namespace
+-- @brief Validates namespace format
+-- @param p_value The namespace to validate
+-- More flexible than identifiers: allows UUIDs, numeric tenant IDs (alphanumeric with underscores/hyphens).
 CREATE OR REPLACE FUNCTION authz._validate_namespace(p_value text)
 RETURNS void AS $$
 BEGIN

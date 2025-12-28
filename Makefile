@@ -1,4 +1,4 @@
-.PHONY: setup build test test-authz test-authn dev release clean sdk-build sdk-publish db
+.PHONY: setup build test test-authz test-authn dev release clean sdk-build sdk-publish db docs lint format
 
 PG_VERSION ?= 16
 PG_CONTAINER ?= postkit-test
@@ -67,8 +67,25 @@ sdk-publish: sdk-build
 	@cd sdk && uv publish
 	@echo "$(GREEN) Published SDK to PyPI$(NC)"
 
+capture-sql: db build
+	@cd sdk && DOC_CAPTURE=1 DATABASE_URL=$(DATABASE_URL) uv run --extra dev pytest -v tests/authz/test_groups.py
+	@echo "$(GREEN)✓ Captured SQL to docs/captured_sql.json$(NC)"
+
+docs:
+	@cd scripts && uv run --with pglast --with 'psycopg[binary]' python -m gendocs.cli
+	@echo "$(GREEN)✓ Generated docs$(NC)"
+
 clean:
 	@docker rm -f $(PG_CONTAINER) 2>/dev/null || true
 	@rm -rf dist/ sdk/dist/ sdk/.venv .venv
 	@find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-	@echo "$(GREEN) Cleaned up$(NC)"
+	@echo "$(GREEN)✓ Cleaned up$(NC)"
+
+lint:
+	@uvx ruff check .
+	@echo "$(GREEN)✓ Lint passed$(NC)"
+
+format:
+	@uvx ruff check --select I --fix .
+	@uvx ruff format .
+	@echo "$(GREEN)✓ Formatted$(NC)"

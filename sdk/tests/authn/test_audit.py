@@ -1,7 +1,8 @@
 """Tests for audit logging and partition management."""
 
-import pytest
 from datetime import datetime
+
+import pytest
 
 
 class TestCreateAuditPartition:
@@ -77,8 +78,7 @@ class TestEnsureAuditPartitions:
         # Current month partition should already exist from install
         # This tests that the function runs without error
         test_helpers.cursor.execute("SELECT * FROM authn.ensure_audit_partitions(0)")
-        results = test_helpers.cursor.fetchall()
-        # May return empty if current month already exists
+        test_helpers.cursor.fetchall()  # Consume results; may be empty if partition exists
         # The function succeeds without error
 
     def test_returns_only_newly_created(self, test_helpers):

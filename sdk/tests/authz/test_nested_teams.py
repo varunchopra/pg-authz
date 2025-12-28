@@ -1,7 +1,8 @@
 """Nested teams tests."""
 
-import pytest
 from datetime import datetime, timedelta, timezone
+
+import pytest
 
 
 class TestNestedTeamMembership:

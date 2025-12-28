@@ -13,7 +13,6 @@ from uuid import UUID
 
 import psycopg
 
-
 __all__ = [
     "AuthnClient",
     "AuthnError",
@@ -557,7 +556,7 @@ class AuthnClient:
         sql = f"""
             SELECT *
             FROM authn.audit_events
-            WHERE {' AND '.join(conditions)}
+            WHERE {" AND ".join(conditions)}
             ORDER BY event_time DESC, id DESC
             LIMIT %s
         """

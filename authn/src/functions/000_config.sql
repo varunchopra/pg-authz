@@ -1,11 +1,9 @@
--- =============================================================================
--- CONFIGURATION DEFAULTS FOR POSTKIT/AUTHN
--- =============================================================================
--- Sensible defaults for session duration, token expiry, and lockout settings.
--- Override via database settings: SET authn.session_duration = '30 days';
--- =============================================================================
+-- @group Internal
 
--- Default session duration (used when expires_in is NULL)
+-- @function authn._session_duration
+-- @brief Returns default session duration
+-- @returns Interval (default: 7 days)
+-- Override with SET authn.session_duration.
 CREATE OR REPLACE FUNCTION authn._session_duration()
 RETURNS interval
 AS $$
@@ -17,11 +15,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE PARALLEL SAFE SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn._session_duration() IS
-'Returns default session duration. Override with SET authn.session_duration.';
 
-
--- Default token expiry based on token type
+-- @function authn._token_expiry
+-- @brief Returns default token expiry for a given token type
+-- @param p_token_type Token type (password_reset, email_verify, magic_link)
+-- @returns Interval (password_reset: 1 hour, email_verify: 24 hours, magic_link: 15 minutes)
 CREATE OR REPLACE FUNCTION authn._token_expiry(p_token_type text)
 RETURNS interval
 AS $$
@@ -35,12 +33,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn._token_expiry(text) IS
-'Returns default token expiry for a given token type.
-password_reset: 1 hour, email_verify: 24 hours, magic_link: 15 minutes.';
 
-
--- Default lockout window (sliding window for failed attempt counting)
+-- @function authn._lockout_window
+-- @brief Returns lockout window duration
+-- @returns Interval (default: 15 minutes)
+-- Override with SET authn.lockout_window.
 CREATE OR REPLACE FUNCTION authn._lockout_window()
 RETURNS interval
 AS $$
@@ -52,11 +49,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE PARALLEL SAFE SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn._lockout_window() IS
-'Returns lockout window duration. Override with SET authn.lockout_window.';
 
-
--- Maximum failed login attempts before lockout
+-- @function authn._max_login_attempts
+-- @brief Returns max failed attempts before lockout
+-- @returns Integer (default: 5)
+-- Override with SET authn.max_login_attempts.
 CREATE OR REPLACE FUNCTION authn._max_login_attempts()
 RETURNS int
 AS $$
@@ -68,11 +65,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE PARALLEL SAFE SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn._max_login_attempts() IS
-'Returns max failed attempts before lockout. Override with SET authn.max_login_attempts.';
 
-
--- Login attempts retention (for cleanup)
+-- @function authn._login_attempts_retention
+-- @brief Returns how long to keep login attempts
+-- @returns Interval (default: 30 days)
+-- Override with SET authn.login_attempts_retention.
 CREATE OR REPLACE FUNCTION authn._login_attempts_retention()
 RETURNS interval
 AS $$
@@ -83,6 +80,3 @@ BEGIN
     );
 END;
 $$ LANGUAGE plpgsql STABLE PARALLEL SAFE SET search_path = authn, pg_temp;
-
-COMMENT ON FUNCTION authn._login_attempts_retention() IS
-'Returns how long to keep login attempts. Override with SET authn.login_attempts_retention.';

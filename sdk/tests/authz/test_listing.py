@@ -7,9 +7,6 @@ Tests for:
 - list_users / list_resources: listing operations
 """
 
-import pytest
-from postkit.authz import AuthzClient
-
 
 class TestFilterAuthorized:
     """Test the filter_authorized function for batch filtering."""
@@ -76,7 +73,10 @@ class TestFilterAuthorized:
         authz.grant("read", resource=("doc", "m"), subject=("user", "alice"))
 
         result = authz.filter_authorized(
-            "alice", "doc", "read", ["z", "a", "m", "x"]  # x not authorized
+            "alice",
+            "doc",
+            "read",
+            ["z", "a", "m", "x"],  # x not authorized
         )
 
         # Should return authorized ones (order may vary, but set should match)

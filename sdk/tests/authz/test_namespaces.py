@@ -7,9 +7,6 @@ Verifies that namespaces provide complete multi-tenant isolation:
 - Group memberships are namespace-scoped
 """
 
-import pytest
-from postkit.authz import AuthzClient
-
 
 class TestNamespaceIsolation:
     """Verify namespaces are completely isolated."""

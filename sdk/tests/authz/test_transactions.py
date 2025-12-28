@@ -8,7 +8,7 @@ Tests for:
 """
 
 import os
-import pytest
+
 import psycopg
 
 DATABASE_URL = os.environ.get(

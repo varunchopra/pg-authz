@@ -1,29 +1,13 @@
--- =============================================================================
--- AUDIT FUNCTIONS
--- =============================================================================
---
--- Functions for setting actor context and managing audit partitions.
---
--- =============================================================================
--- =============================================================================
--- SET ACTOR CONTEXT
--- =============================================================================
---
--- PURPOSE
--- -------
--- Sets transaction-local context that will be captured in audit events.
--- Call this at the start of an operation to record who made changes.
---
--- SCOPE
--- =====
--- Context is transaction-local (set_config with is_local=true).
--- It automatically clears when the transaction commits or rolls back.
---
--- EXAMPLE
--- =======
---   SELECT authz.set_actor('admin@acme.com', 'req-abc123', 'Quarterly review');
---   SELECT authz.write('repo', 'api', 'admin', 'team', 'eng');
---   -- Audit event will include actor_id, request_id, and reason
+-- @group Audit
+
+-- @function authz.set_actor
+-- @brief Tag audit events with who made the change (call before write/delete)
+-- @param p_actor_id The admin or user making the change (for audit trail)
+-- @param p_request_id Optional request/ticket ID for traceability
+-- @param p_reason Optional reason for the change
+-- @example -- Before making changes, set who's doing it
+-- @example SELECT authz.set_actor('admin@acme.com', 'JIRA-123', 'Quarterly review');
+-- @example SELECT authz.write('repo', 'api', 'admin', 'team', 'eng');
 CREATE OR REPLACE FUNCTION authz.set_actor (p_actor_id text, p_request_id text DEFAULT NULL, p_reason text DEFAULT NULL)
     RETURNS VOID
     AS $$
@@ -39,22 +23,9 @@ $$
 LANGUAGE plpgsql SECURITY INVOKER
 SET search_path = authz, pg_temp;
 
--- =============================================================================
--- CLEAR ACTOR CONTEXT
--- =============================================================================
---
--- PURPOSE
--- -------
--- Clears the actor context set by set_actor().
--- Subsequent audit events will have NULL actor fields.
---
--- SCOPE
--- =====
--- Context is transaction-local, so this only affects the current transaction.
---
--- EXAMPLE
--- =======
---   SELECT authz.clear_actor();
+-- @function authz.clear_actor
+-- @brief Clear actor context (subsequent audit events will have NULL actor)
+-- @example SELECT authz.clear_actor();
 CREATE OR REPLACE FUNCTION authz.clear_actor()
     RETURNS VOID
     AS $$
@@ -67,19 +38,10 @@ $$
 LANGUAGE plpgsql SECURITY INVOKER
 SET search_path = authz, pg_temp;
 
--- =============================================================================
--- CREATE AUDIT PARTITION
--- =============================================================================
---
--- PURPOSE
--- -------
--- Creates a partition for a specific year/month.
--- Safe to call multiple times (returns NULL if partition exists).
---
--- NAMING
--- ======
--- Partitions are named: audit_events_y{YYYY}m{MM}
--- Example: audit_events_y2024m01 for January 2024
+-- @function authz.create_audit_partition
+-- @brief Create a monthly partition for audit events
+-- @returns Partition name if created, NULL if already exists
+-- @example SELECT authz.create_audit_partition(2024, 1); -- January 2024
 CREATE OR REPLACE FUNCTION authz.create_audit_partition (p_year int, p_month int)
     RETURNS text
     AS $$
@@ -124,18 +86,12 @@ $$
 LANGUAGE plpgsql SECURITY INVOKER
 SET search_path = authz, pg_temp;
 
--- =============================================================================
--- ENSURE AUDIT PARTITIONS
--- =============================================================================
---
--- PURPOSE
--- -------
--- Creates partitions from current month through N months ahead.
--- Run this periodically (e.g., monthly via cron) to ensure partitions exist.
---
--- RETURNS
--- =======
--- Names of newly created partitions (empty if all already exist).
+-- @function authz.ensure_audit_partitions
+-- @brief Create partitions for upcoming months (run monthly via cron)
+-- @param p_months_ahead How many months ahead to create (default 3)
+-- @returns Names of newly created partitions
+-- @example -- Add to monthly cron job
+-- @example SELECT * FROM authz.ensure_audit_partitions(3);
 CREATE OR REPLACE FUNCTION authz.ensure_audit_partitions (p_months_ahead int DEFAULT 3)
     RETURNS SETOF TEXT
     AS $$
@@ -159,23 +115,12 @@ $$
 LANGUAGE plpgsql SECURITY INVOKER
 SET search_path = authz, pg_temp;
 
--- =============================================================================
--- DROP AUDIT PARTITIONS
--- =============================================================================
---
--- PURPOSE
--- -------
--- Drops partitions older than the specified threshold.
--- Default is 84 months (7 years) for compliance requirements.
---
--- SAFETY
--- ======
--- Only drops partitions whose END date is before the cutoff.
--- This means data from the threshold month is preserved.
---
--- RETURNS
--- =======
--- Names of dropped partitions.
+-- @function authz.drop_audit_partitions
+-- @brief Delete old audit partitions (default: keep 7 years for compliance)
+-- @param p_older_than_months Delete partitions older than this (default 84 = 7 years)
+-- @returns Names of dropped partitions
+-- @example -- Keep 7 years, delete older
+-- @example SELECT * FROM authz.drop_audit_partitions(84);
 CREATE OR REPLACE FUNCTION authz.drop_audit_partitions (p_older_than_months int DEFAULT 84)
     RETURNS SETOF TEXT
     AS $$

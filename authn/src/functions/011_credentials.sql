@@ -1,16 +1,10 @@
--- =============================================================================
--- CREDENTIAL MANAGEMENT FOR POSTKIT/AUTHN
--- =============================================================================
--- Password hash retrieval and update. The ONLY place password_hash is returned.
--- =============================================================================
+-- @group Credentials
 
-
--- =============================================================================
--- GET CREDENTIALS
--- =============================================================================
--- Returns password hash for caller to verify.
--- This is the ONLY function that returns password_hash.
--- Also returns disabled_at so caller can check before creating session.
+-- @function authn.get_credentials
+-- @brief Get password hash for login verification (only function that returns hash)
+-- @returns user_id, password_hash, disabled_at. Verify hash in your app, check
+--   disabled_at, then call create_session if valid.
+-- @example SELECT * FROM authn.get_credentials('alice@example.com');
 CREATE OR REPLACE FUNCTION authn.get_credentials(
     p_email text,
     p_namespace text DEFAULT 'default'
@@ -39,15 +33,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.get_credentials(text, text) IS
-'Returns user credentials for login verification.
-This is the ONLY function that returns password_hash.
-Caller must verify the hash and check disabled_at before creating a session.';
-
-
--- =============================================================================
--- UPDATE PASSWORD
--- =============================================================================
+-- @function authn.update_password
+-- @brief Update user's password hash (after password change or reset)
+-- @param p_new_password_hash Argon2id hash of new password
+-- @example SELECT authn.update_password(user_id, '$argon2id$...');
 CREATE OR REPLACE FUNCTION authn.update_password(
     p_user_id uuid,
     p_new_password_hash text,
@@ -80,5 +69,3 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.update_password(uuid, text, text) IS
-'Updates password hash. Never logs the hash value.';

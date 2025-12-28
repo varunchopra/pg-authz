@@ -1,0 +1,67 @@
+# Authz API Reference
+
+## Python SDK
+
+| Function | Description |
+|----------|-------------|
+| [`add_hierarchy_rule`](sdk.md#add_hierarchy_rule) | Add a single hierarchy rule (for complex/branching hierarchies). |
+| [`bulk_grant`](sdk.md#bulk_grant) | Grant permission to many users at once (single statement). |
+| [`bulk_grant_resources`](sdk.md#bulk_grant_resources) | Grant permission to a subject on many resources at once. |
+| [`check`](sdk.md#check) | Check if a user has a permission on a resource. |
+| [`check_all`](sdk.md#check_all) | Check if a user has all of the specified permissions. |
+| [`check_any`](sdk.md#check_any) | Check if a user has any of the specified permissions. |
+| [`cleanup_expired`](sdk.md#cleanup_expired) | Remove expired grants. |
+| [`clear_actor`](sdk.md#clear_actor) | Clear actor context. |
+| [`clear_expiration`](sdk.md#clear_expiration) | Remove expiration from a grant (make it permanent). |
+| [`clear_hierarchy`](sdk.md#clear_hierarchy) | Clear all hierarchy rules for a resource type. |
+| [`explain`](sdk.md#explain) | Explain why a user has a permission. |
+| [`extend_expiration`](sdk.md#extend_expiration) | Extend an existing expiration by a given interval. |
+| [`filter_authorized`](sdk.md#filter_authorized) | Filter resource IDs to only those the user can access. |
+| [`get_audit_events`](sdk.md#get_audit_events) | Query audit events with optional filters. |
+| [`grant`](sdk.md#grant) | Grant a permission on a resource to a subject. |
+| [`list_expiring`](sdk.md#list_expiring) | List grants expiring within the given timeframe. |
+| [`list_resources`](sdk.md#list_resources) | List resources a user has a permission on. |
+| [`list_users`](sdk.md#list_users) | List users who have a permission on a resource. |
+| [`remove_hierarchy_rule`](sdk.md#remove_hierarchy_rule) | Remove a single hierarchy rule. |
+| [`revoke`](sdk.md#revoke) | Revoke a permission on a resource from a subject. |
+| [`set_actor`](sdk.md#set_actor) | Set actor context for audit logging. |
+| [`set_expiration`](sdk.md#set_expiration) | Set or update expiration on an existing grant. |
+| [`set_hierarchy`](sdk.md#set_hierarchy) | Define permission hierarchy for a resource type. |
+| [`stats`](sdk.md#stats) | Get namespace statistics for monitoring. |
+| [`verify`](sdk.md#verify) | Check for data integrity issues (e.g., group membership cycles). |
+
+## SQL Functions
+
+| Function | Description |
+|----------|-------------|
+| [`authz.clear_actor`](sql.md#authzclear_actor) | Clear actor context (subsequent audit events will have NULL actor) |
+| [`authz.create_audit_partition`](sql.md#authzcreate_audit_partition) | Create a monthly partition for audit events |
+| [`authz.drop_audit_partitions`](sql.md#authzdrop_audit_partitions) | Delete old audit partitions (default: keep 7 years for compliance) |
+| [`authz.ensure_audit_partitions`](sql.md#authzensure_audit_partitions) | Create partitions for upcoming months (run monthly via cron) |
+| [`authz.set_actor`](sql.md#authzset_actor) | Tag audit events with who made the change (call before write/delete) |
+| [`authz.explain`](sql.md#authzexplain) | Debug why a user has (or doesn't have) a permission |
+| [`authz.explain_text`](sql.md#authzexplain_text) | Human-readable explanation of why a user has access |
+| [`authz.delete`](sql.md#authzdelete) | Simpler delete_tuple when you don't need subject_relation |
+| [`authz.delete_tuple`](sql.md#authzdelete_tuple) | Revoke a permission (remove a grant) |
+| [`authz.cleanup_expired`](sql.md#authzcleanup_expired) | Delete expired grants to reclaim storage (optional, run via cron) |
+| [`authz.clear_expiration`](sql.md#authzclear_expiration) | Make a grant permanent (remove expiration) |
+| [`authz.extend_expiration`](sql.md#authzextend_expiration) | Extend an existing grant's expiration by an interval |
+| [`authz.list_expiring`](sql.md#authzlist_expiring) | Find grants that will expire soon (for renewal reminders) |
+| [`authz.set_expiration`](sql.md#authzset_expiration) | Add or update expiration on an existing grant |
+| [`authz.add_hierarchy`](sql.md#authzadd_hierarchy) | Define that one permission implies another (e.g., admin implies write) |
+| [`authz.clear_hierarchy`](sql.md#authzclear_hierarchy) | Remove all hierarchy rules for a resource type (start fresh) |
+| [`authz.remove_hierarchy`](sql.md#authzremove_hierarchy) | Remove a permission implication rule |
+| [`authz.filter_authorized`](sql.md#authzfilter_authorized) | Filter a list to only resources the user can access (batch check) |
+| [`authz.list_resources`](sql.md#authzlist_resources) | List all resources a user can access ("What can Alice read?") |
+| [`authz.list_users`](sql.md#authzlist_users) | List all users who can access a resource ("Who can read this doc?") |
+| [`authz.get_stats`](sql.md#authzget_stats) | Get namespace statistics for monitoring dashboards |
+| [`authz.grant_to_resources_bulk`](sql.md#authzgrant_to_resources_bulk) | Grant same user/team access to many resources at once |
+| [`authz.verify_integrity`](sql.md#authzverify_integrity) | Check for data corruption (circular memberships, broken hierarchies) |
+| [`authz.clear_tenant`](sql.md#authzclear_tenant) | Clear tenant context. Queries return no rows (fail-closed for safety). |
+| [`authz.set_tenant`](sql.md#authzset_tenant) | Set the tenant context for Row-Level Security (session-level) |
+| [`authz.check`](sql.md#authzcheck) | Check if a user has a specific permission on a resource |
+| [`authz.check_all`](sql.md#authzcheck_all) | Check if a user has all of the specified permissions |
+| [`authz.check_any`](sql.md#authzcheck_any) | Check if a user has any of the specified permissions |
+| [`authz.write`](sql.md#authzwrite) | Simpler write_tuple when you don't need subject_relation |
+| [`authz.write_tuple`](sql.md#authzwrite_tuple) | Grant a permission to a user or team on a resource |
+| [`authz.write_tuples_bulk`](sql.md#authzwrite_tuples_bulk) | Grant same permission to many users at once (one SQL round-trip) |

@@ -1,0 +1,139 @@
+"""Documentation generator for postkit.
+
+Generates:
+    docs/README.md           - Overview and generation instructions
+    docs/{module}/README.md  - Index with deep links
+    docs/{module}/sdk.md     - Python SDK reference
+    docs/{module}/sql.md     - SQL function reference
+"""
+
+from __future__ import annotations
+
+import shutil
+import sys
+from pathlib import Path
+
+from .extractors import extract_python_docs, extract_sql_docs
+from .generators import (
+    generate_docs_readme,
+    generate_module_readme,
+    generate_python_markdown,
+    generate_sql_markdown,
+)
+from .validators import compute_coverage, validate_docs
+
+
+def main():
+    """Generate all documentation."""
+    root = Path(__file__).resolve().parent.parent.parent
+    docs_dir = root / "docs"
+
+    # Clean docs directory (preserve any manual files at root)
+    for subdir in ["authz", "authn", "api"]:
+        subdir_path = docs_dir / subdir
+        if subdir_path.exists():
+            shutil.rmtree(subdir_path)
+
+    # Create module directories
+    (docs_dir / "authz").mkdir(parents=True, exist_ok=True)
+    (docs_dir / "authn").mkdir(parents=True, exist_ok=True)
+
+    print("Extracting Python docs...")
+
+    python_results: dict[str, any] = {}
+    sql_results: dict[str, any] = {}
+
+    # authz Python
+    authz_client = root / "sdk" / "src" / "postkit" / "authz" / "client.py"
+    if authz_client.exists():
+        result = extract_python_docs(authz_client, root)
+        python_results["authz"] = result
+        documented = sum(1 for f in result.functions if f.brief)
+        print(f"  ✓ authz: {documented}/{len(result.all_public_functions)} functions")
+
+    # authn Python
+    authn_client = root / "sdk" / "src" / "postkit" / "authn" / "client.py"
+    if authn_client.exists():
+        result = extract_python_docs(authn_client, root)
+        python_results["authn"] = result
+        documented = sum(1 for f in result.functions if f.brief)
+        print(f"  ✓ authn: {documented}/{len(result.all_public_functions)} functions")
+
+    print("Extracting SQL docs...")
+
+    # authz SQL
+    authz_sql_dir = root / "authz" / "src" / "functions"
+    if authz_sql_dir.exists():
+        result = extract_sql_docs(authz_sql_dir, root)
+        sql_results["authz"] = result
+        documented = sum(1 for f in result.functions if f.brief)
+        groups = sorted(set(f.group for f in result.functions if f.group))
+        print(
+            f"  ✓ authz: {documented}/{len(result.all_public_functions)} SQL functions"
+        )
+        if groups:
+            print(f"    Groups: {', '.join(groups)}")
+
+    # authn SQL
+    authn_sql_dir = root / "authn" / "src" / "functions"
+    if authn_sql_dir.exists():
+        result = extract_sql_docs(authn_sql_dir, root)
+        sql_results["authn"] = result
+        documented = sum(1 for f in result.functions if f.brief)
+        groups = sorted(set(f.group for f in result.functions if f.group))
+        print(
+            f"  ✓ authn: {documented}/{len(result.all_public_functions)} SQL functions"
+        )
+        if groups:
+            print(f"    Groups: {', '.join(groups)}")
+
+    # Validation
+    all_python = list(python_results.values())
+    all_sql = list(sql_results.values())
+
+    validation = validate_docs(all_python, all_sql, strict=False)
+    if validation.errors:
+        print("\nValidation errors:")
+        for err in validation.errors:
+            print(f"  ✗ {err}")
+        sys.exit(1)
+
+    coverage = compute_coverage(all_python, all_sql)
+    print(f"\nCoverage: Python {coverage['python']:.0%}, SQL {coverage['sql']:.0%}")
+
+    print("\nGenerated:")
+
+    # docs/README.md
+    modules = sorted(set(python_results.keys()) | set(sql_results.keys()))
+    readme = generate_docs_readme(modules)
+    (docs_dir / "README.md").write_text(readme)
+    print("  docs/README.md")
+
+    # Per-module files
+    for module in modules:
+        module_dir = docs_dir / module
+        py_result = python_results.get(module)
+        sql_result = sql_results.get(module)
+
+        # Module README with deep links
+        module_readme = generate_module_readme(module, py_result, sql_result)
+        (module_dir / "README.md").write_text(module_readme)
+        print(f"  docs/{module}/README.md")
+
+        # SDK docs
+        if py_result:
+            sdk_md = generate_python_markdown(module, py_result)
+            (module_dir / "sdk.md").write_text(sdk_md)
+            print(f"  docs/{module}/sdk.md")
+
+        # SQL docs
+        if sql_result:
+            sql_md = generate_sql_markdown(module, sql_result)
+            (module_dir / "sql.md").write_text(sql_md)
+            print(f"  docs/{module}/sql.md")
+
+    print("\nDone!")
+
+
+if __name__ == "__main__":
+    main()

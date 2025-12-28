@@ -1,6 +1,5 @@
 """Tests for lockout management functions."""
 
-import pytest
 from datetime import timedelta
 
 

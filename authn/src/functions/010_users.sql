@@ -1,14 +1,10 @@
--- =============================================================================
--- USER MANAGEMENT FOR POSTKIT/AUTHN
--- =============================================================================
--- Core user CRUD operations. Password hash is optional (NULL for SSO users).
--- Email is normalized to lowercase.
--- =============================================================================
+-- @group Users
 
-
--- =============================================================================
--- CREATE USER
--- =============================================================================
+-- @function authn.create_user
+-- @brief Create a new user account
+-- @param p_password_hash Argon2id hash from your app. NULL for SSO-only users.
+-- @returns User ID (UUID)
+-- @example SELECT authn.create_user('alice@example.com', '$argon2id$...', 'default');
 CREATE OR REPLACE FUNCTION authn.create_user(
     p_email text,
     p_password_hash text DEFAULT NULL,
@@ -40,14 +36,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.create_user(text, text, text) IS
-'Creates a new user. Password hash is optional (NULL for SSO-only users).
-Email is normalized to lowercase and trimmed.';
-
-
--- =============================================================================
--- GET USER
--- =============================================================================
+-- @function authn.get_user
+-- @brief Get user by ID (does not return password hash)
+-- @example SELECT * FROM authn.get_user('550e8400-e29b-41d4-a716-446655440000');
 CREATE OR REPLACE FUNCTION authn.get_user(
     p_user_id uuid,
     p_namespace text DEFAULT 'default'
@@ -79,13 +70,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.get_user(uuid, text) IS
-'Returns user by ID. Does not return password_hash for security.';
-
-
--- =============================================================================
--- GET USER BY EMAIL
--- =============================================================================
+-- @function authn.get_user_by_email
+-- @brief Look up user by email (normalized to lowercase)
+-- @example SELECT * FROM authn.get_user_by_email('Alice@Example.com');
 CREATE OR REPLACE FUNCTION authn.get_user_by_email(
     p_email text,
     p_namespace text DEFAULT 'default'
@@ -120,13 +107,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.get_user_by_email(text, text) IS
-'Returns user by email. Email is normalized before lookup.';
-
-
--- =============================================================================
--- UPDATE EMAIL
--- =============================================================================
+-- @function authn.update_email
+-- @brief Change user's email address (clears email_verified_at)
+-- @returns True if user was found and updated
+-- @example SELECT authn.update_email(user_id, 'new@example.com');
 CREATE OR REPLACE FUNCTION authn.update_email(
     p_user_id uuid,
     p_new_email text,
@@ -174,13 +158,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.update_email(uuid, text, text) IS
-'Updates user email and clears email_verified_at.';
-
-
--- =============================================================================
--- DISABLE USER
--- =============================================================================
+-- @function authn.disable_user
+-- @brief Disable user account and revoke all active sessions
+-- @returns True if user was found and disabled
+-- @example SELECT authn.disable_user(user_id); -- User can no longer log in
 CREATE OR REPLACE FUNCTION authn.disable_user(
     p_user_id uuid,
     p_namespace text DEFAULT 'default'
@@ -224,13 +205,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.disable_user(uuid, text) IS
-'Disables user and revokes all active sessions.';
-
-
--- =============================================================================
--- ENABLE USER
--- =============================================================================
+-- @function authn.enable_user
+-- @brief Re-enable a disabled user account
+-- @example SELECT authn.enable_user(user_id);
 CREATE OR REPLACE FUNCTION authn.enable_user(
     p_user_id uuid,
     p_namespace text DEFAULT 'default'
@@ -262,13 +239,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.enable_user(uuid, text) IS
-'Re-enables a disabled user.';
-
-
--- =============================================================================
--- DELETE USER
--- =============================================================================
+-- @function authn.delete_user
+-- @brief Permanently delete user and all their data (sessions, tokens, MFA)
+-- @returns True if user was found and deleted
+-- @example SELECT authn.delete_user(user_id); -- Irreversible!
 CREATE OR REPLACE FUNCTION authn.delete_user(
     p_user_id uuid,
     p_namespace text DEFAULT 'default'
@@ -309,13 +283,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.delete_user(uuid, text) IS
-'Hard deletes user. Cascades to sessions, tokens, and MFA secrets.';
-
-
--- =============================================================================
--- LIST USERS
--- =============================================================================
+-- @function authn.list_users
+-- @brief List users with cursor-based pagination
+-- @param p_limit Max users per page (default 100, max 1000)
+-- @param p_cursor User ID to start after (for pagination)
+-- @example SELECT * FROM authn.list_users('default', 50, NULL); -- First page
 CREATE OR REPLACE FUNCTION authn.list_users(
     p_namespace text DEFAULT 'default',
     p_limit int DEFAULT 100,
@@ -355,5 +327,3 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.list_users(text, int, uuid) IS
-'Lists users with cursor-based pagination. Max 1000 per page.';

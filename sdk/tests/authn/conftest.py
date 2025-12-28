@@ -1,12 +1,13 @@
 """Pytest fixtures for postkit.authn tests."""
 
-import pytest
-import psycopg
 from pathlib import Path
 
+import psycopg
+import pytest
 from postkit.authn import AuthnClient
-from tests.conftest import DATABASE_URL
+
 from tests.authn.helpers import AuthnTestHelpers
+from tests.conftest import DATABASE_URL
 
 
 @pytest.fixture(scope="session")
@@ -23,7 +24,7 @@ def db_connection():
     # Load the built SQL file (sdk/tests/authn/ -> root/dist/)
     dist_sql = Path(__file__).parent.parent.parent.parent / "dist" / "authn.sql"
     if not dist_sql.exists():
-        pytest.fail(f"dist/authn.sql not found. Run 'make build' first.")
+        pytest.fail("dist/authn.sql not found. Run 'make build' first.")
 
     conn.execute(dist_sql.read_text())
 

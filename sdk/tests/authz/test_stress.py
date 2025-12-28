@@ -11,11 +11,7 @@ Note: These tests use moderate sizes that complete in reasonable time.
 For true stress testing, increase the numbers and run separately.
 """
 
-import os
-import pytest
 import time
-
-from postkit.authz import AuthzClient
 
 
 class TestLargeGroups:
@@ -47,9 +43,9 @@ class TestLargeGroups:
         assert stats["tuple_count"] == num_users + 1
 
         # Performance assertions (adjust thresholds for your environment)
-        assert (
-            membership_time < 30
-        ), f"Adding {num_users} members took {membership_time:.2f}s"
+        assert membership_time < 30, (
+            f"Adding {num_users} members took {membership_time:.2f}s"
+        )
         assert grant_time < 5, f"Granting to large team took {grant_time:.2f}s"
 
     def test_user_in_many_teams(self, authz):
@@ -81,10 +77,8 @@ class TestManyResources:
         """User with 1000 direct grants should work correctly."""
         num_resources = 1000
 
-        start = time.time()
         for i in range(num_resources):
             authz.grant("read", resource=("doc", f"doc-{i}"), subject=("user", "alice"))
-        grant_time = time.time() - start
 
         # Spot check permissions
         assert authz.check("alice", "read", ("doc", "doc-0"))
@@ -98,9 +92,9 @@ class TestManyResources:
         filter_time = time.time() - start
 
         assert len(result) == num_resources
-        assert (
-            filter_time < 1
-        ), f"Filtering {num_resources} resources took {filter_time:.2f}s"
+        assert filter_time < 1, (
+            f"Filtering {num_resources} resources took {filter_time:.2f}s"
+        )
 
 
 class TestDeepHierarchy:

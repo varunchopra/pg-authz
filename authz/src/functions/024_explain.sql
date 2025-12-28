@@ -1,27 +1,10 @@
--- =============================================================================
--- EXPLAIN PERMISSION - Trace how a user got a permission
--- =============================================================================
---
--- This function traces the permission graph on-demand to explain why a user
--- has (or doesn't have) a permission. Supports nested teams and resource hierarchies.
---
--- ALGORITHM: BACKWARD CHAINING
--- ============================
--- We start from the question "does user X have permission Y on resource Z?"
--- and work backwards through all possible paths:
---
---   1. Check direct: Is there a tuple (resource, relation=permission, user)?
---   2. Check groups: Is there a tuple (resource, relation=permission, group)
---      where user is a member of that group (including nested)?
---   3. Check hierarchy: Is there a higher permission that implies this one?
---      If so, recursively explain how they got the higher permission.
---   4. Check resource ancestors: Is there a grant on a parent resource?
---      If so, recursively explain the permission on the ancestor.
---
--- The authz.permission_path type used by this function is defined in
--- src/schema/004_types.sql.
+-- @group Debugging
 
--- Explain how a user has (or doesn't have) a permission
+-- @function authz.explain
+-- @brief Debug why a user has (or doesn't have) a permission
+-- @returns Structured paths showing how access was granted (via direct grant,
+--   team membership, permission hierarchy, or folder inheritance)
+-- @example SELECT * FROM authz.explain('alice', 'read', 'doc', 'spec');
 CREATE OR REPLACE FUNCTION authz.explain (p_user_id text, p_permission text, p_resource_type text, p_resource_id text, p_namespace text DEFAULT 'default', p_max_depth int DEFAULT NULL)
     RETURNS SETOF authz.permission_path
     AS $$
@@ -214,9 +197,10 @@ $$
 LANGUAGE plpgsql
 STABLE PARALLEL SAFE SECURITY INVOKER SET search_path = authz, pg_temp;
 
--- =============================================================================
--- EXPLAIN TEXT - Human-readable version of explain
--- =============================================================================
+-- @function authz.explain_text
+-- @brief Human-readable explanation of why a user has access
+-- @returns One line per path, e.g., "GROUP: alice is member of team:eng which has read"
+-- @example SELECT * FROM authz.explain_text('alice', 'read', 'doc', 'spec');
 CREATE OR REPLACE FUNCTION authz.explain_text (p_user_id text, p_permission text, p_resource_type text, p_resource_id text, p_namespace text DEFAULT 'default')
     RETURNS SETOF TEXT
     AS $$

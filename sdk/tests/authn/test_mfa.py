@@ -16,6 +16,7 @@ class TestAddMfa:
         mfa_id = authn.add_mfa(
             user_id, "webauthn", "credential_data", name="Work Yubikey"
         )
+        assert mfa_id is not None
 
         methods = authn.list_mfa(user_id)
         assert len(methods) == 1

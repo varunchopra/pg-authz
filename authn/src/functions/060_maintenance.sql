@@ -1,14 +1,10 @@
--- =============================================================================
--- MAINTENANCE FOR POSTKIT/AUTHN
--- =============================================================================
--- Cleanup expired data and statistics.
--- =============================================================================
+-- @group Maintenance
 
-
--- =============================================================================
--- CLEANUP EXPIRED
--- =============================================================================
--- Deletes expired or revoked sessions, expired or used tokens, and old login attempts.
+-- @function authn.cleanup_expired
+-- @brief Delete expired sessions, tokens, and old login attempts (run via cron)
+-- @returns sessions_deleted, tokens_deleted, attempts_deleted
+-- @example -- Add to daily cron job
+-- @example SELECT * FROM authn.cleanup_expired('default');
 CREATE OR REPLACE FUNCTION authn.cleanup_expired(
     p_namespace text DEFAULT 'default'
 )
@@ -50,13 +46,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.cleanup_expired(text) IS
-'Deletes expired sessions, tokens, and old login attempts.';
-
-
--- =============================================================================
--- GET STATS
--- =============================================================================
+-- @function authn.get_stats
+-- @brief Get namespace statistics for monitoring dashboards
+-- @returns user_count, verified_user_count, disabled_user_count,
+--   active_session_count, mfa_enabled_user_count
+-- @example SELECT * FROM authn.get_stats('default');
 CREATE OR REPLACE FUNCTION authn.get_stats(
     p_namespace text DEFAULT 'default'
 )
@@ -82,5 +76,3 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.get_stats(text) IS
-'Returns authentication statistics for a namespace.';

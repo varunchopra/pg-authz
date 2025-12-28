@@ -1,29 +1,20 @@
--- =============================================================================
--- WRITE TUPLE
--- =============================================================================
--- Inserts or updates a relationship tuple.
---
--- NESTED TEAMS
--- ------------
--- Nested team relationships MUST use the 'member' relation:
---   SELECT authz.write('team', 'platform', 'member', 'team', 'infrastructure');
--- This makes infrastructure team a member of platform team.
---
--- Other relations like 'admin' represent a user's role WITHIN a group, not nesting:
---   SELECT authz.write('team', 'eng', 'admin', 'user', 'alice');  -- alice is admin OF eng
---
--- The permission resolution logic only follows 'member' relations when expanding
--- nested groups. Using other relations for nesting will NOT propagate permissions.
---
--- Circular memberships are detected and rejected.
---
--- RESOURCE HIERARCHIES
--- --------------------
--- Resource containment uses the 'parent' relation:
---   SELECT authz.write('doc', 'spec', 'parent', 'folder', 'projects');
--- This makes doc:spec a child of folder:projects.
---
--- Circular resource hierarchies are detected and rejected.
+-- @group Writes
+
+-- @function authz.write_tuple
+-- @brief Grant a permission to a user or team on a resource
+-- @param p_relation Use 'member' for team nesting, 'parent' for folder hierarchies,
+--   otherwise this is the permission being granted (e.g., 'read', 'admin')
+-- @param p_subject_relation Grants to a subset of a team. 'admin' means only team
+--   admins get this permission, not all members.
+-- @param p_expires_at Permission auto-revokes at this time. Useful for temporary
+--   access like contractor permissions or review periods.
+-- @returns Tuple ID (for tracking/debugging)
+-- @example -- Give alice read access to a doc
+-- @example SELECT authz.write_tuple('doc', 'spec', 'read', 'user', 'alice', NULL, 'default');
+-- @example -- Make the infra team part of the platform team (team nesting)
+-- @example SELECT authz.write_tuple('team', 'platform', 'member', 'team', 'infra', NULL, 'default');
+-- @example -- Give only team admins (not all members) write access
+-- @example SELECT authz.write_tuple('repo', 'api', 'write', 'team', 'eng', 'admin', 'default');
 CREATE OR REPLACE FUNCTION authz.write_tuple(
     p_resource_type text,
     p_resource_id text,
@@ -119,9 +110,9 @@ $$
 LANGUAGE plpgsql SECURITY INVOKER
 SET search_path = authz, pg_temp;
 
--- =============================================================================
--- CONVENIENCE WRAPPER
--- =============================================================================
+-- @function authz.write
+-- @brief Simpler write_tuple when you don't need subject_relation
+-- @example SELECT authz.write('doc', 'spec', 'read', 'user', 'alice', 'default');
 CREATE OR REPLACE FUNCTION authz.write(
     p_resource_type text,
     p_resource_id text,
@@ -138,10 +129,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authz, pg_temp;
 
--- =============================================================================
--- BULK WRITE - Insert multiple tuples efficiently
--- =============================================================================
--- Use this for bulk imports.
+-- @function authz.write_tuples_bulk
+-- @brief Grant same permission to many users at once (one SQL round-trip)
+-- @param p_subject_ids Array of user/team IDs to grant access to
+-- @returns Count of grants created
+-- @example -- Onboard 100 users to a project in one call
+-- @example SELECT authz.write_tuples_bulk('project', 'atlas', 'read', 'user',
+-- @example   ARRAY['alice', 'bob', 'charlie'], 'default');
 CREATE OR REPLACE FUNCTION authz.write_tuples_bulk(
     p_resource_type text,
     p_resource_id text,

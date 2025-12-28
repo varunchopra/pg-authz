@@ -4,8 +4,6 @@ Consistency and statistics tests for postkit/authz.
 These tests verify data integrity checks and statistics functions.
 """
 
-import pytest
-
 
 class TestStatistics:
     """Test the stats monitoring function."""

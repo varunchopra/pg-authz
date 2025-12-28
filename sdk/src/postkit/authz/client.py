@@ -13,7 +13,6 @@ from datetime import datetime, timedelta
 
 import psycopg
 
-
 __all__ = [
     "AuthzClient",
     "AuthzError",
@@ -602,7 +601,7 @@ class AuthzClient:
                 subject_type, subject_id, subject_relation,
                 tuple_id, expires_at
             FROM authz.audit_events
-            WHERE {' AND '.join(conditions)}
+            WHERE {" AND ".join(conditions)}
             ORDER BY event_time DESC, id DESC
             LIMIT %s
         """

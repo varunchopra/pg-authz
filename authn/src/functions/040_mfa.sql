@@ -1,14 +1,12 @@
--- =============================================================================
--- MFA MANAGEMENT FOR POSTKIT/AUTHN
--- =============================================================================
--- Multi-factor authentication: TOTP, WebAuthn, recovery codes.
--- Secrets are stored for caller to verify. Library never validates codes.
--- =============================================================================
+-- @group MFA
 
-
--- =============================================================================
--- ADD MFA
--- =============================================================================
+-- @function authn.add_mfa
+-- @brief Add an MFA method (TOTP, WebAuthn, or recovery codes)
+-- @param p_mfa_type One of: 'totp', 'webauthn', 'recovery_codes'
+-- @param p_secret The secret to store (TOTP seed, WebAuthn public key, etc.)
+-- @param p_name User-friendly name like "My iPhone" or "Backup codes"
+-- @returns MFA method ID
+-- @example SELECT authn.add_mfa(user_id, 'totp', 'JBSWY3DPEHPK3PXP', 'Authenticator');
 CREATE OR REPLACE FUNCTION authn.add_mfa(
     p_user_id uuid,
     p_mfa_type text,
@@ -43,14 +41,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.add_mfa(uuid, text, text, text, text) IS
-'Adds an MFA method for a user. Secret is stored for caller to verify.';
-
-
--- =============================================================================
--- GET MFA
--- =============================================================================
--- Returns secrets for caller to verify. May return multiple (e.g., WebAuthn keys).
+-- @function authn.get_mfa
+-- @brief Get MFA secrets for verification (returns raw secrets)
+-- @returns id, secret, name. Use to verify TOTP code or WebAuthn assertion.
+-- @example SELECT * FROM authn.get_mfa(user_id, 'totp'); -- Verify code against secret
 CREATE OR REPLACE FUNCTION authn.get_mfa(
     p_user_id uuid,
     p_mfa_type text,
@@ -79,14 +73,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.get_mfa(uuid, text, text) IS
-'Returns MFA secrets for verification. Caller must verify the code/response.';
-
-
--- =============================================================================
--- LIST MFA
--- =============================================================================
--- Lists MFA methods without secrets (for display).
+-- @function authn.list_mfa
+-- @brief List user's MFA methods for "manage security" UI (no secrets)
+-- @example SELECT * FROM authn.list_mfa(user_id);
 CREATE OR REPLACE FUNCTION authn.list_mfa(
     p_user_id uuid,
     p_namespace text DEFAULT 'default'
@@ -117,13 +106,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.list_mfa(uuid, text) IS
-'Lists MFA methods for a user. Does NOT return secrets.';
-
-
--- =============================================================================
--- REMOVE MFA
--- =============================================================================
+-- @function authn.remove_mfa
+-- @brief Remove an MFA method
+-- @example SELECT authn.remove_mfa(mfa_id);
 CREATE OR REPLACE FUNCTION authn.remove_mfa(
     p_mfa_id uuid,
     p_namespace text DEFAULT 'default'
@@ -166,13 +151,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.remove_mfa(uuid, text) IS
-'Removes an MFA method.';
-
-
--- =============================================================================
--- RECORD MFA USE
--- =============================================================================
+-- @function authn.record_mfa_use
+-- @brief Record successful MFA verification (updates last_used_at)
+-- @example -- After verifying TOTP code
+-- @example SELECT authn.record_mfa_use(mfa_id);
 CREATE OR REPLACE FUNCTION authn.record_mfa_use(
     p_mfa_id uuid,
     p_namespace text DEFAULT 'default'
@@ -202,13 +184,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.record_mfa_use(uuid, text) IS
-'Records that an MFA method was used successfully.';
-
-
--- =============================================================================
--- HAS MFA
--- =============================================================================
+-- @function authn.has_mfa
+-- @brief Check if user has any MFA method configured
+-- @example IF authn.has_mfa(user_id) THEN prompt_for_mfa(); END IF;
 CREATE OR REPLACE FUNCTION authn.has_mfa(
     p_user_id uuid,
     p_namespace text DEFAULT 'default'
@@ -227,5 +205,3 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.has_mfa(uuid, text) IS
-'Returns true if user has any MFA method configured.';

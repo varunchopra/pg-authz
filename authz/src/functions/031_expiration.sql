@@ -1,11 +1,12 @@
--- =============================================================================
--- EXPIRATION MANAGEMENT FUNCTIONS
--- =============================================================================
--- These functions manage time-bound permissions.
--- With lazy evaluation, expiration is checked at query time automatically.
--- =============================================================================
--- SET EXPIRATION
--- =============================================================================
+-- @group Expiration
+
+-- @function authz.set_expiration
+-- @brief Add or update expiration on an existing grant
+-- @param p_expires_at When the permission should auto-revoke (NULL to make permanent)
+-- @returns True if grant was found and updated
+-- @example -- Contractor access expires in 90 days
+-- @example SELECT authz.set_expiration('repo', 'api', 'read', 'user', 'contractor-bob',
+-- @example   now() + interval '90 days', 'default');
 CREATE OR REPLACE FUNCTION authz.set_expiration (p_resource_type text, p_resource_id text, p_relation text, p_subject_type text, p_subject_id text, p_expires_at timestamptz, p_namespace text DEFAULT 'default')
     RETURNS boolean
     AS $$
@@ -35,9 +36,9 @@ $$
 LANGUAGE plpgsql SECURITY INVOKER
 SET search_path = authz, pg_temp;
 
--- =============================================================================
--- CLEAR EXPIRATION
--- =============================================================================
+-- @function authz.clear_expiration
+-- @brief Make a grant permanent (remove expiration)
+-- @example SELECT authz.clear_expiration('repo', 'api', 'read', 'user', 'alice', 'default');
 CREATE OR REPLACE FUNCTION authz.clear_expiration (p_resource_type text, p_resource_id text, p_relation text, p_subject_type text, p_subject_id text, p_namespace text DEFAULT 'default')
     RETURNS boolean
     AS $$
@@ -48,9 +49,13 @@ $$
 LANGUAGE plpgsql SECURITY INVOKER
 SET search_path = authz, pg_temp;
 
--- =============================================================================
--- EXTEND EXPIRATION
--- =============================================================================
+-- @function authz.extend_expiration
+-- @brief Extend an existing grant's expiration by an interval
+-- @param p_extension Time to add (e.g., '30 days')
+-- @returns New expiration timestamp
+-- @example -- Give alice another 30 days
+-- @example SELECT authz.extend_expiration('repo', 'api', 'read', 'user', 'alice',
+-- @example   interval '30 days', 'default');
 CREATE OR REPLACE FUNCTION authz.extend_expiration (p_resource_type text, p_resource_id text, p_relation text, p_subject_type text, p_subject_id text, p_extension interval, p_namespace text DEFAULT 'default')
     RETURNS timestamptz
     AS $$
@@ -91,9 +96,12 @@ $$
 LANGUAGE plpgsql SECURITY INVOKER
 SET search_path = authz, pg_temp;
 
--- =============================================================================
--- LIST EXPIRING
--- =============================================================================
+-- @function authz.list_expiring
+-- @brief Find grants that will expire soon (for renewal reminders)
+-- @param p_within Time window to check (default 7 days)
+-- @returns Grants expiring within the window, ordered by expiration
+-- @example -- Email users whose access expires this week
+-- @example SELECT * FROM authz.list_expiring(interval '7 days', 'default');
 CREATE OR REPLACE FUNCTION authz.list_expiring (p_within interval DEFAULT '7 days', p_namespace text DEFAULT 'default')
     RETURNS TABLE (
         resource_type text,
@@ -129,12 +137,10 @@ $$
 LANGUAGE plpgsql STABLE PARALLEL SAFE SECURITY INVOKER
 SET search_path = authz, pg_temp;
 
--- =============================================================================
--- CLEANUP EXPIRED
--- =============================================================================
--- Removes expired tuples for storage optimization.
--- With lazy evaluation, this is purely for cleanup - expired tuples are
--- automatically filtered at query time.
+-- @function authz.cleanup_expired
+-- @brief Delete expired grants to reclaim storage (optional, run via cron)
+-- @returns Count of grants deleted
+-- @example SELECT * FROM authz.cleanup_expired('default');
 CREATE OR REPLACE FUNCTION authz.cleanup_expired (p_namespace text DEFAULT 'default')
     RETURNS TABLE (
         tuples_deleted bigint

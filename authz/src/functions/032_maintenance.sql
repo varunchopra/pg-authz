@@ -1,13 +1,10 @@
--- =============================================================================
--- MAINTENANCE FUNCTIONS
--- =============================================================================
--- Functions for bulk operations, consistency checking, and statistics.
+-- @group Maintenance
 
--- =============================================================================
--- INTEGRITY CHECK
--- =============================================================================
--- Checks for data integrity issues like circular group memberships and
--- circular resource hierarchies.
+-- @function authz.verify_integrity
+-- @brief Check for data corruption (circular memberships, broken hierarchies)
+-- @returns Rows describing any issues found, empty if healthy
+-- @example -- Run as part of health checks
+-- @example SELECT * FROM authz.verify_integrity('default');
 CREATE OR REPLACE FUNCTION authz.verify_integrity(p_namespace text DEFAULT 'default')
 RETURNS TABLE (
     resource_type text,
@@ -39,10 +36,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authz, pg_temp;
 
--- =============================================================================
--- STATISTICS
--- =============================================================================
--- Returns namespace statistics for monitoring and capacity planning.
+-- @function authz.get_stats
+-- @brief Get namespace statistics for monitoring dashboards
+-- @returns tuple_count, hierarchy_rule_count, unique_users, unique_resources
+-- @example SELECT * FROM authz.get_stats('default');
 CREATE OR REPLACE FUNCTION authz.get_stats(p_namespace text DEFAULT 'default')
 RETURNS TABLE (
     tuple_count bigint,
@@ -61,10 +58,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE PARALLEL SAFE SECURITY INVOKER SET search_path = authz, pg_temp;
 
--- =============================================================================
--- BULK GRANT TO RESOURCES
--- =============================================================================
--- Grant permission to a subject on many resources at once.
+-- @function authz.grant_to_resources_bulk
+-- @brief Grant same user/team access to many resources at once
+-- @param p_resource_ids Array of resource IDs to grant access on
+-- @returns Count of grants created
+-- @example -- Give alice read access to 100 docs in one call
+-- @example SELECT authz.grant_to_resources_bulk('doc', ARRAY['doc1', 'doc2', ...],
+-- @example   'read', 'user', 'alice', NULL, 'default');
 CREATE OR REPLACE FUNCTION authz.grant_to_resources_bulk (p_resource_type text, p_resource_ids text[], p_relation text, p_subject_type text, p_subject_id text, p_subject_relation text DEFAULT NULL, p_namespace text DEFAULT 'default')
     RETURNS int
     AS $$

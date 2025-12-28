@@ -1,14 +1,12 @@
--- =============================================================================
--- TOKEN MANAGEMENT FOR POSTKIT/AUTHN
--- =============================================================================
--- One-time tokens for password reset, email verification, and magic links.
--- Caller generates token, hashes with SHA-256, stores hash.
--- =============================================================================
+-- @group Tokens
 
-
--- =============================================================================
--- CREATE TOKEN
--- =============================================================================
+-- @function authn.create_token
+-- @brief Create a one-time token for password reset, email verification, or magic link
+-- @param p_token_hash SHA-256 hash of the token (send raw token to user via email)
+-- @param p_token_type One of: 'password_reset', 'email_verify', 'magic_link'
+-- @returns Token ID
+-- @example -- Send password reset email
+-- @example SELECT authn.create_token(user_id, sha256(token), 'password_reset');
 CREATE OR REPLACE FUNCTION authn.create_token(
     p_user_id uuid,
     p_token_hash text,
@@ -47,15 +45,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.create_token(uuid, text, text, interval, text) IS
-'Creates a one-time token. Token hash is caller-provided SHA-256.';
-
-
--- =============================================================================
--- CONSUME TOKEN
--- =============================================================================
--- Marks token as used and returns user info.
--- Returns empty if: wrong type, expired, already used.
+-- @function authn.consume_token
+-- @brief Use a one-time token (marks as used, can't be reused)
+-- @returns user_id, email if valid. Empty if expired, already used, or wrong type.
+-- @example SELECT * FROM authn.consume_token(sha256(token_from_url), 'password_reset');
 CREATE OR REPLACE FUNCTION authn.consume_token(
     p_token_hash text,
     p_token_type text,
@@ -104,15 +97,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.consume_token(text, text, text) IS
-'Consumes a one-time token and returns user info.
-Returns empty if: wrong type, expired, already used.';
-
-
--- =============================================================================
--- VERIFY EMAIL
--- =============================================================================
--- Convenience: consumes email_verify token and sets email_verified_at.
+-- @function authn.verify_email
+-- @brief Verify email address using token from email link
+-- @returns user_id, email if valid. Sets email_verified_at automatically.
+-- @example SELECT * FROM authn.verify_email(sha256(token_from_url));
 CREATE OR REPLACE FUNCTION authn.verify_email(
     p_token_hash text,
     p_namespace text DEFAULT 'default'
@@ -151,15 +139,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.verify_email(text, text) IS
-'Consumes email_verify token and sets email_verified_at.';
-
-
--- =============================================================================
--- INVALIDATE TOKENS
--- =============================================================================
--- Marks all unused tokens of type as used.
--- Use case: invalidate old reset tokens when password changed.
+-- @function authn.invalidate_tokens
+-- @brief Invalidate unused tokens (e.g., after password change, invalidate reset tokens)
+-- @returns Count of tokens invalidated
+-- @example -- After password change, invalidate old reset tokens
+-- @example SELECT authn.invalidate_tokens(user_id, 'password_reset');
 CREATE OR REPLACE FUNCTION authn.invalidate_tokens(
     p_user_id uuid,
     p_token_type text,
@@ -186,5 +170,3 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.invalidate_tokens(uuid, text, text) IS
-'Invalidates all unused tokens of a type for a user.';

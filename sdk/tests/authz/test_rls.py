@@ -4,9 +4,8 @@ RLS is enforced for non-superuser roles only. These tests create a
 separate role to verify RLS policies work correctly.
 """
 
-import pytest
 import psycopg
-
+import pytest
 from postkit.authz import AuthzClient
 
 
@@ -87,7 +86,7 @@ class TestRowLevelSecurity:
 
         # Non-superuser as tenant-b cannot see tenant-a's data
         cursor = rls_connection.cursor()
-        tenant_b = AuthzClient(cursor, "tenant-b")
+        AuthzClient(cursor, "tenant-b")
 
         # tenant-b's SDK sets tenant context to tenant-b
         # Direct query for tenant-a namespace returns nothing
@@ -95,7 +94,7 @@ class TestRowLevelSecurity:
         assert cursor.fetchall() == []
 
         # Non-superuser as tenant-a CAN see tenant-a's data
-        tenant_a = AuthzClient(cursor, "tenant-a")
+        AuthzClient(cursor, "tenant-a")
         cursor.execute("SELECT * FROM authz.tuples WHERE namespace = 'tenant-a'")
         assert len(cursor.fetchall()) == 1
 
@@ -104,7 +103,7 @@ class TestRowLevelSecurity:
         cursor = rls_connection.cursor()
 
         # Set tenant context to tenant-a
-        tenant_a = AuthzClient(cursor, "tenant-a")
+        AuthzClient(cursor, "tenant-a")
 
         # Try to write to tenant-b namespace directly - should fail with RLS violation
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
@@ -168,7 +167,7 @@ class TestRowLevelSecurity:
         cursor = rls_connection.cursor()
 
         # SDK sets tenant in __init__
-        tenant_a = AuthzClient(cursor, "tenant-a")
+        AuthzClient(cursor, "tenant-a")
 
         cursor.execute("SELECT current_setting('authz.tenant_id', true)")
         assert cursor.fetchone()[0] == "tenant-a"
@@ -188,7 +187,7 @@ class TestRowLevelSecurity:
         tenant_a.grant("read", resource=("doc", "rls-4"), subject=("user", "alice"))
 
         # Switch to tenant-b context
-        tenant_b = AuthzClient(cursor, "tenant-b")
+        AuthzClient(cursor, "tenant-b")
 
         # Superuser can still see tenant-a data (bypasses RLS)
         cursor.execute("SELECT * FROM authz.tuples WHERE namespace = 'tenant-a'")

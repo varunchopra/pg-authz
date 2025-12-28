@@ -1,7 +1,10 @@
--- =============================================================================
--- DELETE TUPLE
--- =============================================================================
--- Removes a relationship tuple. Audit trigger will log the deletion.
+-- @group Deletes
+
+-- @function authz.delete_tuple
+-- @brief Revoke a permission (remove a grant)
+-- @returns True if a grant was found and removed, false if it didn't exist
+-- @example -- Remove alice's read access to a doc
+-- @example SELECT authz.delete_tuple('doc', 'spec', 'read', 'user', 'alice', NULL, 'default');
 CREATE OR REPLACE FUNCTION authz.delete_tuple(
     p_resource_type text,
     p_resource_id text,
@@ -41,9 +44,9 @@ $$
 LANGUAGE plpgsql SECURITY INVOKER
 SET search_path = authz, pg_temp;
 
--- =============================================================================
--- CONVENIENCE WRAPPER
--- =============================================================================
+-- @function authz.delete
+-- @brief Simpler delete_tuple when you don't need subject_relation
+-- @example SELECT authz.delete('doc', 'spec', 'read', 'user', 'alice', 'default');
 CREATE OR REPLACE FUNCTION authz.delete(
     p_resource_type text,
     p_resource_id text,

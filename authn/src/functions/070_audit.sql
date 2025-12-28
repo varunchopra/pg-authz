@@ -1,15 +1,10 @@
--- =============================================================================
--- AUDIT FUNCTIONS FOR POSTKIT/AUTHN
--- =============================================================================
--- Actor context and partition management for audit logs.
--- =============================================================================
+-- @group Audit
 
-
--- =============================================================================
--- SET ACTOR CONTEXT
--- =============================================================================
--- Sets transaction-local context that will be captured in audit events.
--- Call this at the start of an operation to record who made changes.
+-- @function authn.set_actor
+-- @brief Tag audit events with who made the change (call before user operations)
+-- @param p_actor_id The admin or API making changes (for audit trail)
+-- @param p_request_id Optional request/ticket ID for traceability
+-- @example SELECT authn.set_actor('admin@acme.com', 'req-123', '1.2.3.4');
 CREATE OR REPLACE FUNCTION authn.set_actor(
     p_actor_id text,
     p_request_id text DEFAULT NULL,
@@ -36,13 +31,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.set_actor(text, text, text, text) IS
-'Sets transaction-local actor context for audit logging.';
-
-
--- =============================================================================
--- CLEAR ACTOR CONTEXT
--- =============================================================================
+-- @function authn.clear_actor
+-- @brief Clear actor context
+-- @example SELECT authn.clear_actor();
 CREATE OR REPLACE FUNCTION authn.clear_actor()
 RETURNS void
 AS $$
@@ -54,15 +45,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.clear_actor() IS
-'Clears transaction-local actor context.';
-
-
--- =============================================================================
--- CREATE AUDIT PARTITION
--- =============================================================================
--- Creates a partition for a specific year/month.
--- Safe to call multiple times (returns NULL if partition exists).
+-- @function authn.create_audit_partition
+-- @brief Create a monthly partition for audit events
+-- @returns Partition name if created, NULL if already exists
+-- @example SELECT authn.create_audit_partition(2024, 1); -- January 2024
 CREATE OR REPLACE FUNCTION authn.create_audit_partition(
     p_year int,
     p_month int
@@ -115,15 +101,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.create_audit_partition(int, int) IS
-'Creates an audit partition for a specific year/month.';
-
-
--- =============================================================================
--- ENSURE AUDIT PARTITIONS
--- =============================================================================
--- Creates partitions from current month through N months ahead.
--- Run this periodically (e.g., monthly via cron) to ensure partitions exist.
+-- @function authn.ensure_audit_partitions
+-- @brief Create partitions for upcoming months (run monthly via cron)
+-- @param p_months_ahead How many months ahead to create (default 3)
+-- @returns Names of newly created partitions
+-- @example SELECT * FROM authn.ensure_audit_partitions(3);
 CREATE OR REPLACE FUNCTION authn.ensure_audit_partitions(
     p_months_ahead int DEFAULT 3
 )
@@ -152,18 +134,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.ensure_audit_partitions(int) IS
-'Creates audit partitions for current month through N months ahead.';
-
-
--- =============================================================================
--- DROP AUDIT PARTITIONS
--- =============================================================================
--- Drops partitions older than the specified threshold.
--- Default retention is 84 months (7 years) per common compliance requirements:
---   - SOX: 7 years for financial records
---   - HIPAA: 6 years minimum
---   - GDPR: "no longer than necessary" (7 years is defensible)
+-- @function authn.drop_audit_partitions
+-- @brief Delete old audit partitions (default: keep 7 years for compliance)
+-- @param p_older_than_months Delete partitions older than this (default 84 = 7 years)
+-- @returns Names of dropped partitions
+-- @example SELECT * FROM authn.drop_audit_partitions(84);
 CREATE OR REPLACE FUNCTION authn.drop_audit_partitions(
     p_older_than_months int DEFAULT 84  -- 7 years
 )
@@ -212,8 +187,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.drop_audit_partitions(int) IS
-'Drops audit partitions older than N months. Default 84 (7 years).';
 
 
 -- =============================================================================

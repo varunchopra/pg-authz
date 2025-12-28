@@ -21,7 +21,6 @@ hierarchies, and direct grants.
 
 from postkit.authz import AuthzClient
 
-
 # =============================================================================
 # Layer 2: Domain-specific helpers (what customers build)
 # =============================================================================

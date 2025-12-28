@@ -1,21 +1,15 @@
--- =============================================================================
--- INTERNAL HELPERS
--- =============================================================================
--- Reusable functions used by multiple core operations. These are internal
--- (prefixed with _ or named generically) and not part of the public API.
+-- @group Internal
 
-
--- Expand user memberships recursively
---
+-- @function authz._expand_user_memberships
+-- @brief Expand user memberships recursively
+-- @param p_user_id The user ID
+-- @param p_namespace Namespace (default: 'default')
+-- @returns Table of (group_type, group_id, membership_relation)
 -- Given a user, returns all groups they belong to, including nested groups.
 -- Used by check, list_resources, and filter_authorized to avoid duplicating
 -- the same recursive CTE logic.
---
--- Example: If alice is in team:infra, and team:infra is in team:platform,
--- this returns both (team, infra, member) and (team, platform, member).
---
--- Note: list_users expands in the opposite direction (from resource down to
--- users) so it can't use this function.
+-- @example If alice is in team:infra, and team:infra is in team:platform,
+-- @example returns both (team, infra, member) and (team, platform, member).
 CREATE OR REPLACE FUNCTION authz._expand_user_memberships(
     p_user_id text,
     p_namespace text DEFAULT 'default'
@@ -56,14 +50,16 @@ AS $$
 $$ LANGUAGE sql STABLE PARALLEL SAFE SECURITY INVOKER SET search_path = authz, pg_temp;
 
 
--- Expand resource ancestors recursively
---
+-- @function authz._expand_resource_ancestors
+-- @brief Expand resource ancestors recursively
+-- @param p_resource_type The resource type
+-- @param p_resource_id The resource ID
+-- @param p_namespace Namespace (default: 'default')
+-- @returns Table of (resource_type, resource_id)
 -- Given a resource, returns itself and all ancestor resources by following
--- 'parent' relations upward. Used by check() to find grants on containing
--- resources.
---
--- Example: If doc:spec has parent folder:projects, and folder:projects has
--- parent folder:root, this returns (doc, spec), (folder, projects), (folder, root).
+-- 'parent' relations upward. Used by check() to find grants on containing resources.
+-- @example If doc:spec has parent folder:projects, and folder:projects has
+-- @example parent folder:root, returns (doc, spec), (folder, projects), (folder, root).
 CREATE OR REPLACE FUNCTION authz._expand_resource_ancestors(
     p_resource_type text,
     p_resource_id text,
@@ -98,14 +94,17 @@ AS $$
 $$ LANGUAGE sql STABLE PARALLEL SAFE SECURITY INVOKER SET search_path = authz, pg_temp;
 
 
--- Expand resource descendants recursively
---
+-- @function authz._expand_resource_descendants
+-- @brief Expand resource descendants recursively
+-- @param p_resource_type The resource type
+-- @param p_resource_id The resource ID
+-- @param p_namespace Namespace (default: 'default')
+-- @returns Table of (resource_type, resource_id)
 -- Given a resource, returns itself and all descendant resources by following
 -- 'parent' relations downward. Used by list_resources() to include children
 -- of accessible resources.
---
--- Example: If folder:root contains folder:projects contains doc:spec,
--- this returns (folder, root), (folder, projects), (doc, spec).
+-- @example If folder:root contains folder:projects contains doc:spec,
+-- @example returns (folder, root), (folder, projects), (doc, spec).
 CREATE OR REPLACE FUNCTION authz._expand_resource_descendants(
     p_resource_type text,
     p_resource_id text,

@@ -1,6 +1,5 @@
 """Tests for session management functions."""
 
-import pytest
 from datetime import timedelta
 
 
@@ -19,6 +18,7 @@ class TestCreateSession:
             ip_address="192.168.1.1",
             user_agent="Mozilla/5.0",
         )
+        assert session_id is not None
 
         sessions = authn.list_sessions(user_id)
         assert len(sessions) == 1

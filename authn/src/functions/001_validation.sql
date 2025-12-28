@@ -1,22 +1,10 @@
--- =============================================================================
--- INPUT VALIDATION FOR POSTKIT/AUTHN
--- =============================================================================
---
--- Authentication data is security-critical. Bad data causes:
---   - Silent failures (empty emails match nothing)
---   - Security issues (unvalidated hashes could leak)
---   - Hard debugging ("why doesn't login work?")
---   - Injection risks (control characters, null bytes)
---
--- We validate at the database level as the last line of defense.
--- =============================================================================
+-- @group Internal
 
-
--- =============================================================================
--- EMAIL VALIDATION
--- =============================================================================
--- Validates and normalizes email: lowercase, trimmed, basic format check.
--- Returns the normalized email or raises an exception.
+-- @function authn._validate_email
+-- @brief Validates and normalizes email address
+-- @param p_email The email to validate
+-- @returns Lowercase, trimmed email
+-- Raises exception on invalid format.
 CREATE OR REPLACE FUNCTION authn._validate_email(p_email text)
 RETURNS text
 AS $$
@@ -56,14 +44,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn._validate_email(text) IS
-'Validates and normalizes email address. Returns lowercase, trimmed email.';
 
-
--- =============================================================================
--- HASH VALIDATION
--- =============================================================================
--- Validates password_hash or token_hash. Can optionally allow NULL.
+-- @function authn._validate_hash
+-- @brief Validates password_hash or token_hash
+-- @param p_hash The hash to validate
+-- @param p_field_name Field name for error messages
+-- @param p_allow_null Set true for SSO users (no password)
 CREATE OR REPLACE FUNCTION authn._validate_hash(
     p_hash text,
     p_field_name text,
@@ -99,13 +85,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn._validate_hash(text, text, boolean) IS
-'Validates a hash field (password_hash or token_hash). Use p_allow_null=true for SSO users.';
 
-
--- =============================================================================
--- TOKEN TYPE VALIDATION
--- =============================================================================
+-- @function authn._validate_token_type
+-- @brief Validates token type
+-- @param p_type The token type to validate
+-- Must be password_reset, email_verify, or magic_link.
 CREATE OR REPLACE FUNCTION authn._validate_token_type(p_type text)
 RETURNS void
 AS $$
@@ -122,13 +106,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn._validate_token_type(text) IS
-'Validates token type is one of: password_reset, email_verify, magic_link.';
 
-
--- =============================================================================
--- MFA TYPE VALIDATION
--- =============================================================================
+-- @function authn._validate_mfa_type
+-- @brief Validates MFA type
+-- @param p_type The MFA type to validate
+-- Must be totp, webauthn, or recovery_codes.
 CREATE OR REPLACE FUNCTION authn._validate_mfa_type(p_type text)
 RETURNS void
 AS $$
@@ -145,14 +127,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn._validate_mfa_type(text) IS
-'Validates MFA type is one of: totp, webauthn, recovery_codes.';
 
-
--- =============================================================================
--- UUID VALIDATION
--- =============================================================================
--- Validates and returns UUID. Raises on invalid format.
+-- @function authn._validate_uuid
+-- @brief Validates and returns a UUID value
+-- @param p_value The value to validate
+-- @param p_field_name Field name for error messages
+-- @returns The validated UUID
+-- Raises invalid_parameter_value on bad format.
 CREATE OR REPLACE FUNCTION authn._validate_uuid(p_value text, p_field_name text)
 RETURNS uuid
 AS $$
@@ -171,14 +152,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn._validate_uuid(text, text) IS
-'Validates and returns a UUID value. Raises invalid_parameter_value on bad format.';
 
-
--- =============================================================================
--- NAMESPACE VALIDATION
--- =============================================================================
--- Same rules as authz: alphanumeric, can start with number, underscores/hyphens
+-- @function authn._validate_namespace
+-- @brief Validates namespace format
+-- @param p_value The namespace to validate
+-- Must be lowercase alphanumeric with underscores/hyphens.
 CREATE OR REPLACE FUNCTION authn._validate_namespace(p_value text)
 RETURNS void
 AS $$
@@ -207,14 +185,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn._validate_namespace(text) IS
-'Validates namespace format. Must be lowercase alphanumeric with underscores/hyphens.';
 
-
--- =============================================================================
--- NAMESPACE MISMATCH WARNING
--- =============================================================================
--- Warns if namespace doesn't match RLS tenant context
+-- @function authn._warn_namespace_mismatch
+-- @brief Warns if namespace doesn't match RLS tenant context
+-- @param p_namespace The namespace being queried
 CREATE OR REPLACE FUNCTION authn._warn_namespace_mismatch(p_namespace text)
 RETURNS void
 AS $$
@@ -229,13 +203,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE PARALLEL SAFE SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn._warn_namespace_mismatch(text) IS
-'Warns if namespace parameter differs from RLS tenant context.';
 
-
--- =============================================================================
--- SECRET VALIDATION (for MFA)
--- =============================================================================
+-- @function authn._validate_secret
+-- @brief Validates MFA secret
+-- @param p_secret The secret to validate
+-- Allows larger values for WebAuthn and recovery codes.
 CREATE OR REPLACE FUNCTION authn._validate_secret(p_secret text)
 RETURNS void
 AS $$
@@ -257,6 +229,3 @@ BEGIN
     END IF;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE SET search_path = authn, pg_temp;
-
-COMMENT ON FUNCTION authn._validate_secret(text) IS
-'Validates MFA secret. Allows larger values for WebAuthn and recovery codes.';

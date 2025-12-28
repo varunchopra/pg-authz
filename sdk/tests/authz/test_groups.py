@@ -9,8 +9,6 @@ Tests for:
 - Edge cases
 """
 
-import pytest
-
 
 class TestGroupDeletion:
     """Test behavior when groups are modified."""

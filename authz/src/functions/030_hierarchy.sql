@@ -1,14 +1,13 @@
--- =============================================================================
--- HIERARCHY MANAGEMENT FUNCTIONS
--- =============================================================================
---
--- PURPOSE
--- -------
--- Manages permission hierarchy rules (e.g., "admin implies write implies read").
--- These functions safely add/remove hierarchy rules.
---
--- With lazy evaluation, hierarchy changes take effect immediately for all
--- subsequent permission checks without needing recomputation.
+-- @group Hierarchy
+
+-- @function authz.add_hierarchy
+-- @brief Define that one permission implies another (e.g., admin implies write)
+-- @param p_permission The higher permission (e.g., 'admin')
+-- @param p_implies The implied permission (e.g., 'write')
+-- @returns Rule ID
+-- @example -- admin can do everything write can do, write can do everything read can do
+-- @example SELECT authz.add_hierarchy('repo', 'admin', 'write', 'default');
+-- @example SELECT authz.add_hierarchy('repo', 'write', 'read', 'default');
 CREATE OR REPLACE FUNCTION authz.add_hierarchy (p_resource_type text, p_permission text, p_implies text, p_namespace text DEFAULT 'default')
     RETURNS bigint
     AS $$
@@ -74,6 +73,9 @@ $$
 LANGUAGE plpgsql SECURITY INVOKER
 SET search_path = authz, pg_temp;
 
+-- @function authz.remove_hierarchy
+-- @brief Remove a permission implication rule
+-- @example SELECT authz.remove_hierarchy('repo', 'admin', 'write', 'default');
 CREATE OR REPLACE FUNCTION authz.remove_hierarchy (p_resource_type text, p_permission text, p_implies text, p_namespace text DEFAULT 'default')
     RETURNS boolean
     AS $$
@@ -98,7 +100,10 @@ $$
 LANGUAGE plpgsql SECURITY INVOKER
 SET search_path = authz, pg_temp;
 
--- Clear all hierarchy rules for a resource type
+-- @function authz.clear_hierarchy
+-- @brief Remove all hierarchy rules for a resource type (start fresh)
+-- @returns Number of rules deleted
+-- @example SELECT authz.clear_hierarchy('repo', 'default');
 CREATE OR REPLACE FUNCTION authz.clear_hierarchy (p_resource_type text, p_namespace text DEFAULT 'default')
     RETURNS int
     AS $$

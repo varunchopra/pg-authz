@@ -1,14 +1,10 @@
--- =============================================================================
--- LOCKOUT MANAGEMENT FOR POSTKIT/AUTHN
--- =============================================================================
--- Tracks login attempts and enforces lockout after too many failures.
--- is_locked_out uses identical code path regardless of email existence.
--- =============================================================================
+-- @group Lockout
 
-
--- =============================================================================
--- RECORD LOGIN ATTEMPT
--- =============================================================================
+-- @function authn.record_login_attempt
+-- @brief Record a login attempt (success or failure) for lockout tracking
+-- @param p_success True for successful login, false for failed
+-- @example -- After password verification
+-- @example SELECT authn.record_login_attempt(email, password_correct, '1.2.3.4');
 CREATE OR REPLACE FUNCTION authn.record_login_attempt(
     p_email text,
     p_success boolean,
@@ -55,16 +51,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.record_login_attempt(text, boolean, inet, text) IS
-'Records a login attempt. Logs lockout_triggered if threshold reached.';
-
-
--- =============================================================================
--- IS LOCKED OUT
--- =============================================================================
--- Executes identical code path regardless of whether email exists in users table.
--- Note: execution time may vary based on login_attempts count; application layer
--- should add constant-time delay if stricter timing guarantees are required.
+-- @function authn.is_locked_out
+-- @brief Check if email is locked out due to too many failed attempts
+-- @param p_window Time window to count failures (default from config)
+-- @param p_max_attempts Max failures before lockout (default from config)
+-- @returns True if locked out. Check before allowing login attempt.
+-- @example IF authn.is_locked_out(email) THEN show_lockout_error(); END IF;
 CREATE OR REPLACE FUNCTION authn.is_locked_out(
     p_email text,
     p_namespace text DEFAULT 'default',
@@ -99,14 +91,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.is_locked_out(text, text, interval, int) IS
-'Returns true if too many failed attempts in window.
-Same code path regardless of email existence in users table.';
-
-
--- =============================================================================
--- GET RECENT ATTEMPTS
--- =============================================================================
+-- @function authn.get_recent_attempts
+-- @brief Get recent login attempts for admin UI or user security page
+-- @returns success, ip_address, attempted_at
+-- @example SELECT * FROM authn.get_recent_attempts('alice@example.com');
 CREATE OR REPLACE FUNCTION authn.get_recent_attempts(
     p_email text,
     p_namespace text DEFAULT 'default',
@@ -143,13 +131,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.get_recent_attempts(text, text, int) IS
-'Returns recent login attempts for admin UI.';
-
-
--- =============================================================================
--- CLEAR ATTEMPTS
--- =============================================================================
+-- @function authn.clear_attempts
+-- @brief Clear login attempts to unlock a user (admin function)
+-- @returns Count of attempts cleared
+-- @example SELECT authn.clear_attempts('alice@example.com'); -- Unlock user
 CREATE OR REPLACE FUNCTION authn.clear_attempts(
     p_email text,
     p_namespace text DEFAULT 'default'
@@ -173,5 +158,3 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.clear_attempts(text, text) IS
-'Clears all login attempts for an email. Admin function.';

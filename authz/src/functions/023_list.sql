@@ -1,23 +1,15 @@
--- =============================================================================
--- LIST RESOURCES
--- =============================================================================
--- Returns resources the user can access with the given permission.
--- Supports nested teams, permission hierarchy, and resource hierarchy.
--- Includes descendants of accessible resources.
---
--- NAMESPACE NOTE: Unlike check(), this function does not warn on namespace/tenant
--- mismatch. These listing functions are SQL (not plpgsql) for performance, and
--- check() is the primary API that developers use. If namespace != tenant_id,
--- RLS will return empty results (fail-closed).
---
--- PERF NOTE: The CROSS JOIN LATERAL in accessible_resources fires a recursive
--- CTE per granted resource. This is O(n) where n = number of accessible resources.
--- Known scaling limit: ~1000 accessible resources before query time degrades.
---
--- MITIGATION OPTIONS for high-volume use cases:
---   1. Use filter_authorized() with a pre-filtered candidate set instead
---   2. Implement application-layer caching of list_resources results
---   3. Partition resources by type and call separately with smaller p_limit
+-- @group Listing
+
+-- @function authz.list_resources
+-- @brief List all resources a user can access ("What can Alice read?")
+-- @param p_limit Pagination limit. For >1000 resources, use filter_authorized() instead.
+-- @param p_cursor Pass last resource_id from previous page to get next page
+-- @returns Resource IDs the user can access (via direct grant, team membership,
+--   or folder inheritance)
+-- @example -- Show alice all docs she can read
+-- @example SELECT * FROM authz.list_resources('alice', 'doc', 'read', 'default');
+-- @example -- Paginate through results
+-- @example SELECT * FROM authz.list_resources('alice', 'doc', 'read', 'default', 50, 'last-doc-id');
 CREATE OR REPLACE FUNCTION authz.list_resources (p_user_id text, p_resource_type text, p_permission text, p_namespace text DEFAULT 'default', p_limit int DEFAULT 100, p_cursor text DEFAULT NULL)
     RETURNS TABLE (
         resource_id text
@@ -101,12 +93,11 @@ $$
 LANGUAGE sql
 STABLE PARALLEL SAFE SECURITY INVOKER SET search_path = authz, pg_temp;
 
--- =============================================================================
--- LIST USERS
--- =============================================================================
--- Returns users who can access the resource with the given permission.
--- Expands nested teams to find all member users.
--- Includes users with access via ancestor resources (resource hierarchy).
+-- @function authz.list_users
+-- @brief List all users who can access a resource ("Who can read this doc?")
+-- @returns User IDs with access (expands team memberships to individual users)
+-- @example -- Find everyone who can admin the payments repo
+-- @example SELECT * FROM authz.list_users('repo', 'payments', 'admin', 'default');
 CREATE OR REPLACE FUNCTION authz.list_users (p_resource_type text, p_resource_id text, p_permission text, p_namespace text DEFAULT 'default', p_limit int DEFAULT 100, p_cursor text DEFAULT NULL)
     RETURNS TABLE (
         user_id text
@@ -188,11 +179,14 @@ $$
 LANGUAGE sql
 STABLE PARALLEL SAFE SECURITY INVOKER SET search_path = authz, pg_temp;
 
--- =============================================================================
--- FILTER AUTHORIZED (batch check)
--- =============================================================================
--- Given a list of resource IDs, returns only those the user can access.
--- Checks grants on each resource and its ancestors (resource hierarchy).
+-- @function authz.filter_authorized
+-- @brief Filter a list to only resources the user can access (batch check)
+-- @param p_resource_ids Candidate resources to check (e.g., from a search query)
+-- @returns Subset of p_resource_ids the user has permission on
+-- @example -- User searches for "api", filter to only repos they can see
+-- @example SELECT authz.filter_authorized('alice', 'repo', 'read',
+-- @example   ARRAY['payments-api', 'internal-api', 'public-api'], 'default');
+-- @example -- Returns: ['payments-api', 'public-api'] (if alice can't see internal-api)
 CREATE OR REPLACE FUNCTION authz.filter_authorized (p_user_id text, p_resource_type text, p_permission text, p_resource_ids text[], p_namespace text DEFAULT 'default')
     RETURNS text[]
     AS $$

@@ -12,8 +12,6 @@ With lazy evaluation, permissions are computed at query time via recursive
 CTEs. These tests ensure the resolution logic handles edge cases correctly.
 """
 
-import pytest
-
 
 class TestMultiLevelHierarchyAlternatePath:
     """

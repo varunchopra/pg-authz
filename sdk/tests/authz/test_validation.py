@@ -10,8 +10,8 @@ Tests for:
 - Exception handling
 """
 
-import pytest
 import psycopg
+import pytest
 from postkit.authz import AuthzError
 
 

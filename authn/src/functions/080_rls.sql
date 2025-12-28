@@ -1,15 +1,10 @@
--- =============================================================================
--- RLS TENANT FUNCTIONS FOR POSTKIT/AUTHN
--- =============================================================================
--- Set and clear tenant context for row-level security.
--- =============================================================================
+-- @group Multi-tenancy
 
-
--- =============================================================================
--- SET TENANT
--- =============================================================================
--- Sets the tenant context for RLS policies.
--- All subsequent queries in this transaction will be filtered by namespace.
+-- @function authn.set_tenant
+-- @brief Set the tenant context for Row-Level Security
+-- @param p_tenant_id Tenant/organization ID. All queries will be filtered to this tenant.
+-- @example -- At start of request, set tenant from JWT or session
+-- @example SELECT authn.set_tenant('acme-corp');
 CREATE OR REPLACE FUNCTION authn.set_tenant(
     p_tenant_id text
 )
@@ -21,15 +16,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.set_tenant(text) IS
-'Sets tenant context for RLS. All queries will be filtered by this namespace.';
-
-
--- =============================================================================
--- CLEAR TENANT
--- =============================================================================
--- Clears the tenant context.
--- WARNING: With RLS enabled, queries will return no rows until tenant is set.
+-- @function authn.clear_tenant
+-- @brief Clear tenant context. Queries return no rows (fail-closed for safety).
+-- @example SELECT authn.clear_tenant();
 CREATE OR REPLACE FUNCTION authn.clear_tenant()
 RETURNS void
 AS $$
@@ -38,5 +27,3 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SET search_path = authn, pg_temp;
 
-COMMENT ON FUNCTION authn.clear_tenant() IS
-'Clears tenant context. Queries will return no rows until set_tenant is called.';

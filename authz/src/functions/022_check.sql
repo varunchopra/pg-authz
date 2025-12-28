@@ -1,3 +1,5 @@
+-- @group Permission Checks
+
 -- =============================================================================
 -- PERMISSION CHECK (LAZY EVALUATION)
 -- =============================================================================
@@ -98,9 +100,14 @@ AS $$
 $$ LANGUAGE sql STABLE PARALLEL SAFE SECURITY INVOKER SET search_path = authz, pg_temp;
 
 
--- =============================================================================
--- CHECK (single permission)
--- =============================================================================
+-- @function authz.check
+-- @brief Check if a user has a specific permission on a resource
+-- @param p_user_id The user to check
+-- @param p_permission The permission to verify (e.g., 'read', 'write', 'admin')
+-- @param p_resource_type The type of resource (e.g., 'repo', 'doc')
+-- @param p_resource_id The resource identifier
+-- @returns True if the user has the permission
+-- @example SELECT authz.check('alice', 'read', 'doc', 'spec-123');
 CREATE OR REPLACE FUNCTION authz.check(
     p_user_id text,
     p_permission text,
@@ -118,9 +125,14 @@ END;
 $$ LANGUAGE plpgsql STABLE PARALLEL SAFE SECURITY INVOKER SET search_path = authz, pg_temp;
 
 
--- =============================================================================
--- CHECK ANY (at least one permission required)
--- =============================================================================
+-- @function authz.check_any
+-- @brief Check if a user has any of the specified permissions
+-- @param p_user_id The user to check
+-- @param p_permissions Array of permissions (user needs at least one)
+-- @param p_resource_type The type of resource
+-- @param p_resource_id The resource identifier
+-- @returns True if the user has at least one of the permissions
+-- @example SELECT authz.check_any('alice', ARRAY['read', 'write'], 'doc', 'spec-123');
 CREATE OR REPLACE FUNCTION authz.check_any(
     p_user_id text,
     p_permissions text[],
@@ -138,9 +150,14 @@ END;
 $$ LANGUAGE plpgsql STABLE PARALLEL SAFE SECURITY INVOKER SET search_path = authz, pg_temp;
 
 
--- =============================================================================
--- CHECK ALL (all permissions required)
--- =============================================================================
+-- @function authz.check_all
+-- @brief Check if a user has all of the specified permissions
+-- @param p_user_id The user to check
+-- @param p_permissions Array of permissions (user needs all of them)
+-- @param p_resource_type The type of resource
+-- @param p_resource_id The resource identifier
+-- @returns True if the user has all of the permissions
+-- @example SELECT authz.check_all('alice', ARRAY['read', 'write'], 'doc', 'spec-123');
 CREATE OR REPLACE FUNCTION authz.check_all(
     p_user_id text,
     p_permissions text[],

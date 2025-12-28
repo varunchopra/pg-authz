@@ -7,12 +7,10 @@ concurrent operations work correctly.
 """
 
 import os
-import pytest
-import psycopg
 import threading
 import time
 
-from tests.authz.helpers import AuthzTestHelpers
+import psycopg
 
 # Database connection from environment or default (matches Makefile)
 DATABASE_URL = os.environ.get(
@@ -208,7 +206,7 @@ class TestConcurrentHierarchyChanges:
     def test_hierarchy_change_during_writes(self, make_authz):
         """Hierarchy change while writes are happening stays consistent."""
         namespace = "test_concurrent_hierarchy"
-        checker = make_authz(namespace)
+        make_authz(namespace)
 
         results = {"errors": []}
         results_lock = threading.Lock()
@@ -404,18 +402,18 @@ class TestConcurrentCyclePrevention:
 
         # No deadlock errors (would show as timeout or other_errors)
         # This is the key assertion - deadlocks would appear here
-        assert not results[
-            "other_errors"
-        ], f"Unexpected errors: {results['other_errors']}"
+        assert not results["other_errors"], (
+            f"Unexpected errors: {results['other_errors']}"
+        )
 
         # With idempotent writes: half succeed (one direction), half fail (opposite direction)
         # All threads of one direction succeed (idempotent), all of other direction fail (cycle)
-        assert (
-            results["successes"] == num_attempts // 2
-        ), f"Expected {num_attempts // 2} successes (one direction), got {results['successes']}"
-        assert (
-            results["cycle_errors"] == num_attempts // 2
-        ), f"Expected {num_attempts // 2} cycle errors (opposite direction), got {results['cycle_errors']}"
+        assert results["successes"] == num_attempts // 2, (
+            f"Expected {num_attempts // 2} successes (one direction), got {results['successes']}"
+        )
+        assert results["cycle_errors"] == num_attempts // 2, (
+            f"Expected {num_attempts // 2} cycle errors (opposite direction), got {results['cycle_errors']}"
+        )
 
         # Cleanup
         cursor.execute("DELETE FROM authz.tuples WHERE namespace = %s", (namespace,))

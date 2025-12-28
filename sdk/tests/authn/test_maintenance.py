@@ -1,7 +1,5 @@
 """Tests for maintenance functions."""
 
-from datetime import timedelta
-
 
 class TestCleanupExpired:
     def test_deletes_expired_sessions(self, authn, test_helpers):

@@ -4,6 +4,8 @@
 
 Postgres-native authentication, authorization, and organization management. No external services.
 
+**For LLMs**: See [AGENTS.md](AGENTS.md).
+
 ```sql
 SELECT authz.check('alice', 'read', 'document', 'doc-123');  -- true/false
 ```
@@ -67,12 +69,17 @@ if authz.check("alice", "read", ("repo", "api")):
 
 See [sdk/](sdk/) for details.
 
+## Documentation
+
+See [docs/](docs/) for full API reference with function signatures, parameters, and examples.
+
 ## Development
 
 ```bash
 make setup   # Start Postgres in Docker
 make build   # Build dist/postkit.sql, dist/authz.sql, dist/authn.sql
 make test    # Run tests
+make docs    # Generate API documentation
 make clean   # Cleanup
 ```
 
