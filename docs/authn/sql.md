@@ -710,7 +710,7 @@ SELECT authn.enable_user(user_id);
 ### authn.get_user
 
 ```sql
-authn.get_user(p_user_id: uuid, p_namespace: text) -> table(id: uuid, email: text, email_verified_at: timestamptz, disabled_at: timestamptz, created_at: timestamptz, updated_at: timestamptz)
+authn.get_user(p_user_id: uuid, p_namespace: text) -> table(user_id: uuid, email: text, email_verified_at: timestamptz, disabled_at: timestamptz, created_at: timestamptz, updated_at: timestamptz)
 ```
 
 Get user by ID (does not return password hash)
@@ -727,7 +727,7 @@ SELECT * FROM authn.get_user('550e8400-e29b-41d4-a716-446655440000');
 ### authn.get_user_by_email
 
 ```sql
-authn.get_user_by_email(p_email: text, p_namespace: text) -> table(id: uuid, email: text, email_verified_at: timestamptz, disabled_at: timestamptz, created_at: timestamptz, updated_at: timestamptz)
+authn.get_user_by_email(p_email: text, p_namespace: text) -> table(user_id: uuid, email: text, email_verified_at: timestamptz, disabled_at: timestamptz, created_at: timestamptz, updated_at: timestamptz)
 ```
 
 Look up user by email (normalized to lowercase)
@@ -744,7 +744,7 @@ SELECT * FROM authn.get_user_by_email('Alice@Example.com');
 ### authn.list_users
 
 ```sql
-authn.list_users(p_namespace: text, p_limit: int4, p_cursor: uuid) -> table(id: uuid, email: text, email_verified_at: timestamptz, disabled_at: timestamptz, created_at: timestamptz, updated_at: timestamptz)
+authn.list_users(p_namespace: text, p_limit: int4, p_cursor: uuid) -> table(user_id: uuid, email: text, email_verified_at: timestamptz, disabled_at: timestamptz, created_at: timestamptz, updated_at: timestamptz)
 ```
 
 List users with cursor-based pagination

@@ -44,7 +44,7 @@ CREATE OR REPLACE FUNCTION authn.get_user(
     p_namespace text DEFAULT 'default'
 )
 RETURNS TABLE(
-    id uuid,
+    user_id uuid,
     email text,
     email_verified_at timestamptz,
     disabled_at timestamptz,
@@ -58,7 +58,7 @@ BEGIN
 
     RETURN QUERY
     SELECT
-        u.id,
+        u.id AS user_id,
         u.email,
         u.email_verified_at,
         u.disabled_at,
@@ -78,7 +78,7 @@ CREATE OR REPLACE FUNCTION authn.get_user_by_email(
     p_namespace text DEFAULT 'default'
 )
 RETURNS TABLE(
-    id uuid,
+    user_id uuid,
     email text,
     email_verified_at timestamptz,
     disabled_at timestamptz,
@@ -95,7 +95,7 @@ BEGIN
 
     RETURN QUERY
     SELECT
-        u.id,
+        u.id AS user_id,
         u.email,
         u.email_verified_at,
         u.disabled_at,
@@ -294,7 +294,7 @@ CREATE OR REPLACE FUNCTION authn.list_users(
     p_cursor uuid DEFAULT NULL
 )
 RETURNS TABLE(
-    id uuid,
+    user_id uuid,
     email text,
     email_verified_at timestamptz,
     disabled_at timestamptz,
@@ -313,7 +313,7 @@ BEGIN
 
     RETURN QUERY
     SELECT
-        u.id,
+        u.id AS user_id,
         u.email,
         u.email_verified_at,
         u.disabled_at,

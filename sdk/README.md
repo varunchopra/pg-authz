@@ -5,7 +5,7 @@ PostgreSQL-native authentication and authorization SDK.
 ## Installation
 
 ```bash
-pip install postkit
+pip install git+https://github.com/varunchopra/postkit.git#subdirectory=sdk
 ```
 
 ## Usage

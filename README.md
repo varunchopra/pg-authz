@@ -1,7 +1,5 @@
 # postkit
 
-[![PyPI](https://img.shields.io/pypi/v/postkit)](https://pypi.org/project/postkit/)
-
 Postgres-native authentication, authorization, and organization management. No external services.
 
 **For LLMs**: See [AGENTS.md](AGENTS.md).
@@ -53,7 +51,7 @@ db.QueryRow(ctx, "SELECT authz.check($1, $2, $3, $4)", userID, "read", "doc", do
 For Python projects, there's an optional SDK with a typed client:
 
 ```bash
-pip install postkit
+pip install git+https://github.com/varunchopra/postkit.git#subdirectory=sdk
 ```
 
 ```python

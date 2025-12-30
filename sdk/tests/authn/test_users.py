@@ -77,7 +77,7 @@ class TestGetUser:
         user_id = authn.create_user("alice@example.com", "hash")
         user = authn.get_user(user_id)
 
-        assert user["id"] == user_id  # SDK normalizes UUIDs to strings
+        assert user["user_id"] == user_id  # UUIDs returned as strings
         assert user["email"] == "alice@example.com"
         assert "password_hash" not in user  # Security: excluded
 
@@ -91,13 +91,13 @@ class TestGetUserByEmail:
         user_id = authn.create_user("alice@example.com", "hash")
         user = authn.get_user_by_email("alice@example.com")
 
-        assert user["id"] == user_id  # SDK normalizes UUIDs to strings
+        assert user["user_id"] == user_id  # UUIDs returned as strings
         assert user["email"] == "alice@example.com"
 
     def test_normalizes_email_for_lookup(self, authn):
         user_id = authn.create_user("alice@example.com", "hash")
         user = authn.get_user_by_email("ALICE@EXAMPLE.COM")
-        assert user["id"] == user_id  # SDK normalizes UUIDs to strings
+        assert user["user_id"] == user_id  # UUIDs returned as strings
 
     def test_returns_none_for_unknown_email(self, authn):
         user = authn.get_user_by_email("unknown@example.com")
@@ -224,12 +224,12 @@ class TestListUsers:
         page1 = authn.list_users(limit=2)
         assert len(page1) == 2
 
-        page2 = authn.list_users(limit=2, cursor=page1[-1]["id"])
+        page2 = authn.list_users(limit=2, cursor=page1[-1]["user_id"])
         assert len(page2) == 2
 
         # Pages should be different
-        ids1 = {u["id"] for u in page1}
-        ids2 = {u["id"] for u in page2}
+        ids1 = {u["user_id"] for u in page1}
+        ids2 = {u["user_id"] for u in page2}
         assert ids1.isdisjoint(ids2)
 
     def test_clamps_limit_to_maximum(self, authn):
