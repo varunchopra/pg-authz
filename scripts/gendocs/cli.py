@@ -20,6 +20,7 @@ from .generators import (
     generate_python_markdown,
     generate_sql_markdown,
 )
+from .models import ExtractionResult
 from .validators import compute_coverage, validate_docs
 
 
@@ -28,20 +29,16 @@ def main():
     root = Path(__file__).resolve().parent.parent.parent
     docs_dir = root / "docs"
 
-    # Clean docs directory (preserve any manual files at root)
-    for subdir in ["authz", "authn", "api"]:
-        subdir_path = docs_dir / subdir
-        if subdir_path.exists():
-            shutil.rmtree(subdir_path)
-
-    # Create module directories
-    (docs_dir / "authz").mkdir(parents=True, exist_ok=True)
-    (docs_dir / "authn").mkdir(parents=True, exist_ok=True)
+    # Clean and recreate docs directory
+    if docs_dir.exists():
+        shutil.rmtree(docs_dir)
+    (docs_dir / "authz").mkdir(parents=True)
+    (docs_dir / "authn").mkdir(parents=True)
 
     print("Extracting Python docs...")
 
-    python_results: dict[str, any] = {}
-    sql_results: dict[str, any] = {}
+    python_results: dict[str, ExtractionResult] = {}
+    sql_results: dict[str, ExtractionResult] = {}
 
     # authz Python
     authz_client = root / "sdk" / "src" / "postkit" / "authz" / "client.py"

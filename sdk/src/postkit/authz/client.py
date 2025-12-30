@@ -26,32 +26,16 @@ __all__ = [
 Entity = tuple[str, str]  # (type, id) e.g., ("repo", "payments-api")
 
 
-# =============================================================================
-# EXCEPTIONS
-# =============================================================================
-
-
 class AuthzError(Exception):
     """Base exception for authz operations."""
-
-    pass
 
 
 class AuthzValidationError(AuthzError):
     """Raised when input validation fails."""
 
-    pass
-
 
 class AuthzCycleError(AuthzError):
     """Raised when a hierarchy cycle is detected."""
-
-    pass
-
-
-# =============================================================================
-# CLIENT
-# =============================================================================
 
 
 class AuthzClient:
@@ -148,10 +132,6 @@ class AuthzClient:
         """Execute SQL and return all rows."""
         self.cursor.execute(sql, params)
         return self.cursor.fetchall()
-
-    # =========================================================================
-    # Core operations
-    # =========================================================================
 
     def grant(
         self,
@@ -335,10 +315,6 @@ class AuthzClient:
             (user_id, permissions, resource_type, resource_id, self.namespace),
         )
 
-    # =========================================================================
-    # Audit and listing
-    # =========================================================================
-
     def explain(self, user_id: str, permission: str, resource: Entity) -> list[str]:
         """
         Explain why a user has a permission.
@@ -449,10 +425,6 @@ class AuthzClient:
         )
         return result if result else []
 
-    # =========================================================================
-    # Setup helpers
-    # =========================================================================
-
     def set_hierarchy(self, resource_type: str, *permissions: str):
         """
         Define permission hierarchy for a resource type.
@@ -501,10 +473,6 @@ class AuthzClient:
             "SELECT authz.clear_hierarchy(%s, %s)",
             (resource_type, self.namespace),
         )
-
-    # =========================================================================
-    # Audit logging
-    # =========================================================================
 
     def set_actor(
         self,
@@ -631,10 +599,6 @@ class AuthzClient:
             for row in rows
         ]
 
-    # =========================================================================
-    # Admin/maintenance operations
-    # =========================================================================
-
     def verify(self) -> list[dict]:
         """
         Check for data integrity issues (e.g., group membership cycles).
@@ -741,10 +705,6 @@ class AuthzClient:
                 self.namespace,
             ),
         )
-
-    # =========================================================================
-    # Expiration management
-    # =========================================================================
 
     def list_expiring(self, within: timedelta = timedelta(days=7)) -> list[dict]:
         """

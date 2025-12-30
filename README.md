@@ -1,12 +1,6 @@
 # postkit
 
-Postgres-native authentication, authorization, and organization management. No external services.
-
-**For LLMs**: See [AGENTS.md](AGENTS.md).
-
-```sql
-SELECT authz.check('alice', 'read', 'document', 'doc-123');  -- true/false
-```
+Postgres-native authentication and authorization. No external services.
 
 ## Modules
 
@@ -15,24 +9,26 @@ SELECT authz.check('alice', 'read', 'document', 'doc-123');  -- true/false
 | [authz](authz/) | `authz` | Authorization (ReBAC permissions) |
 | [authn](authn/) | `authn` | Authentication (users, sessions, tokens) |
 
-Each module is independent - use what you need.
+Each module is independent -- use what you need.
 
 ## Install
 
 ```bash
+git clone https://github.com/varunchopra/postkit.git
+cd postkit
+make build
+
 # Install everything
-psql $DATABASE_URL -f https://raw.githubusercontent.com/varunchopra/postkit/main/dist/postkit.sql
+psql $DATABASE_URL -f dist/postkit.sql
 
 # Or individual modules
-psql $DATABASE_URL -f https://raw.githubusercontent.com/varunchopra/postkit/main/dist/authz.sql
-psql $DATABASE_URL -f https://raw.githubusercontent.com/varunchopra/postkit/main/dist/authn.sql
+psql $DATABASE_URL -f dist/authz.sql
+psql $DATABASE_URL -f dist/authn.sql
 ```
 
-## Why SQL?
+## Usage
 
-Teams build their own data access layers with specific drivers (`asyncpg`, `psycopg`, `pg`, etc.),
-connection pooling, and caching. A generic SDK either forces opinions or adds a layer you'll
-bypass anyway. Call the SQL directly:
+Works with any language or driver:
 
 ```python
 cursor.execute("SELECT authz.check(%s, %s, %s, %s)", (user_id, "read", "doc", doc_id))
@@ -48,7 +44,7 @@ db.QueryRow(ctx, "SELECT authz.check($1, $2, $3, $4)", userID, "read", "doc", do
 
 ## Python SDK
 
-For Python projects, there's an optional SDK with a typed client:
+Optional typed client for Python:
 
 ```bash
 pip install git+https://github.com/varunchopra/postkit.git#subdirectory=sdk
@@ -80,6 +76,12 @@ make test    # Run tests
 make docs    # Generate API documentation
 make clean   # Cleanup
 ```
+
+## Working with Agents
+
+We've structured the docs and SDK so you can point an agent like Claude Code at [AGENTS.md](AGENTS.md) in this repo and it'll figure out how to set up identity for your app.
+
+_Or_ you can try out [this Claude Code skill](SKILL.md) in your project.
 
 ## License
 

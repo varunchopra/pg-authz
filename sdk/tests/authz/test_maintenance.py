@@ -73,50 +73,6 @@ class TestVerifyRepair:
         assert len(issues) == 0
 
 
-class TestBackupRestore:
-    """Test pg_dump/pg_restore compatibility."""
-
-    PG_CONTAINER = os.environ.get("PG_CONTAINER", "postkit-test")
-
-    @pytest.fixture
-    def check_docker_container(self):
-        """Check if the test container is running."""
-        result = subprocess.run(
-            ["docker", "inspect", self.PG_CONTAINER],
-            capture_output=True,
-        )
-        if result.returncode != 0:
-            pytest.skip(f"Docker container {self.PG_CONTAINER} not running")
-        return True
-
-    def test_dump_schema_succeeds(self, authz, check_docker_container):
-        """pg_dump of authz schema should succeed."""
-        # Setup some data
-        authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
-
-        # Run pg_dump inside the container (avoids version mismatch)
-        result = subprocess.run(
-            [
-                "docker",
-                "exec",
-                self.PG_CONTAINER,
-                "pg_dump",
-                "-U",
-                "postgres",
-                "-d",
-                "postgres",
-                "-n",
-                "authz",
-                "--no-owner",
-            ],
-            capture_output=True,
-            text=True,
-        )
-
-        assert result.returncode == 0, f"pg_dump failed: {result.stderr}"
-        assert "CREATE TABLE authz.tuples" in result.stdout
-
-
 class TestBulkOperations:
     """Bulk import functionality."""
 

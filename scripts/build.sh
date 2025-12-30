@@ -98,7 +98,7 @@ BEGIN;
 HEADER
 
     # Build each module in order
-    for module in authn authz orgs; do
+    for module in authn authz; do
         module_dir="$ROOT_DIR/$module"
         if [ -d "$module_dir/src" ] && [ "$(ls -A "$module_dir/src" 2>/dev/null)" ]; then
             echo ""
@@ -158,11 +158,11 @@ case "$MODULE" in
     all)
         build_all
         ;;
-    authn|authz|orgs)
+    authn|authz)
         build_module "$MODULE"
         ;;
     *)
-        echo "Usage: $0 [all|authn|authz|orgs]" >&2
+        echo "Usage: $0 [all|authn|authz]" >&2
         exit 1
         ;;
 esac

@@ -122,16 +122,3 @@ def test_empty_docstring():
 
     result = _parse_docstring("")
     assert result.brief == ""
-
-
-if __name__ == "__main__":
-    test_brief()
-    test_multiline_brief()
-    test_params()
-    test_returns_simple()
-    test_returns_multiline()
-    test_example()
-    test_example_multiline_code()
-    test_full_docstring()
-    test_empty_docstring()
-    print("All tests passed!")

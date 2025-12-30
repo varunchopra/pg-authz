@@ -8,10 +8,12 @@ concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
-
     strategy:
       max-parallel: 1
       matrix:
@@ -34,34 +36,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
+      - uses: astral-sh/setup-uv@v4
         with:
           python-version: ${{ matrix.python }}
 
-      - name: Build and test
+      - run: make build test
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-          PG_PORT: 5432
-        run: make build test
 
   docs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
+      - uses: astral-sh/setup-uv@v4
 
       - name: Check docs are up to date
-        # Regenerate docs and fail if there are any changes (modified or new files).
-        # This ensures docs stay in sync with code changes.
-        # --porcelain gives machine-readable output; non-empty = uncommitted changes
         run: |
           make docs
           if [ -n "$(git status --porcelain docs/)" ]; then
             echo "::error::Docs are out of date. Run 'make docs' and commit."
-            git status docs/
             git diff docs/
             exit 1
           fi

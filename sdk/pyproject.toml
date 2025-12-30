@@ -24,6 +24,7 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Topic :: Database",
     "Topic :: Security",
+    "Typing :: Typed",
 ]
 dependencies = ["psycopg>=3.1.0"]
 
@@ -40,6 +41,8 @@ dev = [
 [project.urls]
 Homepage = "https://github.com/varunchopra/postkit"
 Repository = "https://github.com/varunchopra/postkit"
+Documentation = "https://github.com/varunchopra/postkit/tree/main/docs"
+Issues = "https://github.com/varunchopra/postkit/issues"
 
 [build-system]
 requires = ["hatchling"]

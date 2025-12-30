@@ -1,4 +1,4 @@
-.PHONY: setup build test test-authz test-authn dev release clean sdk-build sdk-publish db docs lint format
+.PHONY: setup build test clean docs lint format
 
 PG_VERSION ?= 16
 PG_CONTAINER ?= postkit-test
@@ -29,47 +29,15 @@ build:
 	@./scripts/build.sh > dist/postkit.sql
 	@./scripts/build.sh authz > dist/authz.sql
 	@./scripts/build.sh authn > dist/authn.sql
-	@echo "$(GREEN) Built dist/postkit.sql, dist/authz.sql, dist/authn.sql$(NC)"
+	@echo "$(GREEN)✓ Built dist/postkit.sql, dist/authz.sql, dist/authn.sql$(NC)"
 
 test: db build
 ifdef TEST
 	@DATABASE_URL=$(DATABASE_URL) $(PYTEST) -v $(TEST)
 else
 	@DATABASE_URL=$(DATABASE_URL) $(PYTEST) -v
+	@cd scripts && uv run --with pglast --with pytest pytest gendocs/
 endif
-
-test-authz: db build
-	@DATABASE_URL=$(DATABASE_URL) $(PYTEST) -v tests/authz/
-
-test-authn: db build
-	@DATABASE_URL=$(DATABASE_URL) $(PYTEST) -v tests/authn/
-
-dev: build test
-	@echo "$(GREEN) Build and tests passed$(NC)"
-
-release:
-ifndef VERSION
-	$(error VERSION is required. Usage: make release VERSION=1.0.0)
-endif
-	@echo "Releasing v$(VERSION)..."
-	@make build
-	@make test
-	@echo "$(GREEN) Ready to release$(NC)"
-	@echo ""
-	@echo "Next steps:"
-	@echo "  git tag v$(VERSION) && git push --tags"
-
-sdk-build:
-	@cd sdk && uv build
-	@echo "$(GREEN) Built SDK$(NC)"
-
-sdk-publish: sdk-build
-	@cd sdk && uv publish
-	@echo "$(GREEN) Published SDK to PyPI$(NC)"
-
-capture-sql: db build
-	@cd sdk && DOC_CAPTURE=1 DATABASE_URL=$(DATABASE_URL) uv run --extra dev pytest -v tests/authz/test_groups.py
-	@echo "$(GREEN)✓ Captured SQL to docs/captured_sql.json$(NC)"
 
 docs:
 	@cd scripts && uv run --with pglast --with 'psycopg[binary]' python -m gendocs.cli

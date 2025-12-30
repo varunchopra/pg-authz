@@ -9,16 +9,7 @@ from .models import ExtractionResult, FunctionDoc
 
 def _slugify(name: str) -> str:
     """Convert function name to markdown anchor slug."""
-    # GitHub-style: lowercase, replace dots/spaces with hyphens
     return name.lower().replace(".", "").replace(" ", "-")
-
-
-def _split_signature(sig: str) -> tuple[str, str]:
-    """Split signature into (function_part, return_type)."""
-    if " -> " in sig:
-        func_part, return_type = sig.rsplit(" -> ", 1)
-        return func_part, return_type.strip()
-    return sig, ""
 
 
 def generate_docs_readme(modules: list[str]) -> str:

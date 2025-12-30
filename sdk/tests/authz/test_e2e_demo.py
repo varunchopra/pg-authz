@@ -21,10 +21,7 @@ hierarchies, and direct grants.
 
 from postkit.authz import AuthzClient
 
-# =============================================================================
-# Layer 2: Domain-specific helpers (what customers build)
-# =============================================================================
-# This is how a company like Acme would wrap the generic SDK with their
+# Domain-specific helpers - how customers wrap the generic SDK with their
 # own domain language. The SDK deals in tuples; this layer deals in teams,
 # repos, and services.
 
@@ -54,11 +51,6 @@ class AcmeAuthz:
         self.client.grant(permission, resource=resource, subject=("team", team))
 
 
-# =============================================================================
-# The Test
-# =============================================================================
-
-
 class TestInternalDevPlatform:
     """
     Acme Corp's internal developer platform uses postkit/authz as a
@@ -74,20 +66,14 @@ class TestInternalDevPlatform:
         # Wrap the SDK with Acme's domain helpers
         acme = AcmeAuthz(authz)
 
-        # =================================================================
-        # 1. SETUP: Permission hierarchy
-        # =================================================================
+        # 1. Setup: Permission hierarchy
         # Acme uses the same hierarchy across all resource types:
-        #   admin -> write -> read
-        #
+        # admin -> write -> read
         # If you have "admin", you automatically have "write" and "read".
-
         for resource_type in ["repo", "service", "secret", "incident"]:
             authz.set_hierarchy(resource_type, "admin", "write", "read")
 
-        # =================================================================
-        # 2. TEAM STRUCTURE
-        # =================================================================
+        # 2. Team structure
         # The payments team owns their repo and service.
         # They can read (but not write) their secrets.
 
@@ -99,9 +85,7 @@ class TestInternalDevPlatform:
         acme.add_to_team("alice", "payments-eng")
         acme.add_to_team("bob", "payments-eng")
 
-        # =================================================================
-        # 3. TEAM-BASED ACCESS
-        # =================================================================
+        # 3. Team-based access
         # Alice and Bob automatically have access to everything their team owns.
 
         # Alice can write (team has admin -> admin implies write)
@@ -119,22 +103,16 @@ class TestInternalDevPlatform:
         # Charlie is not on the team - no access
         assert not authz.check("charlie", "read", ("repo", "payments-api"))
 
-        # =================================================================
-        # 4. EXPLAIN: Why does alice have access?
-        # =================================================================
+        # 4. Explain: Why does alice have access?
         # Auditing and debugging: trace the permission path.
-
         explanations = authz.explain("alice", "write", ("repo", "payments-api"))
 
         assert len(explanations) > 0
         assert any("HIERARCHY" in exp for exp in explanations)
 
-        # =================================================================
-        # 5. DYNAMIC GRANT: On-call incident access
-        # =================================================================
+        # 5. Dynamic grant: On-call incident access
         # It's 3am. Incident! Alice is on-call and needs write access.
         # This is a direct grant, not via team.
-
         authz.grant(
             "write", resource=("incident", "inc-123"), subject=("user", "alice")
         )
@@ -142,12 +120,9 @@ class TestInternalDevPlatform:
         assert authz.check("alice", "write", ("incident", "inc-123"))
         assert not authz.check("bob", "write", ("incident", "inc-123"))
 
-        # =================================================================
-        # 6. CONTRACTOR ACCESS
-        # =================================================================
+        # 6. Contractor access
         # Charlie is a contractor who needs to review the code.
         # Direct grant, not team membership.
-
         authz.grant(
             "read", resource=("repo", "payments-api"), subject=("user", "charlie")
         )
@@ -155,11 +130,8 @@ class TestInternalDevPlatform:
         assert authz.check("charlie", "read", ("repo", "payments-api"))
         assert not authz.check("charlie", "write", ("repo", "payments-api"))
 
-        # =================================================================
-        # 7. LIST OPERATIONS
-        # =================================================================
+        # 7. List operations
         # Security review: who has access? what can someone access?
-
         users = authz.list_users("read", ("repo", "payments-api"))
         assert "alice" in users
         assert "bob" in users
@@ -168,11 +140,8 @@ class TestInternalDevPlatform:
         repos = authz.list_resources("alice", "repo", "read")
         assert "payments-api" in repos
 
-        # =================================================================
-        # 8. REVOKE
-        # =================================================================
+        # 8. Revoke
         # Incident resolved. Contractor done. Clean up access.
-
         authz.revoke(
             "write", resource=("incident", "inc-123"), subject=("user", "alice")
         )

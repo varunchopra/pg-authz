@@ -20,26 +20,12 @@ __all__ = [
 ]
 
 
-# =============================================================================
-# EXCEPTIONS
-# =============================================================================
-
-
 class AuthnError(Exception):
     """Base exception for authn operations."""
-
-    pass
 
 
 class AuthnValidationError(AuthnError):
     """Raised when input validation fails."""
-
-    pass
-
-
-# =============================================================================
-# CLIENT
-# =============================================================================
 
 
 class AuthnClient:
@@ -139,10 +125,6 @@ class AuthnClient:
             self.cursor.execute("ROLLBACK")
             raise
 
-    # =========================================================================
-    # User Management
-    # =========================================================================
-
     def create_user(
         self,
         email: str,
@@ -213,10 +195,6 @@ class AuthnClient:
             (self.namespace, limit, cursor),
         )
 
-    # =========================================================================
-    # Credentials
-    # =========================================================================
-
     def get_credentials(self, email: str) -> dict | None:
         """
         Get credentials for login verification.
@@ -235,10 +213,6 @@ class AuthnClient:
             "SELECT authn.update_password(%s::uuid, %s, %s)",
             (user_id, new_password_hash, self.namespace),
         )
-
-    # =========================================================================
-    # Sessions
-    # =========================================================================
 
     def create_session(
         self,
@@ -311,10 +285,6 @@ class AuthnClient:
             (user_id, self.namespace),
         )
 
-    # =========================================================================
-    # Tokens (password reset, email verification, magic links)
-    # =========================================================================
-
     def create_token(
         self,
         user_id: str,
@@ -369,10 +339,6 @@ class AuthnClient:
             "SELECT authn.invalidate_tokens(%s::uuid, %s, %s)",
             (user_id, token_type, self.namespace),
         )
-
-    # =========================================================================
-    # MFA
-    # =========================================================================
 
     def add_mfa(
         self,
@@ -434,10 +400,6 @@ class AuthnClient:
             (user_id, self.namespace),
         )
 
-    # =========================================================================
-    # Lockout
-    # =========================================================================
-
     def record_login_attempt(
         self,
         email: str,
@@ -476,10 +438,6 @@ class AuthnClient:
             (email, self.namespace),
         )
 
-    # =========================================================================
-    # Maintenance
-    # =========================================================================
-
     def cleanup_expired(self) -> dict:
         """Clean up expired sessions, tokens, and old login attempts."""
         result = self._row(
@@ -495,10 +453,6 @@ class AuthnClient:
             (self.namespace,),
         )
         return result or {}
-
-    # =========================================================================
-    # Audit Context
-    # =========================================================================
 
     def set_actor(
         self,
