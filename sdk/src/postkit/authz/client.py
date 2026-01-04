@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-import psycopg
+from postkit.base import BaseClient, PostkitError
 
 __all__ = [
     "AuthzClient",
@@ -26,7 +26,7 @@ __all__ = [
 Entity = tuple[str, str]  # (type, id) e.g., ("repo", "payments-api")
 
 
-class AuthzError(Exception):
+class AuthzError(PostkitError):
     """Base exception for authz operations."""
 
 
@@ -38,7 +38,7 @@ class AuthzCycleError(AuthzError):
     """Raised when a hierarchy cycle is detected."""
 
 
-class AuthzClient:
+class AuthzClient(BaseClient):
     """
     SDK-style client for postkit/authz.
 
@@ -59,80 +59,18 @@ class AuthzClient:
             allow_access()
     """
 
+    _schema = "authz"
+    _error_class = AuthzError
+
     def __init__(self, cursor, namespace: str):
-        self.cursor = cursor
-        self.namespace = namespace
-        # Set tenant context for RLS
-        self.cursor.execute("SELECT authz.set_tenant(%s)", (namespace,))
-        # Actor context stored as instance state (applied per-operation in _write_scalar)
-        self._actor_id: str | None = None
-        self._request_id: str | None = None
-        self._reason: str | None = None
-        self._on_behalf_of: str | None = None
+        super().__init__(cursor, namespace)
 
-    def _handle_error(self, e: psycopg.Error) -> None:
-        """Convert psycopg errors to SDK exceptions."""
-        raise AuthzError(str(e)) from e
-
-    def _scalar(self, sql: str, params: tuple):
-        """Execute SQL and return single scalar value."""
-        try:
-            self.cursor.execute(sql, params)
-            result = self.cursor.fetchone()
-            return result[0] if result else None
-        except psycopg.Error as e:
-            self._handle_error(e)
-
-    def _write_scalar(self, sql: str, params: tuple):
-        """Execute a write operation with actor context for audit logging.
-
-        Actor context uses PostgreSQL's transaction-local settings (set_config with
-        is_local=true). This means the actor info only persists within a transaction.
-
-        When actor context is set:
-        - In autocommit mode: Each statement is its own transaction, so we must:
-          1. Begin an explicit transaction
-          2. Set actor context
-          3. Execute the write (triggers capture actor from settings)
-          4. Commit
-        - In manual transaction mode: The caller controls the transaction, so we just
-          set the actor context and let them commit when ready.
-
-        Note: This method assumes single-threaded access to the cursor.
-        psycopg cursors are not thread-safe; do not share AuthzClient across threads.
-        """
-        if self._actor_id is None:
-            return self._scalar(sql, params)
-
-        # Check if already in a transaction (psycopg transaction_status: 0 = idle)
-        in_transaction = self.cursor.connection.info.transaction_status != 0
-
-        if in_transaction:
-            # Caller manages transaction - just set actor context
-            self.cursor.execute(
-                "SELECT authz.set_actor(%s, %s, %s, %s)",
-                (self._actor_id, self._request_id, self._reason, self._on_behalf_of),
-            )
-            return self._scalar(sql, params)
-
-        # Autocommit mode - wrap in transaction so actor context persists
-        try:
-            self.cursor.execute("BEGIN")
-            self.cursor.execute(
-                "SELECT authz.set_actor(%s, %s, %s, %s)",
-                (self._actor_id, self._request_id, self._reason, self._on_behalf_of),
-            )
-            result = self._scalar(sql, params)
-            self.cursor.execute("COMMIT")
-            return result
-        except Exception:
-            self.cursor.execute("ROLLBACK")
-            raise
-
-    def _fetchall(self, sql: str, params: tuple) -> list:
-        """Execute SQL and return all rows."""
-        self.cursor.execute(sql, params)
-        return self.cursor.fetchall()
+    def _apply_actor_context(self) -> None:
+        """Apply actor context via authz.set_actor()."""
+        self.cursor.execute(
+            "SELECT authz.set_actor(%s, %s, %s, %s)",
+            (self._actor_id, self._request_id, self._reason, self._on_behalf_of),
+        )
 
     def grant(
         self,
@@ -335,7 +273,7 @@ class AuthzClient:
             # ["HIERARCHY: alice is member of team:eng which has admin (admin -> read)"]
         """
         resource_type, resource_id = resource
-        rows = self._fetchall(
+        rows = self._fetchall_raw(
             "SELECT * FROM authz.explain_text(%s, %s, %s, %s, %s)",
             (user_id, permission, resource_type, resource_id, self.namespace),
         )
@@ -367,12 +305,12 @@ class AuthzClient:
         """
         resource_type, resource_id = resource
         if limit is not None:
-            rows = self._fetchall(
+            rows = self._fetchall_raw(
                 "SELECT * FROM authz.list_users(%s, %s, %s, %s, %s, %s)",
                 (resource_type, resource_id, permission, self.namespace, limit, cursor),
             )
         else:
-            rows = self._fetchall(
+            rows = self._fetchall_raw(
                 "SELECT * FROM authz.list_users(%s, %s, %s, %s)",
                 (resource_type, resource_id, permission, self.namespace),
             )
@@ -405,12 +343,12 @@ class AuthzClient:
             # ["api", "frontend", "docs"]
         """
         if limit is not None:
-            rows = self._fetchall(
+            rows = self._fetchall_raw(
                 "SELECT * FROM authz.list_resources(%s, %s, %s, %s, %s, %s)",
                 (user_id, resource_type, permission, self.namespace, limit, cursor),
             )
         else:
-            rows = self._fetchall(
+            rows = self._fetchall_raw(
                 "SELECT * FROM authz.list_resources(%s, %s, %s, %s)",
                 (user_id, resource_type, permission, self.namespace),
             )
@@ -511,13 +449,6 @@ class AuthzClient:
         self._request_id = request_id
         self._reason = reason
         self._on_behalf_of = on_behalf_of
-
-    def clear_actor(self) -> None:
-        """Clear actor context."""
-        self._actor_id = None
-        self._request_id = None
-        self._reason = None
-        self._on_behalf_of = None
 
     def get_audit_events(
         self,
@@ -620,7 +551,7 @@ class AuthzClient:
             for issue in issues:
                 print(f"{issue['status']}: {issue['details']}")
         """
-        rows = self._fetchall(
+        rows = self._fetchall_raw(
             "SELECT resource_type, resource_id, status, details FROM authz.verify_integrity(%s)",
             (self.namespace,),
         )
@@ -731,7 +662,7 @@ class AuthzClient:
             for grant in expiring:
                 print(f"{grant['subject']} access to {grant['resource']} expires {grant['expires_at']}")
         """
-        rows = self._fetchall(
+        rows = self._fetchall_raw(
             "SELECT * FROM authz.list_expiring(%s, %s)",
             (within, self.namespace),
         )

@@ -21,7 +21,7 @@ authz.add_hierarchy_rule("doc", "admin", "read")
 authz.add_hierarchy_rule("doc", "admin", "share")
 ```
 
-*Source: sdk/src/postkit/authz/client.py:446*
+*Source: sdk/src/postkit/authz/client.py:384*
 
 ---
 
@@ -38,7 +38,7 @@ Grant permission to many users at once (single statement).
 authz.bulk_grant("read", resource=("doc", "1"), subject_ids=["alice", "bob", "carol"])
 ```
 
-*Source: sdk/src/postkit/authz/client.py:663*
+*Source: sdk/src/postkit/authz/client.py:594*
 
 ---
 
@@ -60,7 +60,7 @@ authz.bulk_grant_resources(
 )
 ```
 
-*Source: sdk/src/postkit/authz/client.py:680*
+*Source: sdk/src/postkit/authz/client.py:611*
 
 ---
 
@@ -85,7 +85,7 @@ if authz.check("alice", "read", ("repo", "api")):
     return repo_contents
 ```
 
-*Source: sdk/src/postkit/authz/client.py:254*
+*Source: sdk/src/postkit/authz/client.py:192*
 
 ---
 
@@ -104,7 +104,7 @@ Check if a user has all of the specified permissions.
 
 **Returns:** True if the user has all of the permissions
 
-*Source: sdk/src/postkit/authz/client.py:299*
+*Source: sdk/src/postkit/authz/client.py:237*
 
 ---
 
@@ -123,7 +123,7 @@ Check if a user has any of the specified permissions.
 
 **Returns:** True if the user has at least one of the permissions
 
-*Source: sdk/src/postkit/authz/client.py:278*
+*Source: sdk/src/postkit/authz/client.py:216*
 
 ---
 
@@ -143,7 +143,7 @@ result = authz.cleanup_expired()
 print(f"Removed {result['tuples_deleted']} expired grants")
 ```
 
-*Source: sdk/src/postkit/authz/client.py:749*
+*Source: sdk/src/postkit/authz/client.py:680*
 
 ---
 
@@ -155,7 +155,7 @@ clear_actor() -> None
 
 Clear actor context.
 
-*Source: sdk/src/postkit/authz/client.py:515*
+*Source: sdk/src/postkit/authz/client.py:155*
 
 ---
 
@@ -179,7 +179,7 @@ Remove expiration from a grant (make it permanent).
 authz.clear_expiration("read", resource=("doc", "1"), subject=("user", "alice"))
 ```
 
-*Source: sdk/src/postkit/authz/client.py:809*
+*Source: sdk/src/postkit/authz/client.py:740*
 
 ---
 
@@ -191,7 +191,7 @@ clear_hierarchy(resource_type: str) -> int
 
 Clear all hierarchy rules for a resource type.
 
-*Source: sdk/src/postkit/authz/client.py:471*
+*Source: sdk/src/postkit/authz/client.py:409*
 
 ---
 
@@ -216,7 +216,7 @@ paths = authz.explain("alice", "read", ("repo", "api"))
 # ["HIERARCHY: alice is member of team:eng which has admin (admin -> read)"]
 ```
 
-*Source: sdk/src/postkit/authz/client.py:319*
+*Source: sdk/src/postkit/authz/client.py:257*
 
 ---
 
@@ -243,7 +243,7 @@ new_expires = authz.extend_expiration("read", resource=("doc", "1"),
                                       extension=timedelta(days=30))
 ```
 
-*Source: sdk/src/postkit/authz/client.py:844*
+*Source: sdk/src/postkit/authz/client.py:775*
 
 ---
 
@@ -255,7 +255,7 @@ filter_authorized(user_id: str, resource_type: str, permission: str, resource_id
 
 Filter resource IDs to only those the user can access.
 
-*Source: sdk/src/postkit/authz/client.py:419*
+*Source: sdk/src/postkit/authz/client.py:357*
 
 ---
 
@@ -283,7 +283,7 @@ for event in events:
     print(f"{event['event_type']}: {event['resource']}")
 ```
 
-*Source: sdk/src/postkit/authz/client.py:522*
+*Source: sdk/src/postkit/authz/client.py:453*
 
 ---
 
@@ -315,7 +315,7 @@ authz.grant("read", resource=("doc", "1"), subject=("user", "bob"),
            expires_at=datetime.now(timezone.utc) + timedelta(days=30))
 ```
 
-*Source: sdk/src/postkit/authz/client.py:137*
+*Source: sdk/src/postkit/authz/client.py:75*
 
 ---
 
@@ -339,7 +339,7 @@ for grant in expiring:
     print(f"{grant['subject']} access to {grant['resource']} expires {grant['expires_at']}")
 ```
 
-*Source: sdk/src/postkit/authz/client.py:719*
+*Source: sdk/src/postkit/authz/client.py:650*
 
 ---
 
@@ -366,7 +366,7 @@ repos = authz.list_resources("alice", "repo", "read")
 # ["api", "frontend", "docs"]
 ```
 
-*Source: sdk/src/postkit/authz/client.py:381*
+*Source: sdk/src/postkit/authz/client.py:319*
 
 ---
 
@@ -392,7 +392,7 @@ users = authz.list_users("read", ("repo", "api"))
 # ["alice", "bob", "charlie"]
 ```
 
-*Source: sdk/src/postkit/authz/client.py:344*
+*Source: sdk/src/postkit/authz/client.py:282*
 
 ---
 
@@ -404,7 +404,7 @@ remove_hierarchy_rule(resource_type: str, permission: str, implies: str)
 
 Remove a single hierarchy rule.
 
-*Source: sdk/src/postkit/authz/client.py:464*
+*Source: sdk/src/postkit/authz/client.py:402*
 
 ---
 
@@ -431,7 +431,7 @@ authz.revoke("read", resource=("repo", "api"), subject=("user", "alice"))
 authz.revoke("write", resource=("repo", "api"), subject=("team", "eng"), subject_relation="admin")
 ```
 
-*Source: sdk/src/postkit/authz/client.py:199*
+*Source: sdk/src/postkit/authz/client.py:137*
 
 ---
 
@@ -460,7 +460,7 @@ authz.grant("admin", resource=("repo", "api"), subject=("team", "eng"))
 authz.clear_actor()  # optional, clears context
 ```
 
-*Source: sdk/src/postkit/authz/client.py:478*
+*Source: sdk/src/postkit/authz/client.py:416*
 
 ---
 
@@ -486,7 +486,7 @@ authz.set_expiration("read", resource=("doc", "1"), subject=("user", "alice"),
                     expires_at=datetime.now(timezone.utc) + timedelta(days=30))
 ```
 
-*Source: sdk/src/postkit/authz/client.py:770*
+*Source: sdk/src/postkit/authz/client.py:701*
 
 ---
 
@@ -507,7 +507,7 @@ authz.set_hierarchy("repo", "admin", "write", "read")
 # Now admin implies write, write implies read
 ```
 
-*Source: sdk/src/postkit/authz/client.py:429*
+*Source: sdk/src/postkit/authz/client.py:367*
 
 ---
 
@@ -531,7 +531,7 @@ stats = authz.stats()
 print(f"Tuples: {stats['tuple_count']}, Users: {stats['unique_users']}")
 ```
 
-*Source: sdk/src/postkit/authz/client.py:637*
+*Source: sdk/src/postkit/authz/client.py:568*
 
 ---
 
@@ -550,6 +550,6 @@ for issue in issues:
     print(f"{issue['status']}: {issue['details']}")
 ```
 
-*Source: sdk/src/postkit/authz/client.py:612*
+*Source: sdk/src/postkit/authz/client.py:543*
 
 ---

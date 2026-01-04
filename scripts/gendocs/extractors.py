@@ -111,7 +111,23 @@ def _relative_path(path: Path, root: Path) -> str:
 
 
 def _load_module(path: Path):
-    """Dynamically load a Python module from path."""
+    """Dynamically load a Python module from path.
+
+    For packages with absolute imports (e.g., `from postkit.base import ...`),
+    we need to add the package root to sys.path so Python can resolve them.
+    """
+    # Find package root (parent of postkit/) and add to sys.path
+    src_dir = None
+    for parent in path.parents:
+        if (parent / "postkit" / "__init__.py").exists():
+            src_dir = parent
+            break
+
+    added_to_path = False
+    if src_dir and str(src_dir) not in sys.path:
+        sys.path.insert(0, str(src_dir))
+        added_to_path = True
+
     spec = importlib.util.spec_from_file_location("_doc_module", path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Cannot load module from {path}")
@@ -129,6 +145,8 @@ def _load_module(path: Path):
             sys.modules.pop("_doc_module", None)
         else:
             sys.modules["_doc_module"] = old_module
+        if added_to_path:
+            sys.path.remove(str(src_dir))
 
 
 def _is_public_method(obj) -> bool:
@@ -193,6 +211,7 @@ def extract_python_docs(client_path: Path, root: Path) -> ExtractionResult:
     all_public: list[str] = []
 
     for _, cls in inspect.getmembers(module, inspect.isclass):
+        # Only process classes defined in this module (not imported base classes)
         if cls.__module__ != "_doc_module":
             continue
 

@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from uuid import UUID
 
-import psycopg
+from postkit.base import BaseClient, PostkitError
 
 __all__ = [
     "AuthnClient",
@@ -20,7 +20,7 @@ __all__ = [
 ]
 
 
-class AuthnError(Exception):
+class AuthnError(PostkitError):
     """Base exception for authn operations."""
 
 
@@ -28,7 +28,7 @@ class AuthnValidationError(AuthnError):
     """Raised when input validation fails."""
 
 
-class AuthnClient:
+class AuthnClient(BaseClient):
     """
     SDK-style client for postkit/authn.
 
@@ -49,97 +49,39 @@ class AuthnClient:
             print(f"Logged in as {user['email']}")
     """
 
+    _schema = "authn"
+    _error_class = AuthnError
+
     def __init__(self, cursor, namespace: str):
-        self.cursor = cursor
-        self.namespace = namespace
-        # Set tenant context for RLS
-        self.cursor.execute("SELECT authn.set_tenant(%s)", (namespace,))
-        # Actor context stored as instance state (applied per-operation in _write_scalar)
-        self._actor_id: str | None = None
-        self._request_id: str | None = None
+        super().__init__(cursor, namespace)
+        # Extra actor fields specific to authn
         self._ip_address: str | None = None
         self._user_agent: str | None = None
-        self._on_behalf_of: str | None = None
-        self._reason: str | None = None
-
-    def _handle_error(self, e: psycopg.Error) -> None:
-        """Convert psycopg errors to SDK exceptions."""
-        raise AuthnError(str(e)) from e
 
     def _normalize_row(self, row: dict) -> dict:
         """Normalize types in result row (UUIDs to strings)."""
         return {k: str(v) if isinstance(v, UUID) else v for k, v in row.items()}
 
-    def _scalar(self, sql: str, params: tuple):
-        """Execute SQL and return single scalar value."""
-        try:
-            self.cursor.execute(sql, params)
-            result = self.cursor.fetchone()
-            return result[0] if result else None
-        except psycopg.Error as e:
-            self._handle_error(e)
-
     def _row(self, sql: str, params: tuple) -> dict | None:
         """Execute SQL and return single row as dict with normalized types."""
-        try:
-            self.cursor.execute(sql, params)
-            result = self.cursor.fetchone()
-            if result is None:
-                return None
-            columns = [desc[0] for desc in self.cursor.description]
-            return self._normalize_row(dict(zip(columns, result)))
-        except psycopg.Error as e:
-            self._handle_error(e)
+        result = self._fetchall(sql, params)
+        if not result:
+            return None
+        return self._normalize_row(result[0])
 
-    def _fetchall(self, sql: str, params: tuple) -> list[dict]:
-        """Execute SQL and return all rows as list of dicts with normalized types."""
-        self.cursor.execute(sql, params)
-        columns = [desc[0] for desc in self.cursor.description]
-        return [
-            self._normalize_row(dict(zip(columns, row)))
-            for row in self.cursor.fetchall()
-        ]
-
-    def _write_scalar(self, sql: str, params: tuple):
-        """Execute a write operation with actor context for audit logging."""
-        if self._actor_id is None:
-            return self._scalar(sql, params)
-
-        in_transaction = self.cursor.connection.info.transaction_status != 0
-
-        if in_transaction:
-            self.cursor.execute(
-                "SELECT authn.set_actor(%s, %s, %s, %s, %s, %s)",
-                (
-                    self._actor_id,
-                    self._request_id,
-                    self._ip_address,
-                    self._user_agent,
-                    self._on_behalf_of,
-                    self._reason,
-                ),
-            )
-            return self._scalar(sql, params)
-
-        try:
-            self.cursor.execute("BEGIN")
-            self.cursor.execute(
-                "SELECT authn.set_actor(%s, %s, %s, %s, %s, %s)",
-                (
-                    self._actor_id,
-                    self._request_id,
-                    self._ip_address,
-                    self._user_agent,
-                    self._on_behalf_of,
-                    self._reason,
-                ),
-            )
-            result = self._scalar(sql, params)
-            self.cursor.execute("COMMIT")
-            return result
-        except Exception:
-            self.cursor.execute("ROLLBACK")
-            raise
+    def _apply_actor_context(self) -> None:
+        """Apply actor context via authn.set_actor()."""
+        self.cursor.execute(
+            "SELECT authn.set_actor(%s, %s, %s, %s, %s, %s)",
+            (
+                self._actor_id,
+                self._request_id,
+                self._ip_address,
+                self._user_agent,
+                self._on_behalf_of,
+                self._reason,
+            ),
+        )
 
     def create_user(
         self,
@@ -206,10 +148,11 @@ class AuthnClient:
 
     def list_users(self, limit: int = 100, cursor: str | None = None) -> list[dict]:
         """List users with pagination."""
-        return self._fetchall(
+        result = self._fetchall(
             "SELECT * FROM authn.list_users(%s, %s, %s)",
             (self.namespace, limit, cursor),
         )
+        return [self._normalize_row(row) for row in result]
 
     def get_credentials(self, email: str) -> dict | None:
         """
@@ -296,10 +239,11 @@ class AuthnClient:
 
     def list_sessions(self, user_id: str) -> list[dict]:
         """List active sessions for a user. Does not return token_hash."""
-        return self._fetchall(
+        result = self._fetchall(
             "SELECT * FROM authn.list_sessions(%s::uuid, %s)",
             (user_id, self.namespace),
         )
+        return [self._normalize_row(row) for row in result]
 
     def create_token(
         self,
@@ -383,17 +327,19 @@ class AuthnClient:
 
     def get_mfa(self, user_id: str, mfa_type: str) -> list[dict]:
         """Get MFA secrets for verification. Returns secrets!"""
-        return self._fetchall(
+        result = self._fetchall(
             "SELECT * FROM authn.get_mfa(%s::uuid, %s, %s)",
             (user_id, mfa_type, self.namespace),
         )
+        return [self._normalize_row(row) for row in result]
 
     def list_mfa(self, user_id: str) -> list[dict]:
         """List MFA methods. Does NOT return secrets."""
-        return self._fetchall(
+        result = self._fetchall(
             "SELECT * FROM authn.list_mfa(%s::uuid, %s)",
             (user_id, self.namespace),
         )
+        return [self._normalize_row(row) for row in result]
 
     def remove_mfa(self, mfa_id: str) -> bool:
         """Remove an MFA method."""
@@ -512,12 +458,9 @@ class AuthnClient:
 
     def clear_actor(self) -> None:
         """Clear actor context."""
-        self._actor_id = None
-        self._request_id = None
+        super().clear_actor()
         self._ip_address = None
         self._user_agent = None
-        self._on_behalf_of = None
-        self._reason = None
 
     def get_audit_events(
         self,
@@ -527,31 +470,9 @@ class AuthnClient:
         resource_id: str | None = None,
     ) -> list[dict]:
         """Query audit events."""
-        conditions = ["namespace = %s"]
-        params: list = [self.namespace]
-
-        if event_type is not None:
-            conditions.append("event_type = %s")
-            params.append(event_type)
-
-        if resource_type is not None:
-            conditions.append("resource_type = %s")
-            params.append(resource_type)
-
-        if resource_id is not None:
-            conditions.append("resource_id = %s")
-            params.append(resource_id)
-
-        params.append(limit)
-
-        sql = f"""
-            SELECT *
-            FROM authn.audit_events
-            WHERE {" AND ".join(conditions)}
-            ORDER BY event_time DESC, id DESC
-            LIMIT %s
-        """
-
-        self.cursor.execute(sql, tuple(params))
-        columns = [desc[0] for desc in self.cursor.description]
-        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+        return super().get_audit_events(
+            limit=limit,
+            event_type=event_type,
+            resource_type=resource_type,
+            resource_id=resource_id,
+        )
