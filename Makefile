@@ -29,7 +29,8 @@ build:
 	@./scripts/build.sh > dist/postkit.sql
 	@./scripts/build.sh authz > dist/authz.sql
 	@./scripts/build.sh authn > dist/authn.sql
-	@echo "$(GREEN)✓ Built dist/postkit.sql, dist/authz.sql, dist/authn.sql$(NC)"
+	@./scripts/build.sh config > dist/config.sql
+	@echo "$(GREEN)✓ Built dist/postkit.sql, dist/authz.sql, dist/authn.sql, dist/config.sql$(NC)"
 
 test: db build
 ifdef TEST
@@ -54,6 +55,7 @@ lint:
 	@echo "$(GREEN)✓ Lint passed$(NC)"
 
 format:
+	@uvx ruff check --fix .
 	@uvx ruff check --select I --fix .
 	@uvx ruff format .
 	@echo "$(GREEN)✓ Formatted$(NC)"

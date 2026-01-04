@@ -1,6 +1,6 @@
 # postkit - Agent Guide
 
-PostgreSQL-native authentication and authorization. No external services.
+PostgreSQL-native identity and configuration. Auth, permissions, and versioned config — no external services.
 
 ## Browsing Documentation
 

@@ -34,6 +34,7 @@ def main():
         shutil.rmtree(docs_dir)
     (docs_dir / "authz").mkdir(parents=True)
     (docs_dir / "authn").mkdir(parents=True)
+    (docs_dir / "config").mkdir(parents=True)
 
     print("Extracting Python docs...")
 
@@ -55,6 +56,14 @@ def main():
         python_results["authn"] = result
         documented = sum(1 for f in result.functions if f.brief)
         print(f"  ✓ authn: {documented}/{len(result.all_public_functions)} functions")
+
+    # config Python
+    config_client = root / "sdk" / "src" / "postkit" / "config" / "client.py"
+    if config_client.exists():
+        result = extract_python_docs(config_client, root)
+        python_results["config"] = result
+        documented = sum(1 for f in result.functions if f.brief)
+        print(f"  ✓ config: {documented}/{len(result.all_public_functions)} functions")
 
     print("Extracting SQL docs...")
 
@@ -80,6 +89,19 @@ def main():
         groups = sorted(set(f.group for f in result.functions if f.group))
         print(
             f"  ✓ authn: {documented}/{len(result.all_public_functions)} SQL functions"
+        )
+        if groups:
+            print(f"    Groups: {', '.join(groups)}")
+
+    # config SQL
+    config_sql_dir = root / "config" / "src" / "functions"
+    if config_sql_dir.exists():
+        result = extract_sql_docs(config_sql_dir, root)
+        sql_results["config"] = result
+        documented = sum(1 for f in result.functions if f.brief)
+        groups = sorted(set(f.group for f in result.functions if f.group))
+        print(
+            f"  ✓ config: {documented}/{len(result.all_public_functions)} SQL functions"
         )
         if groups:
             print(f"    Groups: {', '.join(groups)}")

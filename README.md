@@ -1,6 +1,6 @@
 # postkit
 
-Postgres-native authentication and authorization. No external services.
+Postgres-native identity and configuration. Auth, permissions, and versioned config — no external services.
 
 ## Modules
 
@@ -8,6 +8,7 @@ Postgres-native authentication and authorization. No external services.
 |--------|--------|---------|
 | [authz](authz/) | `authz` | Authorization (ReBAC permissions) |
 | [authn](authn/) | `authn` | Authentication (users, sessions, tokens) |
+| [config](config/) | `config` | Versioned configuration (prompts, flags, secrets) |
 
 Each module is independent -- use what you need.
 
@@ -24,6 +25,7 @@ psql $DATABASE_URL -f dist/postkit.sql
 # Or individual modules
 psql $DATABASE_URL -f dist/authz.sql
 psql $DATABASE_URL -f dist/authn.sql
+psql $DATABASE_URL -f dist/config.sql
 ```
 
 ## Usage
@@ -51,14 +53,26 @@ pip install git+https://github.com/varunchopra/postkit.git#subdirectory=sdk
 ```
 
 ```python
+import psycopg
 from postkit.authz import AuthzClient
-from postkit.authn import AuthnClient
+from postkit.config import ConfigClient
+
+conn = psycopg.connect("postgres://...")
+cursor = conn.cursor()
 
 authz = AuthzClient(cursor, namespace="my-app")
 authz.grant("admin", resource=("repo", "api"), subject=("user", "alice"))
 
 if authz.check("alice", "read", ("repo", "api")):
     print("Access granted")
+
+config = ConfigClient(cursor, namespace="my-app")
+config.set(
+    "prompts/support-bot",
+    {"template": "You are...", "model": {"name": "claude-sonnet", "temperature": 0.7}},
+)
+config.merge("prompts/support-bot", {"model": {"temperature": 0.8}})
+temp = config.get_path("prompts/support-bot", "model", "temperature")
 ```
 
 See [sdk/](sdk/) for details.
@@ -71,7 +85,7 @@ See [docs/](docs/) for full API reference with function signatures, parameters, 
 
 ```bash
 make setup   # Start Postgres in Docker
-make build   # Build dist/postkit.sql, dist/authz.sql, dist/authn.sql
+make build   # Build dist/postkit.sql, dist/authz.sql, dist/authn.sql, dist/config.sql
 make test    # Run tests
 make docs    # Generate API documentation
 make clean   # Cleanup
