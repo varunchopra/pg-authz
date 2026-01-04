@@ -9,8 +9,8 @@
 -- @param p_old_values Previous state (optional, for updates/deletes)
 -- @param p_new_values New state (optional, for creates/updates)
 -- @param p_ip_override Explicit IP address (bypasses session config lookup)
--- Actor context (actor_id, request_id, ip_address, user_agent) is read from
--- session config set by authn.set_actor(). If p_ip_override is provided,
+-- Actor context (actor_id, request_id, ip_address, user_agent, on_behalf_of, reason)
+-- is read from session config set by authn.set_actor(). If p_ip_override is provided,
 -- it takes precedence over the session config ip_address.
 CREATE OR REPLACE FUNCTION authn._log_event(
     p_event_type text,
@@ -40,6 +40,8 @@ BEGIN
         resource_id,
         actor_id,
         request_id,
+        on_behalf_of,
+        reason,
         ip_address,
         user_agent,
         old_values,
@@ -51,6 +53,8 @@ BEGIN
         p_resource_id,
         nullif(current_setting('authn.actor_id', true), ''),
         nullif(current_setting('authn.request_id', true), ''),
+        nullif(current_setting('authn.on_behalf_of', true), ''),
+        nullif(current_setting('authn.reason', true), ''),
         v_ip,
         nullif(current_setting('authn.user_agent', true), ''),
         p_old_values,

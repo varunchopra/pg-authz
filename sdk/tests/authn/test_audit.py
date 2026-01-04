@@ -161,8 +161,15 @@ class TestSetActor:
         # Actor context is transaction-local, so we need a transaction
         test_helpers.cursor.execute("BEGIN")
         test_helpers.cursor.execute(
-            "SELECT authn.set_actor(%s, %s, %s, %s)",
-            ("user-123", "req-456", "192.168.1.1", "Mozilla/5.0"),
+            "SELECT authn.set_actor(%s, %s, %s, %s, %s, %s)",
+            (
+                "user-123",
+                "req-456",
+                "192.168.1.1",
+                "Mozilla/5.0",
+                "user:customer",
+                "test reason",
+            ),
         )
 
         # Verify context is set within the same transaction
@@ -171,6 +178,14 @@ class TestSetActor:
 
         test_helpers.cursor.execute("SELECT current_setting('authn.request_id', true)")
         assert test_helpers.cursor.fetchone()[0] == "req-456"
+
+        test_helpers.cursor.execute(
+            "SELECT current_setting('authn.on_behalf_of', true)"
+        )
+        assert test_helpers.cursor.fetchone()[0] == "user:customer"
+
+        test_helpers.cursor.execute("SELECT current_setting('authn.reason', true)")
+        assert test_helpers.cursor.fetchone()[0] == "test reason"
 
         test_helpers.cursor.execute("ROLLBACK")
 
@@ -188,6 +203,47 @@ class TestSetActor:
         assert len(matching) >= 1
         assert matching[0]["actor_id"] == "admin-user"
         assert matching[0]["request_id"] == "request-789"
+
+    def test_on_behalf_of_captured_in_audit(self, authn, test_helpers):
+        """on_behalf_of is captured in audit events."""
+        authn.set_actor(
+            "user:admin-bob",
+            on_behalf_of="user:customer-alice",
+            reason="support_ticket:12345",
+        )
+
+        user_id = authn.create_user("onbehalfof-test@example.com", "hash")
+
+        events = authn.get_audit_events(event_type="user_created")
+        matching = [e for e in events if e["resource_id"] == user_id]
+        assert len(matching) >= 1
+        assert matching[0]["actor_id"] == "user:admin-bob"
+        assert matching[0]["on_behalf_of"] == "user:customer-alice"
+        assert matching[0]["reason"] == "support_ticket:12345"
+
+    def test_reason_captured_in_audit(self, authn, test_helpers):
+        """reason is captured in audit events (new for authn)."""
+        authn.set_actor("service:billing", reason="monthly_cleanup")
+
+        user_id = authn.create_user("reason-test@example.com", "hash")
+
+        events = authn.get_audit_events(event_type="user_created")
+        matching = [e for e in events if e["resource_id"] == user_id]
+        assert len(matching) >= 1
+        assert matching[0]["actor_id"] == "service:billing"
+        assert matching[0]["reason"] == "monthly_cleanup"
+        assert matching[0]["on_behalf_of"] is None
+
+    def test_on_behalf_of_without_actor_is_none(self, authn, test_helpers):
+        """Without set_actor, on_behalf_of is None in audit events."""
+        user_id = authn.create_user("no-actor-test@example.com", "hash")
+
+        events = authn.get_audit_events(event_type="user_created")
+        matching = [e for e in events if e["resource_id"] == user_id]
+        assert len(matching) >= 1
+        assert matching[0]["actor_id"] is None
+        assert matching[0]["on_behalf_of"] is None
+        assert matching[0]["reason"] is None
 
 
 class TestClearActor:
@@ -207,6 +263,46 @@ class TestClearActor:
 
         # Verify cleared
         test_helpers.cursor.execute("SELECT current_setting('authn.actor_id', true)")
+        assert test_helpers.cursor.fetchone()[0] == ""
+
+        test_helpers.cursor.execute("ROLLBACK")
+
+    def test_clears_on_behalf_of_and_reason(self, test_helpers):
+        """clear_actor also clears on_behalf_of and reason context."""
+        test_helpers.cursor.execute("BEGIN")
+
+        # Set all context fields including on_behalf_of and reason
+        test_helpers.cursor.execute(
+            "SELECT authn.set_actor(%s, %s, %s, %s, %s, %s)",
+            (
+                "user-123",
+                "req-456",
+                "192.168.1.1",
+                "Mozilla/5.0",
+                "user:customer",
+                "support_ticket:789",
+            ),
+        )
+
+        # Verify they're set
+        test_helpers.cursor.execute(
+            "SELECT current_setting('authn.on_behalf_of', true)"
+        )
+        assert test_helpers.cursor.fetchone()[0] == "user:customer"
+
+        test_helpers.cursor.execute("SELECT current_setting('authn.reason', true)")
+        assert test_helpers.cursor.fetchone()[0] == "support_ticket:789"
+
+        # Clear it
+        test_helpers.cursor.execute("SELECT authn.clear_actor()")
+
+        # Verify on_behalf_of and reason are cleared
+        test_helpers.cursor.execute(
+            "SELECT current_setting('authn.on_behalf_of', true)"
+        )
+        assert test_helpers.cursor.fetchone()[0] == ""
+
+        test_helpers.cursor.execute("SELECT current_setting('authn.reason', true)")
         assert test_helpers.cursor.fetchone()[0] == ""
 
         test_helpers.cursor.execute("ROLLBACK")

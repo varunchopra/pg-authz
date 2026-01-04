@@ -59,6 +59,8 @@ class AuthnClient:
         self._request_id: str | None = None
         self._ip_address: str | None = None
         self._user_agent: str | None = None
+        self._on_behalf_of: str | None = None
+        self._reason: str | None = None
 
     def _handle_error(self, e: psycopg.Error) -> None:
         """Convert psycopg errors to SDK exceptions."""
@@ -107,16 +109,30 @@ class AuthnClient:
 
         if in_transaction:
             self.cursor.execute(
-                "SELECT authn.set_actor(%s, %s, %s, %s)",
-                (self._actor_id, self._request_id, self._ip_address, self._user_agent),
+                "SELECT authn.set_actor(%s, %s, %s, %s, %s, %s)",
+                (
+                    self._actor_id,
+                    self._request_id,
+                    self._ip_address,
+                    self._user_agent,
+                    self._on_behalf_of,
+                    self._reason,
+                ),
             )
             return self._scalar(sql, params)
 
         try:
             self.cursor.execute("BEGIN")
             self.cursor.execute(
-                "SELECT authn.set_actor(%s, %s, %s, %s)",
-                (self._actor_id, self._request_id, self._ip_address, self._user_agent),
+                "SELECT authn.set_actor(%s, %s, %s, %s, %s, %s)",
+                (
+                    self._actor_id,
+                    self._request_id,
+                    self._ip_address,
+                    self._user_agent,
+                    self._on_behalf_of,
+                    self._reason,
+                ),
             )
             result = self._scalar(sql, params)
             self.cursor.execute("COMMIT")
@@ -460,6 +476,8 @@ class AuthnClient:
         request_id: str | None = None,
         ip_address: str | None = None,
         user_agent: str | None = None,
+        on_behalf_of: str | None = None,
+        reason: str | None = None,
     ) -> None:
         """
         Set actor context for audit logging.
@@ -469,11 +487,28 @@ class AuthnClient:
         This ensures actor context is set within the same transaction as the
         audited operation (required because PostgreSQL's set_config with is_local=true
         only persists within the current transaction).
+
+        Args:
+            actor_id: The actor making changes (e.g., 'user:admin-bob', 'agent:support-bot')
+            request_id: Optional request/correlation ID for tracing
+            ip_address: Optional client IP address
+            user_agent: Optional client user agent string
+            on_behalf_of: Optional principal being represented (e.g., 'user:customer-alice')
+            reason: Optional reason/context for the action (e.g., 'support_ticket:12345')
+
+        Example:
+            authn.set_actor(
+                "user:admin-bob",
+                on_behalf_of="user:customer-alice",
+                reason="support_ticket:12345"
+            )
         """
         self._actor_id = actor_id
         self._request_id = request_id
         self._ip_address = ip_address
         self._user_agent = user_agent
+        self._on_behalf_of = on_behalf_of
+        self._reason = reason
 
     def clear_actor(self) -> None:
         """Clear actor context."""
@@ -481,6 +516,8 @@ class AuthnClient:
         self._request_id = None
         self._ip_address = None
         self._user_agent = None
+        self._on_behalf_of = None
+        self._reason = None
 
     def get_audit_events(
         self,

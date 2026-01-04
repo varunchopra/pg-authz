@@ -49,6 +49,8 @@ CREATE TABLE authn.audit_events (
     -- Actor context (set via authn.set_actor())
     actor_id text,
     request_id text,
+    reason text,                    -- context for the action
+    on_behalf_of text,              -- principal being represented (e.g., admin acting as customer)
 
     -- Tenant and resource identification
     namespace text NOT NULL,

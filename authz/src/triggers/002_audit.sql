@@ -31,6 +31,7 @@ DECLARE
     v_actor_id TEXT;
     v_request_id TEXT;
     v_reason TEXT;
+    v_on_behalf_of TEXT;
 BEGIN
     -- Determine event type and get the tuple record
     IF TG_OP = 'INSERT' THEN
@@ -52,6 +53,7 @@ BEGIN
     v_actor_id := nullif(current_setting('authz.actor_id', true), '');
     v_request_id := nullif(current_setting('authz.request_id', true), '');
     v_reason := nullif(current_setting('authz.reason', true), '');
+    v_on_behalf_of := nullif(current_setting('authz.on_behalf_of', true), '');
 
     -- Insert audit event
     INSERT INTO authz.audit_events (
@@ -59,6 +61,7 @@ BEGIN
         actor_id,
         request_id,
         reason,
+        on_behalf_of,
         namespace,
         resource_type,
         resource_id,
@@ -73,6 +76,7 @@ BEGIN
         v_actor_id,
         v_request_id,
         v_reason,
+        v_on_behalf_of,
         v_tuple.namespace,
         v_tuple.resource_type,
         v_tuple.resource_id,
@@ -116,6 +120,7 @@ DECLARE
     v_actor_id TEXT;
     v_request_id TEXT;
     v_reason TEXT;
+    v_on_behalf_of TEXT;
 BEGIN
     -- Determine event type and get the hierarchy record
     IF TG_OP = 'INSERT' THEN
@@ -132,6 +137,7 @@ BEGIN
     v_actor_id := nullif(current_setting('authz.actor_id', true), '');
     v_request_id := nullif(current_setting('authz.request_id', true), '');
     v_reason := nullif(current_setting('authz.reason', true), '');
+    v_on_behalf_of := nullif(current_setting('authz.on_behalf_of', true), '');
 
     -- Insert audit event
     -- Map hierarchy fields to audit event columns
@@ -140,6 +146,7 @@ BEGIN
         actor_id,
         request_id,
         reason,
+        on_behalf_of,
         namespace,
         resource_type,
         resource_id,
@@ -153,6 +160,7 @@ BEGIN
         v_actor_id,
         v_request_id,
         v_reason,
+        v_on_behalf_of,
         v_hierarchy.namespace,
         v_hierarchy.resource_type,
         v_hierarchy.permission,    -- permission stored in resource_id

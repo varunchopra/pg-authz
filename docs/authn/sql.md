@@ -17,7 +17,7 @@ Clear actor context
 SELECT authn.clear_actor();
 ```
 
-*Source: authn/src/functions/070_audit.sql:32*
+*Source: authn/src/functions/070_audit.sql:40*
 
 ---
 
@@ -36,7 +36,7 @@ Create a monthly partition for audit events
 SELECT authn.create_audit_partition(2024, 1); -- January 2024
 ```
 
-*Source: authn/src/functions/070_audit.sql:46*
+*Source: authn/src/functions/070_audit.sql:56*
 
 ---
 
@@ -58,7 +58,7 @@ Delete old audit partitions (default: keep 7 years for compliance)
 SELECT * FROM authn.drop_audit_partitions(84);
 ```
 
-*Source: authn/src/functions/070_audit.sql:135*
+*Source: authn/src/functions/070_audit.sql:145*
 
 ---
 
@@ -80,14 +80,14 @@ Create partitions for upcoming months (run monthly via cron)
 SELECT * FROM authn.ensure_audit_partitions(3);
 ```
 
-*Source: authn/src/functions/070_audit.sql:102*
+*Source: authn/src/functions/070_audit.sql:112*
 
 ---
 
 ### authn.set_actor
 
 ```sql
-authn.set_actor(p_actor_id: text, p_request_id: text, p_ip_address: text, p_user_agent: text) -> void
+authn.set_actor(p_actor_id: text, p_request_id: text, p_ip_address: text, p_user_agent: text, p_on_behalf_of: text, p_reason: text) -> void
 ```
 
 Tag audit events with who made the change (call before user operations)
@@ -95,10 +95,14 @@ Tag audit events with who made the change (call before user operations)
 **Parameters:**
 - `p_actor_id`: The admin or API making changes (for audit trail)
 - `p_request_id`: Optional request/ticket ID for traceability
+- `p_ip_address`: Optional IP address of the client
+- `p_user_agent`: Optional user agent string
+- `p_on_behalf_of`: Optional principal being represented (e.g., admin acting as customer)
+- `p_reason`: Optional reason/context for the action
 
 **Example:**
 ```sql
-SELECT authn.set_actor('admin@acme.com', 'req-123', '1.2.3.4');
+SELECT authn.set_actor('user:admin-bob', on_behalf_of := 'user:customer-alice', reason := 'support_ticket:12345');
 ```
 
 *Source: authn/src/functions/070_audit.sql:1*

@@ -41,6 +41,7 @@ CREATE TABLE authz.audit_events (
     actor_id text,
     request_id text,
     reason text,
+    on_behalf_of text,              -- principal being represented (e.g., admin acting as customer)
     -- PostgreSQL connection context
     session_user_name text DEFAULT SESSION_USER,
     current_user_name text DEFAULT CURRENT_USER,

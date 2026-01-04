@@ -68,6 +68,7 @@ class AuthzClient:
         self._actor_id: str | None = None
         self._request_id: str | None = None
         self._reason: str | None = None
+        self._on_behalf_of: str | None = None
 
     def _handle_error(self, e: psycopg.Error) -> None:
         """Convert psycopg errors to SDK exceptions."""
@@ -109,8 +110,8 @@ class AuthzClient:
         if in_transaction:
             # Caller manages transaction - just set actor context
             self.cursor.execute(
-                "SELECT authz.set_actor(%s, %s, %s)",
-                (self._actor_id, self._request_id, self._reason),
+                "SELECT authz.set_actor(%s, %s, %s, %s)",
+                (self._actor_id, self._request_id, self._reason, self._on_behalf_of),
             )
             return self._scalar(sql, params)
 
@@ -118,8 +119,8 @@ class AuthzClient:
         try:
             self.cursor.execute("BEGIN")
             self.cursor.execute(
-                "SELECT authz.set_actor(%s, %s, %s)",
-                (self._actor_id, self._request_id, self._reason),
+                "SELECT authz.set_actor(%s, %s, %s, %s)",
+                (self._actor_id, self._request_id, self._reason, self._on_behalf_of),
             )
             result = self._scalar(sql, params)
             self.cursor.execute("COMMIT")
@@ -479,6 +480,7 @@ class AuthzClient:
         actor_id: str,
         request_id: str | None = None,
         reason: str | None = None,
+        on_behalf_of: str | None = None,
     ) -> None:
         """
         Set actor context for audit logging.
@@ -491,24 +493,31 @@ class AuthzClient:
         captures the actor information.
 
         Args:
-            actor_id: The actor making changes (e.g., user ID, service name)
+            actor_id: The actor making changes (e.g., 'user:admin-bob', 'agent:support-bot')
             request_id: Optional request/correlation ID for tracing
-            reason: Optional reason for the changes
+            reason: Optional reason for the changes (e.g., 'support_ticket:12345')
+            on_behalf_of: Optional principal being represented (e.g., 'user:customer-alice')
 
         Example:
-            authz.set_actor("admin@acme.com", "req-123", "Quarterly review")
+            authz.set_actor(
+                "user:admin-bob",
+                reason="support_ticket:12345",
+                on_behalf_of="user:customer-alice"
+            )
             authz.grant("admin", resource=("repo", "api"), subject=("team", "eng"))
             authz.clear_actor()  # optional, clears context
         """
         self._actor_id = actor_id
         self._request_id = request_id
         self._reason = reason
+        self._on_behalf_of = on_behalf_of
 
     def clear_actor(self) -> None:
         """Clear actor context."""
         self._actor_id = None
         self._request_id = None
         self._reason = None
+        self._on_behalf_of = None
 
     def get_audit_events(
         self,
@@ -563,7 +572,7 @@ class AuthzClient:
         sql = f"""
             SELECT
                 event_id, event_type, event_time,
-                actor_id, request_id, reason,
+                actor_id, request_id, reason, on_behalf_of,
                 session_user_name, current_user_name, client_addr, application_name,
                 resource_type, resource_id, relation,
                 subject_type, subject_id, subject_relation,
@@ -585,16 +594,17 @@ class AuthzClient:
                 "actor_id": row[3],
                 "request_id": row[4],
                 "reason": row[5],
-                "session_user": row[6],
-                "current_user": row[7],
-                "client_addr": str(row[8]) if row[8] else None,
-                "application_name": row[9],
-                "resource": (row[10], row[11]),
-                "relation": row[12],
-                "subject": (row[13], row[14]),
-                "subject_relation": row[15],
-                "tuple_id": row[16],
-                "expires_at": row[17],
+                "on_behalf_of": row[6],
+                "session_user": row[7],
+                "current_user": row[8],
+                "client_addr": str(row[9]) if row[9] else None,
+                "application_name": row[10],
+                "resource": (row[11], row[12]),
+                "relation": row[13],
+                "subject": (row[14], row[15]),
+                "subject_relation": row[16],
+                "tuple_id": row[17],
+                "expires_at": row[18],
             }
             for row in rows
         ]

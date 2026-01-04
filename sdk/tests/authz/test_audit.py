@@ -109,6 +109,7 @@ class TestActorContext:
         assert events[0]["actor_id"] is None
         assert events[0]["request_id"] is None
         assert events[0]["reason"] is None
+        assert events[0]["on_behalf_of"] is None
 
     def test_connection_context_always_present(self, authz):
         """PostgreSQL connection context is always captured."""
@@ -133,10 +134,43 @@ class TestActorContext:
         assert events[0]["request_id"] is None
         assert events[0]["reason"] is None
 
+    def test_on_behalf_of_captured(self, authz):
+        """on_behalf_of is captured in audit events."""
+        authz.set_actor(
+            "user:admin-bob",
+            reason="support_ticket:12345",
+            on_behalf_of="user:customer-alice",
+        )
+        authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
+
+        events = authz.get_audit_events()
+
+        assert len(events) == 1
+        event = events[0]
+        assert event["actor_id"] == "user:admin-bob"
+        assert event["reason"] == "support_ticket:12345"
+        assert event["on_behalf_of"] == "user:customer-alice"
+
+    def test_on_behalf_of_without_reason(self, authz):
+        """on_behalf_of works without reason."""
+        authz.set_actor("agent:support-bot", on_behalf_of="user:customer-456")
+        authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
+
+        events = authz.get_audit_events()
+
+        assert events[0]["actor_id"] == "agent:support-bot"
+        assert events[0]["on_behalf_of"] == "user:customer-456"
+        assert events[0]["reason"] is None
+
     def test_clear_actor(self, authz):
-        """clear_actor() removes actor context."""
-        # Set actor context
-        authz.set_actor("admin@acme.com", "req-123", "Initial setup")
+        """clear_actor() removes actor context including on_behalf_of."""
+        # Set actor context with on_behalf_of
+        authz.set_actor(
+            "admin@acme.com",
+            "req-123",
+            "Initial setup",
+            on_behalf_of="user:customer-alice",
+        )
         authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
 
         # Clear actor context using SDK method
@@ -149,14 +183,16 @@ class TestActorContext:
         assert events[0]["actor_id"] is None
         assert events[0]["request_id"] is None
         assert events[0]["reason"] is None
+        assert events[0]["on_behalf_of"] is None
 
-        # Earlier event (doc:1) should have actor
+        # Earlier event (doc:1) should have actor and on_behalf_of
         assert events[1]["actor_id"] == "admin@acme.com"
         assert events[1]["request_id"] == "req-123"
         assert events[1]["reason"] == "Initial setup"
+        assert events[1]["on_behalf_of"] == "user:customer-alice"
 
     def test_clear_actor_sql_function(self, db_connection, request):
-        """SQL clear_actor() function clears session context."""
+        """SQL clear_actor() function clears session context including on_behalf_of."""
         # Need non-autocommit connection for transaction-local settings
         info = db_connection.info
         import psycopg
@@ -171,25 +207,29 @@ class TestActorContext:
         )
         cursor = conn.cursor()
         try:
-            # Set actor context via SQL (transaction-local)
+            # Set actor context via SQL with on_behalf_of (transaction-local)
             cursor.execute(
-                "SELECT authz.set_actor(%s, %s, %s)",
-                ("admin@acme.com", "req-123", "Test reason"),
+                "SELECT authz.set_actor(%s, %s, %s, %s)",
+                ("admin@acme.com", "req-123", "Test reason", "user:customer-alice"),
             )
 
             # Verify it's set (same transaction)
             cursor.execute("SELECT current_setting('authz.actor_id', true)")
             assert cursor.fetchone()[0] == "admin@acme.com"
+            cursor.execute("SELECT current_setting('authz.on_behalf_of', true)")
+            assert cursor.fetchone()[0] == "user:customer-alice"
 
             # Clear via SQL function
             cursor.execute("SELECT authz.clear_actor()")
 
-            # Verify it's cleared (empty string)
+            # Verify all fields are cleared (empty string)
             cursor.execute("SELECT current_setting('authz.actor_id', true)")
             assert cursor.fetchone()[0] == ""
             cursor.execute("SELECT current_setting('authz.request_id', true)")
             assert cursor.fetchone()[0] == ""
             cursor.execute("SELECT current_setting('authz.reason', true)")
+            assert cursor.fetchone()[0] == ""
+            cursor.execute("SELECT current_setting('authz.on_behalf_of', true)")
             assert cursor.fetchone()[0] == ""
         finally:
             conn.rollback()

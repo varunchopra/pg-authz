@@ -5,19 +5,23 @@
 -- @param p_actor_id The admin or user making the change (for audit trail)
 -- @param p_request_id Optional request/ticket ID for traceability
 -- @param p_reason Optional reason for the change
+-- @param p_on_behalf_of Optional principal being represented (e.g., admin acting as customer)
 -- @example -- Before making changes, set who's doing it
--- @example SELECT authz.set_actor('admin@acme.com', 'JIRA-123', 'Quarterly review');
+-- @example SELECT authz.set_actor('user:admin-bob', on_behalf_of := 'user:customer-alice', reason := 'support_ticket:12345');
 -- @example SELECT authz.write('repo', 'api', 'admin', 'team', 'eng');
-CREATE OR REPLACE FUNCTION authz.set_actor (p_actor_id text, p_request_id text DEFAULT NULL, p_reason text DEFAULT NULL)
+CREATE OR REPLACE FUNCTION authz.set_actor (
+    p_actor_id text,
+    p_request_id text DEFAULT NULL,
+    p_reason text DEFAULT NULL,
+    p_on_behalf_of text DEFAULT NULL
+)
     RETURNS VOID
     AS $$
 BEGIN
-    PERFORM
-        set_config('authz.actor_id', COALESCE(p_actor_id, ''), TRUE);
-    PERFORM
-        set_config('authz.request_id', COALESCE(p_request_id, ''), TRUE);
-    PERFORM
-        set_config('authz.reason', COALESCE(p_reason, ''), TRUE);
+    PERFORM set_config('authz.actor_id', COALESCE(p_actor_id, ''), TRUE);
+    PERFORM set_config('authz.request_id', COALESCE(p_request_id, ''), TRUE);
+    PERFORM set_config('authz.reason', COALESCE(p_reason, ''), TRUE);
+    PERFORM set_config('authz.on_behalf_of', COALESCE(p_on_behalf_of, ''), TRUE);
 END;
 $$
 LANGUAGE plpgsql SECURITY INVOKER
@@ -33,6 +37,7 @@ BEGIN
     PERFORM set_config('authz.actor_id', '', TRUE);
     PERFORM set_config('authz.request_id', '', TRUE);
     PERFORM set_config('authz.reason', '', TRUE);
+    PERFORM set_config('authz.on_behalf_of', '', TRUE);
 END;
 $$
 LANGUAGE plpgsql SECURITY INVOKER

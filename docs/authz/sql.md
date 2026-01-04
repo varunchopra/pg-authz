@@ -17,7 +17,7 @@ Clear actor context (subsequent audit events will have NULL actor)
 SELECT authz.clear_actor();
 ```
 
-*Source: authz/src/functions/033_audit.sql:24*
+*Source: authz/src/functions/033_audit.sql:28*
 
 ---
 
@@ -36,7 +36,7 @@ Create a monthly partition for audit events
 SELECT authz.create_audit_partition(2024, 1); -- January 2024
 ```
 
-*Source: authz/src/functions/033_audit.sql:39*
+*Source: authz/src/functions/033_audit.sql:44*
 
 ---
 
@@ -59,7 +59,7 @@ Delete old audit partitions (default: keep 7 years for compliance)
 SELECT * FROM authz.drop_audit_partitions(84);
 ```
 
-*Source: authz/src/functions/033_audit.sql:116*
+*Source: authz/src/functions/033_audit.sql:121*
 
 ---
 
@@ -82,14 +82,14 @@ Create partitions for upcoming months (run monthly via cron)
 SELECT * FROM authz.ensure_audit_partitions(3);
 ```
 
-*Source: authz/src/functions/033_audit.sql:87*
+*Source: authz/src/functions/033_audit.sql:92*
 
 ---
 
 ### authz.set_actor
 
 ```sql
-authz.set_actor(p_actor_id: text, p_request_id: text, p_reason: text) -> void
+authz.set_actor(p_actor_id: text, p_request_id: text, p_reason: text, p_on_behalf_of: text) -> void
 ```
 
 Tag audit events with who made the change (call before write/delete)
@@ -98,11 +98,12 @@ Tag audit events with who made the change (call before write/delete)
 - `p_actor_id`: The admin or user making the change (for audit trail)
 - `p_request_id`: Optional request/ticket ID for traceability
 - `p_reason`: Optional reason for the change
+- `p_on_behalf_of`: Optional principal being represented (e.g., admin acting as customer)
 
 **Example:**
 ```sql
 -- Before making changes, set who's doing it
-SELECT authz.set_actor('admin@acme.com', 'JIRA-123', 'Quarterly review');
+SELECT authz.set_actor('user:admin-bob', on_behalf_of := 'user:customer-alice', reason := 'support_ticket:12345');
 SELECT authz.write('repo', 'api', 'admin', 'team', 'eng');
 ```
 

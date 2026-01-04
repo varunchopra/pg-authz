@@ -4,12 +4,18 @@
 -- @brief Tag audit events with who made the change (call before user operations)
 -- @param p_actor_id The admin or API making changes (for audit trail)
 -- @param p_request_id Optional request/ticket ID for traceability
--- @example SELECT authn.set_actor('admin@acme.com', 'req-123', '1.2.3.4');
+-- @param p_ip_address Optional IP address of the client
+-- @param p_user_agent Optional user agent string
+-- @param p_on_behalf_of Optional principal being represented (e.g., admin acting as customer)
+-- @param p_reason Optional reason/context for the action
+-- @example SELECT authn.set_actor('user:admin-bob', on_behalf_of := 'user:customer-alice', reason := 'support_ticket:12345');
 CREATE OR REPLACE FUNCTION authn.set_actor(
     p_actor_id text,
     p_request_id text DEFAULT NULL,
     p_ip_address text DEFAULT NULL,
-    p_user_agent text DEFAULT NULL
+    p_user_agent text DEFAULT NULL,
+    p_on_behalf_of text DEFAULT NULL,
+    p_reason text DEFAULT NULL
 )
 RETURNS void
 AS $$
@@ -28,6 +34,8 @@ BEGIN
     PERFORM set_config('authn.request_id', COALESCE(p_request_id, ''), true);
     PERFORM set_config('authn.ip_address', COALESCE(p_ip_address, ''), true);
     PERFORM set_config('authn.user_agent', COALESCE(p_user_agent, ''), true);
+    PERFORM set_config('authn.on_behalf_of', COALESCE(p_on_behalf_of, ''), true);
+    PERFORM set_config('authn.reason', COALESCE(p_reason, ''), true);
 END;
 $$ LANGUAGE plpgsql SET search_path = authn, pg_temp;
 
@@ -42,6 +50,8 @@ BEGIN
     PERFORM set_config('authn.request_id', '', true);
     PERFORM set_config('authn.ip_address', '', true);
     PERFORM set_config('authn.user_agent', '', true);
+    PERFORM set_config('authn.on_behalf_of', '', true);
+    PERFORM set_config('authn.reason', '', true);
 END;
 $$ LANGUAGE plpgsql SET search_path = authn, pg_temp;
 
