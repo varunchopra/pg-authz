@@ -604,7 +604,7 @@ List active sessions for "manage devices" UI
 SELECT * FROM authn.list_sessions(user_id);
 ```
 
-*Source: authn/src/functions/020_sessions.sql:188*
+*Source: authn/src/functions/020_sessions.sql:197*
 
 ---
 
@@ -623,7 +623,7 @@ Log out all sessions for a user (password change, security concern)
 SELECT authn.revoke_all_sessions(user_id); -- "Log out everywhere"
 ```
 
-*Source: authn/src/functions/020_sessions.sql:153*
+*Source: authn/src/functions/020_sessions.sql:162*
 
 ---
 
@@ -640,7 +640,7 @@ Log out a specific session
 SELECT authn.revoke_session(token_hash); -- User clicks "log out"
 ```
 
-*Source: authn/src/functions/020_sessions.sql:115*
+*Source: authn/src/functions/020_sessions.sql:124*
 
 ---
 

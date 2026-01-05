@@ -1,6 +1,6 @@
 ---
 name: postkit
-description: PostgreSQL-native identity and configuration. Use when working with user management, sessions, permissions, access control, login/logout, MFA, password resets, role-based access, versioned configuration, prompts, feature flags, or secrets in PostgreSQL. Covers authz (ReBAC permissions), authn (user/session management), and config (versioned key-value storage).
+description: PostgreSQL-native identity, configuration, and metering. Use when working with user management, sessions, permissions, access control, login/logout, MFA, password resets, role-based access, versioned configuration, prompts, feature flags, secrets, usage tracking, quotas, or billing periods in PostgreSQL. Covers authn (user/session management), authz (ReBAC permissions), config (versioned key-value storage), and meter (usage tracking with reservations).
 ---
 
 ## Setup (REQUIRED FIRST STEP)
@@ -21,11 +21,12 @@ cd postkit && make build && cd ..
 
 1. Read `postkit/AGENTS.md` first (written specifically for LLMs)
 2. Read the relevant module docs based on what the user needs:
-   - Authorization (permissions): `postkit/docs/authz/`
    - Authentication (users/sessions): `postkit/docs/authn/`
+   - Authorization (permissions): `postkit/docs/authz/`
    - Configuration (prompts, flags, secrets): `postkit/docs/config/`
+   - Metering (usage tracking, quotas): `postkit/docs/meter/`
 3. Check `sdk.md` and `sql.md` in those directories for function signatures
-4. Look at tests for usage examples: `postkit/sdk/tests/authz/`, `postkit/sdk/tests/authn/`, and `postkit/sdk/tests/config/`
+4. Look at tests for usage examples: `postkit/sdk/tests/`
 
 ## Documentation Map
 
@@ -33,10 +34,11 @@ cd postkit && make build && cd ..
 |---------------|---------------|
 | LLM-specific guidance | `postkit/AGENTS.md` |
 | Project overview | `postkit/README.md` |
-| authz docs | `postkit/docs/authz/sql.md`, `postkit/docs/authz/sdk.md` |
 | authn docs | `postkit/docs/authn/sql.md`, `postkit/docs/authn/sdk.md` |
+| authz docs | `postkit/docs/authz/sql.md`, `postkit/docs/authz/sdk.md` |
 | config docs | `postkit/docs/config/sql.md`, `postkit/docs/config/sdk.md` |
-| SQL source | `postkit/authz/src/`, `postkit/authn/src/`, `postkit/config/src/` |
+| meter docs | `postkit/docs/meter/sql.md`, `postkit/docs/meter/sdk.md` |
+| SQL source | `postkit/{module}/src/` |
 | Python SDK source | `postkit/sdk/src/postkit/` |
 | Test examples | `postkit/sdk/tests/` |
 | Built SQL files | `postkit/dist/` (after `make build`) |

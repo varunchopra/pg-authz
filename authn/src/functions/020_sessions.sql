@@ -93,6 +93,8 @@ RETURNS timestamptz
 AS $$
 DECLARE
     v_new_expires_at timestamptz;
+    v_session_id uuid;
+    v_user_id uuid;
 BEGIN
     PERFORM authn._validate_hash(p_token_hash, 'token_hash', false);
     PERFORM authn._validate_namespace(p_namespace);
@@ -104,11 +106,18 @@ BEGIN
     WHERE token_hash = p_token_hash
       AND namespace = p_namespace
       AND revoked_at IS NULL
-      AND expires_at > now();
+      AND expires_at > now()
+    RETURNING id, user_id INTO v_session_id, v_user_id;
 
     IF NOT FOUND THEN
         RETURN NULL;
     END IF;
+
+    -- Audit log
+    PERFORM authn._log_event(
+        'session_extended', p_namespace, 'session', v_session_id::text,
+        NULL, jsonb_build_object('user_id', v_user_id, 'new_expires_at', v_new_expires_at)
+    );
 
     RETURN v_new_expires_at;
 END;

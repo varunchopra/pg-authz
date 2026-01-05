@@ -3,23 +3,31 @@
 -- @function meter._validate_namespace
 -- @brief Validate namespace format
 -- @param p_value Namespace to validate
+-- Must be lowercase alphanumeric with underscores/hyphens.
 CREATE FUNCTION meter._validate_namespace(p_value text)
 RETURNS void AS $$
 BEGIN
-    IF p_value IS NULL OR trim(p_value) = '' THEN
-        RAISE EXCEPTION 'namespace cannot be null or empty'
+    IF p_value IS NULL THEN
+        RAISE EXCEPTION 'namespace cannot be null'
             USING ERRCODE = 'null_value_not_allowed';
     END IF;
-    IF length(p_value) > 256 THEN
-        RAISE EXCEPTION 'namespace exceeds 256 characters'
+
+    IF trim(p_value) = '' THEN
+        RAISE EXCEPTION 'namespace cannot be empty'
+            USING ERRCODE = 'string_data_length_mismatch';
+    END IF;
+
+    IF length(p_value) > 1024 THEN
+        RAISE EXCEPTION 'namespace exceeds maximum length of 1024 characters'
             USING ERRCODE = 'string_data_right_truncation';
     END IF;
+
     IF p_value !~ '^[a-z0-9][a-z0-9_-]*$' THEN
-        RAISE EXCEPTION 'namespace must be lowercase alphanumeric with underscores/hyphens'
+        RAISE EXCEPTION 'namespace must be lowercase alphanumeric with underscores/hyphens (got: %)', p_value
             USING ERRCODE = 'invalid_parameter_value';
     END IF;
 END;
-$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
+$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE SECURITY INVOKER SET search_path = meter, pg_temp;
 
 
 -- @function meter._validate_event_type
@@ -28,16 +36,22 @@ $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 CREATE FUNCTION meter._validate_event_type(p_value text)
 RETURNS void AS $$
 BEGIN
-    IF p_value IS NULL OR trim(p_value) = '' THEN
-        RAISE EXCEPTION 'event_type cannot be null or empty'
+    IF p_value IS NULL THEN
+        RAISE EXCEPTION 'event_type cannot be null'
             USING ERRCODE = 'null_value_not_allowed';
     END IF;
+
+    IF trim(p_value) = '' THEN
+        RAISE EXCEPTION 'event_type cannot be empty'
+            USING ERRCODE = 'string_data_length_mismatch';
+    END IF;
+
     IF length(p_value) > 256 THEN
-        RAISE EXCEPTION 'event_type exceeds 256 characters'
+        RAISE EXCEPTION 'event_type exceeds maximum length of 256 characters'
             USING ERRCODE = 'string_data_right_truncation';
     END IF;
 END;
-$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
+$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE SECURITY INVOKER SET search_path = meter, pg_temp;
 
 
 -- @function meter._validate_unit
@@ -46,16 +60,22 @@ $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
 CREATE FUNCTION meter._validate_unit(p_value text)
 RETURNS void AS $$
 BEGIN
-    IF p_value IS NULL OR trim(p_value) = '' THEN
-        RAISE EXCEPTION 'unit cannot be null or empty'
+    IF p_value IS NULL THEN
+        RAISE EXCEPTION 'unit cannot be null'
             USING ERRCODE = 'null_value_not_allowed';
     END IF;
+
+    IF trim(p_value) = '' THEN
+        RAISE EXCEPTION 'unit cannot be empty'
+            USING ERRCODE = 'string_data_length_mismatch';
+    END IF;
+
     IF length(p_value) > 64 THEN
-        RAISE EXCEPTION 'unit exceeds 64 characters'
+        RAISE EXCEPTION 'unit exceeds maximum length of 64 characters'
             USING ERRCODE = 'string_data_right_truncation';
     END IF;
 END;
-$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
+$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE SECURITY INVOKER SET search_path = meter, pg_temp;
 
 
 -- @function meter._validate_positive
@@ -70,4 +90,22 @@ BEGIN
             USING ERRCODE = 'invalid_parameter_value';
     END IF;
 END;
-$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
+$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE SECURITY INVOKER SET search_path = meter, pg_temp;
+
+
+-- @function meter._warn_namespace_mismatch
+-- @brief Warns if namespace doesn't match RLS tenant context
+-- @param p_namespace The namespace being queried
+-- Called at start of query functions to alert developers of likely misconfiguration.
+CREATE FUNCTION meter._warn_namespace_mismatch(p_namespace text)
+RETURNS void AS $$
+DECLARE
+    v_tenant_id text;
+BEGIN
+    v_tenant_id := current_setting('meter.tenant_id', true);
+    IF v_tenant_id IS NOT NULL AND v_tenant_id != '' AND p_namespace != v_tenant_id THEN
+        RAISE WARNING 'Querying namespace "%" but RLS tenant context is "%". Results will be empty due to row-level security.',
+            p_namespace, v_tenant_id;
+    END IF;
+END;
+$$ LANGUAGE plpgsql STABLE PARALLEL SAFE SECURITY INVOKER SET search_path = meter, pg_temp;

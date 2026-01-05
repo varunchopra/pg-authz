@@ -324,7 +324,7 @@ Get full account details
 SELECT * FROM meter.get_account('user-123', 'llm_call', 'tokens');
 ```
 
-*Source: meter/src/functions/020_query.sql:35*
+*Source: meter/src/functions/020_query.sql:37*
 
 ---
 
@@ -379,7 +379,7 @@ Get ledger entries for an account
 SELECT * FROM meter.get_ledger('user-123', 'llm_call', 'tokens', p_limit := 50);
 ```
 
-*Source: meter/src/functions/020_query.sql:96*
+*Source: meter/src/functions/020_query.sql:100*
 
 ---
 
@@ -403,7 +403,7 @@ Get org-level usage totals across all users
 SELECT * FROM meter.get_namespace_usage('2025-01-01', '2025-02-01');
 ```
 
-*Source: meter/src/functions/020_query.sql:194*
+*Source: meter/src/functions/020_query.sql:202*
 
 ---
 
@@ -428,7 +428,7 @@ Get aggregated usage (consumption only) for a user
 SELECT * FROM meter.get_usage('user-123', '2025-01-01', '2025-02-01');
 ```
 
-*Source: meter/src/functions/020_query.sql:153*
+*Source: meter/src/functions/020_query.sql:159*
 
 ---
 
@@ -451,7 +451,7 @@ Get all balances for a user across all event types and resources
 SELECT * FROM meter.get_user_balances('user-123');
 ```
 
-*Source: meter/src/functions/020_query.sql:61*
+*Source: meter/src/functions/020_query.sql:63*
 
 ---
 

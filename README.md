@@ -1,6 +1,6 @@
 # postkit
 
-Postgres-native identity, configuration, and metering. Auth, permissions, versioned config, and usage tracking — no external services.
+Postgres-native identity, configuration, and metering. Auth, permissions, versioned config, and usage tracking - no external services.
 
 ## Modules
 

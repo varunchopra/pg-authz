@@ -224,8 +224,12 @@ class AuthnClient(BaseClient):
         token_hash: str,
         extend_by: timedelta | None = None,
     ) -> datetime | None:
-        """Extend session expiration. Returns new expires_at."""
-        return self._scalar(
+        """Extend session expiration.
+
+        Returns:
+            New expires_at timestamp, or None if session invalid/expired/revoked.
+        """
+        return self._write_scalar(
             "SELECT authn.extend_session(%s, %s, %s)",
             (token_hash, extend_by, self.namespace),
         )

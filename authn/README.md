@@ -1,8 +1,8 @@
 # authn
 
-PostgreSQL-native user management, sessions, tokens, MFA, and lockout. Your application handles password hashing and TOTP verification—this library stores the data securely.
+PostgreSQL-native user management, sessions, tokens, MFA, and lockout. Your application handles password hashing and TOTP verification - this library stores the data securely.
 
-**Good fit:** SaaS apps needing user accounts, sessions, password reset flows, MFA, and brute-force protection—all without external auth services.
+**Good fit:** SaaS apps needing user accounts, sessions, password reset flows, MFA, and brute-force protection - all without external auth services.
 
 **Not a fit:** Building an OAuth/OIDC provider, or if you need the library to handle cryptographic operations.
 
@@ -18,14 +18,14 @@ SELECT authn.create_user('alice@example.com', '$argon2id$...');
 
 -- Login flow: get credentials, verify hash in your app
 SELECT * FROM authn.get_credentials('alice@example.com');
--- → user_id, password_hash, disabled_at
+-- -> user_id, password_hash, disabled_at
 
 -- Create a session (you generate and hash the token)
 SELECT authn.create_session(user_id, sha256('random-token'), '24 hours'::interval);
 
 -- Validate session on each request
 SELECT * FROM authn.validate_session(sha256('random-token'));
--- → user_id, email, session_id (or empty if invalid)
+-- -> user_id, email, session_id (or empty if invalid)
 
 -- Logout
 SELECT authn.revoke_session(sha256('random-token'));
@@ -33,7 +33,7 @@ SELECT authn.revoke_session(sha256('random-token'));
 
 ## Key Concept: Caller Provides Hashes
 
-This library stores and compares strings—it never hashes. You hash passwords (argon2id) and tokens (SHA-256) before passing them in:
+This library stores and compares strings - it never hashes. You hash passwords (argon2id) and tokens (SHA-256) before passing them in:
 
 ```python
 from argon2 import PasswordHasher
@@ -47,6 +47,6 @@ token_hash = hashlib.sha256(token.encode()).hexdigest()  # You hash
 
 ## Social Login
 
-Works fine. Google, GitHub, SAML—we don't care how you verify identity. You handle the OAuth/SAML flow, then call `authn.create_user()` and `authn.create_session()`.
+Works fine. Google, GitHub, SAML - we don't care how you verify identity. You handle the OAuth/SAML flow, then call `authn.create_user()` and `authn.create_session()`.
 
 See [docs/authn/](../docs/authn/) for full API reference.

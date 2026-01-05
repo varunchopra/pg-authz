@@ -1,6 +1,6 @@
 # config
 
-Versioned configuration storage. Handles prompts, feature flags, secrets, settings — all with version history and instant rollback.
+Versioned configuration storage. Handles prompts, feature flags, secrets, settings - all with version history and instant rollback.
 
 ## Install
 

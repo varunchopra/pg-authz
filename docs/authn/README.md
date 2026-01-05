@@ -16,7 +16,7 @@
 | [`delete_user`](sdk.md#delete_user) | Permanently delete a user and all associated data. |
 | [`disable_user`](sdk.md#disable_user) | Disable user and revoke all their sessions. |
 | [`enable_user`](sdk.md#enable_user) | Re-enable a disabled user. |
-| [`extend_session`](sdk.md#extend_session) | Extend session expiration. Returns new expires_at. |
+| [`extend_session`](sdk.md#extend_session) | Extend session expiration. |
 | [`get_audit_events`](sdk.md#get_audit_events) | Query audit events. |
 | [`get_credentials`](sdk.md#get_credentials) | Get credentials for login verification. |
 | [`get_mfa`](sdk.md#get_mfa) | Get MFA secrets for verification. Returns secrets! |

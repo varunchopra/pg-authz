@@ -18,6 +18,8 @@ CREATE FUNCTION meter.get_balance(
 )
 RETURNS TABLE(balance numeric, reserved numeric, available numeric) AS $$
 BEGIN
+    PERFORM meter._warn_namespace_mismatch(p_namespace);
+
     RETURN QUERY
     SELECT a.balance, a.reserved, a.balance - a.reserved
     FROM meter.accounts a
@@ -80,6 +82,8 @@ RETURNS TABLE(
     available numeric
 ) AS $$
 BEGIN
+    PERFORM meter._warn_namespace_mismatch(p_namespace);
+
     RETURN QUERY
     SELECT
         a.event_type,
@@ -131,6 +135,8 @@ RETURNS TABLE(
     metadata jsonb
 ) AS $$
 BEGIN
+    PERFORM meter._warn_namespace_mismatch(p_namespace);
+
     IF p_limit > 10000 THEN
         p_limit := 10000;
     END IF;
@@ -175,6 +181,8 @@ RETURNS TABLE(
     event_count bigint
 ) AS $$
 BEGIN
+    PERFORM meter._warn_namespace_mismatch(p_namespace);
+
     RETURN QUERY
     SELECT
         l.event_type,
@@ -215,6 +223,8 @@ RETURNS TABLE(
     unique_users bigint
 ) AS $$
 BEGIN
+    PERFORM meter._warn_namespace_mismatch(p_namespace);
+
     RETURN QUERY
     SELECT
         l.event_type,

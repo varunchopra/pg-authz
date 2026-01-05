@@ -2,7 +2,7 @@
 
 Relationship-Based Access Control (ReBAC) for PostgreSQL. Answers "can user X do Y to resource Z?"
 
-**Good fit:** SaaS apps, internal tools, document systems—anywhere you need "users and teams with permissions on things."
+**Good fit:** SaaS apps, internal tools, document systems - anywhere you need "users and teams with permissions on things."
 
 **Not a fit:** Attribute-based rules (location, time, IP), AWS IAM-style policies, or simple role-only systems where users just need roles without resource-level grants.
 
