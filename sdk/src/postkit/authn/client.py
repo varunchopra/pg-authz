@@ -497,41 +497,37 @@ class AuthnClient(BaseClient):
         self,
         actor_id: str,
         request_id: str | None = None,
-        ip_address: str | None = None,
-        user_agent: str | None = None,
         on_behalf_of: str | None = None,
         reason: str | None = None,
+        *,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
     ) -> None:
-        """
-        Set actor context for audit logging.
+        """Set actor context for audit logging with authn-specific fields.
 
-        Note: Unlike set_tenant() which applies immediately via SQL, actor context
-        is stored as instance state and applied per-operation in _write_scalar.
-        This ensures actor context is set within the same transaction as the
-        audited operation (required because PostgreSQL's set_config with is_local=true
-        only persists within the current transaction).
+        Extends the base set_actor() with IP address and user agent tracking,
+        which are relevant for authentication audit trails.
 
         Args:
             actor_id: The actor making changes (e.g., 'user:admin-bob', 'agent:support-bot')
             request_id: Optional request/correlation ID for tracing
-            ip_address: Optional client IP address
-            user_agent: Optional client user agent string
             on_behalf_of: Optional principal being represented (e.g., 'user:customer-alice')
             reason: Optional reason/context for the action (e.g., 'support_ticket:12345')
+            ip_address: Optional client IP address (keyword-only, authn-specific)
+            user_agent: Optional client user agent string (keyword-only, authn-specific)
 
         Example:
             authn.set_actor(
                 "user:admin-bob",
                 on_behalf_of="user:customer-alice",
-                reason="support_ticket:12345"
+                reason="support_ticket:12345",
+                ip_address="192.168.1.1",
+                user_agent="Mozilla/5.0"
             )
         """
-        self._actor_id = actor_id
-        self._request_id = request_id
+        super().set_actor(actor_id, request_id, on_behalf_of, reason)
         self._ip_address = ip_address
         self._user_agent = user_agent
-        self._on_behalf_of = on_behalf_of
-        self._reason = reason
 
     def clear_actor(self) -> None:
         """Clear actor context."""

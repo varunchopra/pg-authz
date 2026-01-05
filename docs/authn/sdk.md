@@ -42,7 +42,7 @@ clear_actor() -> None
 
 Clear actor context.
 
-*Source: sdk/src/postkit/authn/client.py:536*
+*Source: sdk/src/postkit/authn/client.py:532*
 
 ---
 
@@ -205,7 +205,7 @@ get_audit_events(limit: int = 100, event_type: str | None = None, resource_type:
 
 Query audit events.
 
-*Source: sdk/src/postkit/authn/client.py:542*
+*Source: sdk/src/postkit/authn/client.py:538*
 
 ---
 
@@ -452,25 +452,27 @@ Revoke a session.
 ### set_actor
 
 ```python
-set_actor(actor_id: str, request_id: str | None = None, ip_address: str | None = None, user_agent: str | None = None, on_behalf_of: str | None = None, reason: str | None = None) -> None
+set_actor(actor_id: str, request_id: str | None = None, on_behalf_of: str | None = None, reason: str | None = None, *, ip_address: str | None = None, user_agent: str | None = None) -> None
 ```
 
-Set actor context for audit logging.
+Set actor context for audit logging with authn-specific fields.
 
 **Parameters:**
 - `actor_id`: The actor making changes (e.g., 'user:admin-bob', 'agent:support-bot')
 - `request_id`: Optional request/correlation ID for tracing
-- `ip_address`: Optional client IP address
-- `user_agent`: Optional client user agent string
 - `on_behalf_of`: Optional principal being represented (e.g., 'user:customer-alice')
 - `reason`: Optional reason/context for the action (e.g., 'support_ticket:12345')
+- `ip_address`: Optional client IP address (keyword-only, authn-specific)
+- `user_agent`: Optional client user agent string (keyword-only, authn-specific)
 
 **Example:**
 ```python
 authn.set_actor(
     "user:admin-bob",
     on_behalf_of="user:customer-alice",
-    reason="support_ticket:12345"
+    reason="support_ticket:12345",
+    ip_address="192.168.1.1",
+    user_agent="Mozilla/5.0"
 )
 ```
 

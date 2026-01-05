@@ -38,7 +38,7 @@
 | [`revoke_all_sessions`](sdk.md#revoke_all_sessions) | Revoke all sessions for a user. Returns count revoked. |
 | [`revoke_api_key`](sdk.md#revoke_api_key) | Revoke an API key. |
 | [`revoke_session`](sdk.md#revoke_session) | Revoke a session. |
-| [`set_actor`](sdk.md#set_actor) | Set actor context for audit logging. |
+| [`set_actor`](sdk.md#set_actor) | Set actor context for audit logging with authn-specific fields. |
 | [`update_email`](sdk.md#update_email) | Update user's email. Clears email_verified_at. |
 | [`update_password`](sdk.md#update_password) | Update user's password hash. |
 | [`validate_api_key`](sdk.md#validate_api_key) | Validate an API key. |
