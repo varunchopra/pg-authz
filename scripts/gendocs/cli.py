@@ -35,6 +35,7 @@ def main():
     (docs_dir / "authz").mkdir(parents=True)
     (docs_dir / "authn").mkdir(parents=True)
     (docs_dir / "config").mkdir(parents=True)
+    (docs_dir / "meter").mkdir(parents=True)
 
     print("Extracting Python docs...")
 
@@ -64,6 +65,14 @@ def main():
         python_results["config"] = result
         documented = sum(1 for f in result.functions if f.brief)
         print(f"  ✓ config: {documented}/{len(result.all_public_functions)} functions")
+
+    # meter Python
+    meter_client = root / "sdk" / "src" / "postkit" / "meter" / "client.py"
+    if meter_client.exists():
+        result = extract_python_docs(meter_client, root)
+        python_results["meter"] = result
+        documented = sum(1 for f in result.functions if f.brief)
+        print(f"  ✓ meter: {documented}/{len(result.all_public_functions)} functions")
 
     print("Extracting SQL docs...")
 
@@ -102,6 +111,19 @@ def main():
         groups = sorted(set(f.group for f in result.functions if f.group))
         print(
             f"  ✓ config: {documented}/{len(result.all_public_functions)} SQL functions"
+        )
+        if groups:
+            print(f"    Groups: {', '.join(groups)}")
+
+    # meter SQL
+    meter_sql_dir = root / "meter" / "src" / "functions"
+    if meter_sql_dir.exists():
+        result = extract_sql_docs(meter_sql_dir, root)
+        sql_results["meter"] = result
+        documented = sum(1 for f in result.functions if f.brief)
+        groups = sorted(set(f.group for f in result.functions if f.group))
+        print(
+            f"  ✓ meter: {documented}/{len(result.all_public_functions)} SQL functions"
         )
         if groups:
             print(f"    Groups: {', '.join(groups)}")

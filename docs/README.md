@@ -7,6 +7,7 @@ API reference documentation for postkit modules.
 - [authn](authn/README.md)
 - [authz](authz/README.md)
 - [config](config/README.md)
+- [meter](meter/README.md)
 
 ## Generating Documentation
 
