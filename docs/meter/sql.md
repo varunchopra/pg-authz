@@ -89,22 +89,22 @@ Get namespace statistics
 SELECT * FROM meter.get_stats();
 ```
 
-*Source: meter/src/functions/040_maintenance.sql:165*
+*Source: meter/src/functions/040_maintenance.sql:196*
 
 ---
 
 ### meter.reconcile
 
 ```sql
-meter.reconcile(p_namespace: text) -> table(user_id: text, event_type: text, resource: text, unit: text, account_balance: numeric, ledger_sum: numeric, discrepancy: numeric)
+meter.reconcile(p_namespace: text) -> table(user_id: text, event_type: text, resource: text, unit: text, issue_type: text, expected: numeric, actual: numeric, discrepancy: numeric)
 ```
 
-Verify ledger sum matches account balance
+Verify account invariants: balance vs ledger sum, reserved vs active reservations
 
 **Parameters:**
 - `p_namespace`: Tenant namespace
 
-**Returns:** Accounts with discrepancies
+**Returns:** Accounts with discrepancies (issue_type: 'balance_mismatch' or 'reserved_mismatch')
 
 **Example:**
 ```sql
@@ -257,12 +257,12 @@ SELECT meter.open_period('user-123', 'llm_call', 'tokens', NULL, '2025-02-01');
 meter.release_expired_reservations(p_namespace: text) -> int4
 ```
 
-Release all expired reservations
+Mark expired reservations as 'expired' and release their holds. Distinct from 'released' to distinguish automatic expiry. No ledger entries.
 
 **Parameters:**
 - `p_namespace`: Optional namespace filter (NULL = all namespaces)
 
-**Returns:** Count of reservations released
+**Returns:** Count of reservations expired
 
 **Example:**
 ```sql
@@ -523,7 +523,7 @@ SELECT * FROM meter.allocate('user-123', 'llm_call', 100000, 'tokens', 'claude-s
 meter.commit(p_reservation_id: text, p_actual_amount: numeric, p_metadata: jsonb, p_namespace: text) -> table(success: bool, consumed: numeric, released: numeric, reserved_amount: numeric, balance: numeric, entry_id: int8)
 ```
 
-Commit a reservation with actual consumption. Returns reserved_amount so caller can compute overage.
+Commit a reservation with actual consumption. Only actual consumption affects balance. The hold is released and reservation marked 'committed'.
 
 **Parameters:**
 - `p_reservation_id`: Reservation to commit
@@ -539,7 +539,7 @@ SELECT * FROM meter.commit('res_abc123', 2347);
 SELECT consumed - reserved_amount AS overage FROM meter.commit('res_abc123', 500);
 ```
 
-*Source: meter/src/functions/012_reserve.sql:139*
+*Source: meter/src/functions/012_reserve.sql:130*
 
 ---
 
@@ -580,7 +580,7 @@ SELECT * FROM meter.consume('user-123', 'llm_call', 1500, 'tokens', 'claude-sonn
 meter.release(p_reservation_id: text, p_namespace: text) -> bool
 ```
 
-Release a reservation without consuming
+Release a reservation without consuming. Does not affect balance or create ledger entries. Only releases the hold and marks reservation 'released'.
 
 **Parameters:**
 - `p_reservation_id`: Reservation to release
@@ -593,17 +593,17 @@ Release a reservation without consuming
 SELECT meter.release('res_abc123');
 ```
 
-*Source: meter/src/functions/012_reserve.sql:243*
+*Source: meter/src/functions/012_reserve.sql:232*
 
 ---
 
 ### meter.reserve
 
 ```sql
-meter.reserve(p_user_id: text, p_event_type: text, p_amount: numeric, p_unit: text, p_resource: text, p_ttl_seconds: int4, p_idempotency_key: text, p_metadata: jsonb, p_namespace: text) -> table(granted: bool, reservation_id: text, balance: numeric, available: numeric, expires_at: timestamptz, entry_id: int8)
+meter.reserve(p_user_id: text, p_event_type: text, p_amount: numeric, p_unit: text, p_resource: text, p_ttl_seconds: int4, p_idempotency_key: text, p_metadata: jsonb, p_namespace: text) -> table(granted: bool, reservation_id: text, balance: numeric, available: numeric, expires_at: timestamptz)
 ```
 
-Reserve quota for pending operation (streaming, uncertain consumption)
+Reserve quota for pending operation. Reservations are HOLDS, not balance changes. They don't create ledger entries. Only commit affects balance.
 
 **Parameters:**
 - `p_user_id`: User ID (required)
@@ -616,7 +616,7 @@ Reserve quota for pending operation (streaming, uncertain consumption)
 - `p_metadata`: Optional JSON metadata
 - `p_namespace`: Tenant namespace
 
-**Returns:** granted flag, reservation_id, balance, available, expires_at, entry_id
+**Returns:** granted flag, reservation_id, balance, available, expires_at
 
 **Example:**
 ```sql

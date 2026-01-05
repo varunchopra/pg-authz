@@ -1,6 +1,6 @@
 # postkit
 
-Postgres-native identity and configuration. Auth, permissions, and versioned config — no external services.
+Postgres-native identity, configuration, and metering. Auth, permissions, versioned config, and usage tracking — no external services.
 
 ## Modules
 
@@ -9,6 +9,7 @@ Postgres-native identity and configuration. Auth, permissions, and versioned con
 | [authz](authz/) | `authz` | Authorization (ReBAC permissions) |
 | [authn](authn/) | `authn` | Authentication (users, sessions, tokens) |
 | [config](config/) | `config` | Versioned configuration (prompts, flags, secrets) |
+| [meter](meter/) | `meter` | Usage metering (quotas, reservations, ledger) |
 
 Each module is independent -- use what you need.
 
@@ -28,6 +29,7 @@ psql $DATABASE_URL -f dist/postkit.sql
 psql $DATABASE_URL -f dist/authz.sql
 psql $DATABASE_URL -f dist/authn.sql
 psql $DATABASE_URL -f dist/config.sql
+psql $DATABASE_URL -f dist/meter.sql
 ```
 
 ## Usage
@@ -87,6 +89,19 @@ True
 # Read a nested value.
 >>> config.get_path("prompts/support-bot", "model", "temperature")
 0.8
+
+# User has 10k tokens.
+>>> meter.allocate("user-123", "llm_call", 10000, "tokens")
+{'balance': 10000.0, 'entry_id': 1}
+
+# Reserve 4k for streaming (hold, not spent yet).
+>>> res = meter.reserve("user-123", "llm_call", 4000, "tokens")
+>>> meter.get_balance("user-123", "llm_call", "tokens")
+{'balance': 10000.0, 'reserved': 4000.0, 'available': 6000.0}
+
+# Stream done - commit actual usage.
+>>> meter.commit(res["reservation_id"], 2347)
+{'success': True, 'consumed': 2347.0, 'balance': 7653.0, ...}
 ```
 
 See [sdk/](sdk/) for details.
@@ -99,7 +114,7 @@ See [docs/](docs/) for full API reference with function signatures, parameters, 
 
 ```bash
 make setup   # Start Postgres in Docker
-make build   # Build dist/postkit.sql, dist/authz.sql, dist/authn.sql, dist/config.sql
+make build   # Build dist/postkit.sql, dist/authz.sql, dist/authn.sql, dist/config.sql, dist/meter.sql
 make test    # Run tests
 make docs    # Generate API documentation
 make clean   # Cleanup

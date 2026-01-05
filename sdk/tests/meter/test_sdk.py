@@ -122,10 +122,10 @@ class TestConsume:
 
         result = meter.consume("user-1", "llm_call", 100, "tokens")
 
-        # After reserve: balance=800, reserved=200, available=600
-        # After consume 100: balance=700, reserved=200, available=500
-        assert result["balance"] == 700
-        assert result["available"] == 500
+        # After reserve: balance=1000 (unchanged), reserved=200, available=800
+        # After consume 100: balance=900, reserved=200, available=700
+        assert result["balance"] == 900
+        assert result["available"] == 700
 
         balance = meter.get_balance("user-1", "llm_call", "tokens")
         assert result["available"] == balance["available"]
@@ -135,18 +135,18 @@ class TestReservation:
     """Tests for meter.reserve(), meter.commit(), meter.release()"""
 
     def test_reserve_holds_balance(self, meter):
-        """Reservation reduces available but keeps reserved tracked."""
+        """Reservation holds tokens without changing balance."""
         meter.allocate("user-1", "llm_call", 1000, "tokens")
         result = meter.reserve("user-1", "llm_call", 400, "tokens")
 
         assert result["granted"] is True
         assert result["reservation_id"] is not None
-        assert result["balance"] == 600  # balance reduced by reservation
+        assert result["balance"] == 1000  # balance UNCHANGED by reservation
 
         balance = meter.get_balance("user-1", "llm_call", "tokens")
-        assert balance["balance"] == 600
+        assert balance["balance"] == 1000  # balance unchanged
         assert balance["reserved"] == 400
-        assert balance["available"] == 200
+        assert balance["available"] == 600  # 1000 - 400
 
     def test_reserve_returns_correct_available(self, meter):
         """Reserve returns the new available balance matching get_balance."""
@@ -154,8 +154,8 @@ class TestReservation:
         result = meter.reserve("user-1", "llm_call", 400, "tokens")
 
         assert result["granted"] is True
-        assert result["balance"] == 600
-        assert result["available"] == 200  # Must match stored state
+        assert result["balance"] == 1000  # unchanged
+        assert result["available"] == 600  # 1000 - 400
 
         # Returned available must match get_balance
         balance = meter.get_balance("user-1", "llm_call", "tokens")
@@ -167,14 +167,15 @@ class TestReservation:
 
         # First reservation
         res1 = meter.reserve("user-1", "llm_call", 300, "tokens")
-        # After: balance=700, reserved=300, available=400
-        assert res1["available"] == 400
+        # After: balance=1000 (unchanged), reserved=300, available=700
+        assert res1["balance"] == 1000
+        assert res1["available"] == 700
 
         # Second reservation
         res2 = meter.reserve("user-1", "llm_call", 200, "tokens")
-        # After: balance=500, reserved=500, available=0
-        assert res2["balance"] == 500
-        assert res2["available"] == 0
+        # After: balance=1000 (unchanged), reserved=500, available=500
+        assert res2["balance"] == 1000
+        assert res2["available"] == 500
 
         balance = meter.get_balance("user-1", "llm_call", "tokens")
         assert res2["available"] == balance["available"]
@@ -198,7 +199,7 @@ class TestReservation:
         assert result["consumed"] == 400
         assert result["released"] == 0
         assert result["reserved_amount"] == 400
-        assert result["balance"] == 600
+        assert result["balance"] == 600  # 1000 - 400 consumed
 
     def test_commit_with_less_than_reserved(self, meter):
         """Committing with less than reserved releases the difference."""
@@ -211,10 +212,10 @@ class TestReservation:
         assert result["consumed"] == 250
         assert result["released"] == 150
         assert result["reserved_amount"] == 400
-        assert result["balance"] == 750  # 1000 - 250
+        assert result["balance"] == 750  # 1000 - 250 consumed
 
-    def test_release_restores_balance(self, meter):
-        """Releasing a reservation restores the balance."""
+    def test_release_keeps_balance(self, meter):
+        """Releasing a reservation keeps balance unchanged (only reserved changes)."""
         meter.allocate("user-1", "llm_call", 1000, "tokens")
         res = meter.reserve("user-1", "llm_call", 400, "tokens")
 
@@ -223,8 +224,9 @@ class TestReservation:
         assert result is True
 
         balance = meter.get_balance("user-1", "llm_call", "tokens")
-        assert balance["balance"] == 1000
+        assert balance["balance"] == 1000  # unchanged (was never modified)
         assert balance["reserved"] == 0
+        assert balance["available"] == 1000
 
     def test_release_nonexistent_returns_false(self, meter):
         """Releasing nonexistent reservation returns False."""
@@ -250,6 +252,7 @@ class TestCommitOverage:
         assert result["reserved_amount"] == 400
         assert result["consumed"] == 350
         assert result["released"] == 50
+        assert result["balance"] == 650  # 1000 - 350
 
     def test_commit_overage_allowed_and_reported(self, meter):
         """Overage is allowed and accurately reported."""
@@ -262,6 +265,7 @@ class TestCommitOverage:
         assert result["reserved_amount"] == 400
         assert result["consumed"] == 500
         assert result["released"] == 0
+        assert result["balance"] == 500  # 1000 - 500
 
         # Caller computes overage
         overage = max(0, result["consumed"] - result["reserved_amount"])
@@ -275,9 +279,99 @@ class TestCommitOverage:
         result = meter.commit(res["reservation_id"], 150)
 
         assert result["success"] is True
-        assert result["balance"] == -50
+        assert result["balance"] == -50  # 100 - 150
         assert result["reserved_amount"] == 100
         assert result["consumed"] == 150
+
+
+class TestReservationCapacity:
+    """Tests that reservation system allows full capacity usage."""
+
+    def test_can_reserve_full_capacity(self, meter):
+        """User can reserve up to 100% of balance, not just 50%."""
+        meter.allocate("user-1", "llm_call", 1000, "tokens")
+
+        res1 = meter.reserve("user-1", "llm_call", 400, "tokens")
+        assert res1["granted"] is True
+        assert res1["available"] == 600
+
+        res2 = meter.reserve("user-1", "llm_call", 400, "tokens")
+        assert res2["granted"] is True
+        assert res2["available"] == 200
+
+        res3 = meter.reserve("user-1", "llm_call", 200, "tokens")
+        assert res3["granted"] is True
+        assert res3["available"] == 0
+
+        # Now fully reserved
+        res4 = meter.reserve("user-1", "llm_call", 1, "tokens")
+        assert res4["granted"] is False
+
+    def test_reserve_does_not_change_balance(self, meter):
+        """Reservation only affects reserved, not balance."""
+        meter.allocate("user-1", "llm_call", 1000, "tokens")
+
+        meter.reserve("user-1", "llm_call", 400, "tokens")
+
+        balance = meter.get_balance("user-1", "llm_call", "tokens")
+        assert balance["balance"] == 1000  # Unchanged
+        assert balance["reserved"] == 400
+        assert balance["available"] == 600
+
+    def test_release_does_not_change_balance(self, meter):
+        """Release only affects reserved, not balance."""
+        meter.allocate("user-1", "llm_call", 1000, "tokens")
+        res = meter.reserve("user-1", "llm_call", 400, "tokens")
+
+        meter.release(res["reservation_id"])
+
+        balance = meter.get_balance("user-1", "llm_call", "tokens")
+        assert balance["balance"] == 1000  # Still unchanged
+        assert balance["reserved"] == 0
+        assert balance["available"] == 1000
+
+    def test_commit_deducts_actual_from_balance(self, meter):
+        """Commit reduces balance by actual consumption only."""
+        meter.allocate("user-1", "llm_call", 1000, "tokens")
+        res = meter.reserve("user-1", "llm_call", 400, "tokens")
+
+        result = meter.commit(res["reservation_id"], 350)
+
+        assert result["consumed"] == 350
+        assert result["balance"] == 650  # 1000 - 350
+
+        balance = meter.get_balance("user-1", "llm_call", "tokens")
+        assert balance["balance"] == 650
+        assert balance["reserved"] == 0
+        assert balance["available"] == 650
+
+    def test_multiple_reservations_and_commits(self, meter):
+        """Complex scenario with multiple concurrent reservations."""
+        meter.allocate("user-1", "llm_call", 1000, "tokens")
+
+        res1 = meter.reserve("user-1", "llm_call", 300, "tokens")
+        res2 = meter.reserve("user-1", "llm_call", 400, "tokens")
+
+        balance = meter.get_balance("user-1", "llm_call", "tokens")
+        assert balance["balance"] == 1000
+        assert balance["reserved"] == 700
+        assert balance["available"] == 300
+
+        # Commit first reservation with less than reserved
+        meter.commit(res1["reservation_id"], 250)
+
+        balance = meter.get_balance("user-1", "llm_call", "tokens")
+        assert balance["balance"] == 750  # 1000 - 250
+        assert balance["reserved"] == 400  # Only res2 remaining
+        assert balance["available"] == 350
+
+        # Commit second reservation with exact amount
+        meter.commit(res2["reservation_id"], 400)
+
+        balance = meter.get_balance("user-1", "llm_call", "tokens")
+        assert balance["balance"] == 350  # 750 - 400
+        assert balance["reserved"] == 0
+        assert balance["available"] == 350
 
 
 class TestAdjust:
@@ -393,3 +487,40 @@ class TestStats:
         ledger_sum = test_helpers.sum_ledger_amounts("user-1", "llm_call", "tokens")
         account = test_helpers.get_account_raw("user-1", "llm_call", "tokens")
         assert ledger_sum == float(account["balance"])
+
+    def test_reconcile_with_reservations(self, meter, test_helpers):
+        """Reservations don't create ledger entries, so reconciliation still works."""
+        meter.allocate("user-1", "llm_call", 1000, "tokens")
+
+        # Reserve (should NOT create ledger entry)
+        res = meter.reserve("user-1", "llm_call", 400, "tokens")
+        assert res["granted"] is True
+
+        # Ledger should only have allocation entry
+        assert test_helpers.count_ledger_entries() == 1
+        assert test_helpers.count_ledger_entries("allocation") == 1
+
+        # Reconciliation should pass - balance unchanged by reservation
+        discrepancies = meter.reconcile()
+        assert len(discrepancies) == 0
+
+        ledger_sum = test_helpers.sum_ledger_amounts("user-1", "llm_call", "tokens")
+        account = test_helpers.get_account_raw("user-1", "llm_call", "tokens")
+        assert ledger_sum == float(account["balance"])
+        assert ledger_sum == 1000  # Balance unchanged
+
+        # Now commit with actual consumption
+        meter.commit(res["reservation_id"], 350)
+
+        # Ledger should have allocation + consumption
+        assert test_helpers.count_ledger_entries() == 2
+        assert test_helpers.count_ledger_entries("consumption") == 1
+
+        # Reconciliation should still pass
+        discrepancies = meter.reconcile()
+        assert len(discrepancies) == 0
+
+        ledger_sum = test_helpers.sum_ledger_amounts("user-1", "llm_call", "tokens")
+        account = test_helpers.get_account_raw("user-1", "llm_call", "tokens")
+        assert ledger_sum == float(account["balance"])
+        assert ledger_sum == 650  # 1000 - 350

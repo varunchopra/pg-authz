@@ -106,7 +106,7 @@ BEGIN
         PERFORM meter._insert_ledger(
             p_namespace, p_user_id, p_event_type, p_resource, p_unit,
             'expiration', -v_expire, v_account.balance - v_expire, now(),
-            'period_close:' || p_period_end, NULL, NULL, NULL,
+            'period_close:' || p_period_end, NULL, NULL,
             jsonb_build_object('period_end', p_period_end)
         );
     END IF;
@@ -184,7 +184,7 @@ BEGIN
     v_entry_id := meter._insert_ledger(
         p_namespace, p_user_id, p_event_type, p_resource, p_unit,
         'allocation', v_allocation, v_new_balance, now(),
-        'period_open:' || p_period_start, NULL, NULL, NULL,
+        'period_open:' || p_period_start, NULL, NULL,
         jsonb_build_object('period_start', p_period_start)
     );
 
@@ -207,9 +207,10 @@ $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = meter, pg_temp;
 
 
 -- @function meter.release_expired_reservations
--- @brief Release all expired reservations
+-- @brief Mark expired reservations as 'expired' and release their holds.
+-- Distinct from 'released' to distinguish automatic expiry. No ledger entries.
 -- @param p_namespace Optional namespace filter (NULL = all namespaces)
--- @returns Count of reservations released
+-- @returns Count of reservations expired
 -- @example SELECT meter.release_expired_reservations();
 CREATE FUNCTION meter.release_expired_reservations(
     p_namespace text DEFAULT NULL
@@ -220,13 +221,29 @@ DECLARE
     v_count int := 0;
 BEGIN
     FOR v_res IN
-        SELECT reservation_id, namespace
+        SELECT reservation_id, namespace, user_id, event_type, resource, unit, amount
         FROM meter.reservations
-        WHERE expires_at <= now()
+        WHERE status = 'active'
+          AND expires_at <= now()
           AND (p_namespace IS NULL OR namespace = p_namespace)
         FOR UPDATE SKIP LOCKED
     LOOP
-        PERFORM meter.release(v_res.reservation_id, v_res.namespace);
+        -- Release hold from account (no balance change, no ledger entry)
+        UPDATE meter.accounts SET
+            reserved = reserved - v_res.amount,
+            updated_at = now()
+        WHERE namespace = v_res.namespace
+          AND user_id IS NOT DISTINCT FROM v_res.user_id
+          AND event_type = v_res.event_type
+          AND resource = v_res.resource
+          AND unit = v_res.unit;
+
+        -- Mark reservation as expired
+        UPDATE meter.reservations SET
+            status = 'expired',
+            completed_at = now()
+        WHERE reservation_id = v_res.reservation_id;
+
         v_count := v_count + 1;
     END LOOP;
 

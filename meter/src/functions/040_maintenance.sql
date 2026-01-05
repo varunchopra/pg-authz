@@ -120,9 +120,9 @@ $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = meter, pg_temp;
 
 
 -- @function meter.reconcile
--- @brief Verify ledger sum matches account balance
+-- @brief Verify account invariants: balance vs ledger sum, reserved vs active reservations
 -- @param p_namespace Tenant namespace
--- @returns Accounts with discrepancies
+-- @returns Accounts with discrepancies (issue_type: 'balance_mismatch' or 'reserved_mismatch')
 -- @example SELECT * FROM meter.reconcile();
 CREATE FUNCTION meter.reconcile(
     p_namespace text DEFAULT 'default'
@@ -132,19 +132,22 @@ RETURNS TABLE(
     event_type text,
     resource text,
     unit text,
-    account_balance numeric,
-    ledger_sum numeric,
+    issue_type text,
+    expected numeric,
+    actual numeric,
     discrepancy numeric
 ) AS $$
 BEGIN
+    -- Check invariant 1: account.balance = SUM(ledger.amount)
     RETURN QUERY
     SELECT
         a.user_id,
         a.event_type,
         a.resource,
         a.unit,
-        a.balance AS account_balance,
-        COALESCE(l.total, 0) AS ledger_sum,
+        'balance_mismatch'::text AS issue_type,
+        COALESCE(l.total, 0) AS expected,
+        a.balance AS actual,
         a.balance - COALESCE(l.total, 0) AS discrepancy
     FROM meter.accounts a
     LEFT JOIN (
@@ -161,6 +164,34 @@ BEGIN
         AND a.unit = l.unit
     WHERE a.namespace = p_namespace
       AND a.balance != COALESCE(l.total, 0);
+
+    -- Check invariant 2: account.reserved = SUM(active_reservations.amount)
+    RETURN QUERY
+    SELECT
+        a.user_id,
+        a.event_type,
+        a.resource,
+        a.unit,
+        'reserved_mismatch'::text AS issue_type,
+        COALESCE(r.total, 0) AS expected,
+        a.reserved AS actual,
+        a.reserved - COALESCE(r.total, 0) AS discrepancy
+    FROM meter.accounts a
+    LEFT JOIN (
+        SELECT
+            rs.namespace, rs.user_id, rs.event_type, rs.resource, rs.unit,
+            SUM(rs.amount) AS total
+        FROM meter.reservations rs
+        WHERE rs.namespace = p_namespace
+          AND rs.status = 'active'
+        GROUP BY rs.namespace, rs.user_id, rs.event_type, rs.resource, rs.unit
+    ) r ON a.namespace = r.namespace
+        AND a.user_id IS NOT DISTINCT FROM r.user_id
+        AND a.event_type = r.event_type
+        AND a.resource = r.resource
+        AND a.unit = r.unit
+    WHERE a.namespace = p_namespace
+      AND a.reserved != COALESCE(r.total, 0);
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = meter, pg_temp;
 

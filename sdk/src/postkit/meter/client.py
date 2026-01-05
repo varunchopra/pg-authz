@@ -173,6 +173,10 @@ class MeterClient(BaseClient):
     ) -> dict:
         """Reserve quota for pending operation (streaming, uncertain consumption).
 
+        Reservations are HOLDS, not balance changes. They don't create ledger
+        entries. The hold is tracked in accounts.reserved and the reservations
+        table. Only actual consumption (via commit) affects balance.
+
         Args:
             user_id: User ID (required)
             event_type: Event type
@@ -184,11 +188,10 @@ class MeterClient(BaseClient):
             metadata: Optional JSON metadata
 
         Returns:
-            Dict with 'granted', 'reservation_id', 'balance', 'available',
-            'expires_at', 'entry_id'
+            Dict with 'granted', 'reservation_id', 'balance', 'available', 'expires_at'
         """
         self.cursor.execute(
-            """SELECT granted, reservation_id, balance, available, expires_at, entry_id
+            """SELECT granted, reservation_id, balance, available, expires_at
                FROM meter.reserve(%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s)""",
             (
                 user_id,
@@ -209,7 +212,6 @@ class MeterClient(BaseClient):
             "balance": float(row[2]) if row[2] is not None else None,
             "available": float(row[3]) if row[3] is not None else None,
             "expires_at": row[4],
-            "entry_id": row[5],
         }
 
     def commit(
@@ -584,13 +586,18 @@ class MeterClient(BaseClient):
     # =========================================================================
 
     def reconcile(self) -> list[dict]:
-        """Check for discrepancies between accounts and ledger.
+        """Check for discrepancies in account invariants.
+
+        Checks two invariants:
+        1. balance_mismatch: account.balance != SUM(ledger.amount)
+        2. reserved_mismatch: account.reserved != SUM(active_reservations.amount)
 
         Returns:
-            List of accounts with discrepancies
+            List of dicts with 'user_id', 'event_type', 'resource', 'unit',
+            'issue_type', 'expected', 'actual', 'discrepancy'
         """
         self.cursor.execute(
-            """SELECT user_id, event_type, resource, unit, account_balance, ledger_sum, discrepancy
+            """SELECT user_id, event_type, resource, unit, issue_type, expected, actual, discrepancy
                FROM meter.reconcile(%s)""",
             (self.namespace,),
         )
@@ -600,9 +607,10 @@ class MeterClient(BaseClient):
                 "event_type": row[1],
                 "resource": row[2],
                 "unit": row[3],
-                "account_balance": float(row[4]),
-                "ledger_sum": float(row[5]),
-                "discrepancy": float(row[6]),
+                "issue_type": row[4],
+                "expected": float(row[5]),
+                "actual": float(row[6]),
+                "discrepancy": float(row[7]),
             }
             for row in self.cursor.fetchall()
         ]

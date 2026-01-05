@@ -64,14 +64,15 @@ CREATE UNIQUE INDEX accounts_namespace_pool_idx
 -- Append-only, immutable. Every balance change is recorded here.
 -- Partitioned by event_time for efficient retention management.
 --
--- Entry types:
+-- Entry types (balance-affecting only):
 --   allocation          (+) Quota granted (purchase, plan, top-up)
---   consumption         (-) Usage recorded
---   reservation         (-) Hold for pending operation
---   reservation_release (+) Release unused hold
+--   consumption         (-) Usage recorded (includes reservation commits)
 --   adjustment          (+/-) Correction (references original)
 --   expiration          (-) Unused quota expired at period end
 --   carry_over          (+) Rolled from previous period
+--
+-- Note: Reservations are NOT ledger entries - they're holds tracked in
+-- meter.reservations table. Only actual consumption affects balance.
 
 CREATE TABLE meter.ledger (
     id bigint GENERATED ALWAYS AS IDENTITY,
@@ -95,9 +96,8 @@ CREATE TABLE meter.ledger (
     -- Idempotency
     idempotency_key text,
 
-    -- For reservations
-    reservation_id text,                -- groups reservation/release/commit
-    expires_at timestamptz,             -- when reservation auto-expires
+    -- For consumption from committed reservations (links to original reservation)
+    reservation_id text,
 
     -- For adjustments: reference to original entry
     reference_id bigint,
@@ -115,8 +115,6 @@ CREATE TABLE meter.ledger (
     CONSTRAINT ledger_entry_type_valid CHECK (entry_type IN (
         'allocation',
         'consumption',
-        'reservation',
-        'reservation_release',
         'adjustment',
         'expiration',
         'carry_over'
@@ -124,23 +122,19 @@ CREATE TABLE meter.ledger (
     CONSTRAINT ledger_amount_sign CHECK (
         (entry_type = 'allocation' AND amount > 0) OR
         (entry_type = 'consumption' AND amount < 0) OR
-        (entry_type = 'reservation' AND amount < 0) OR
-        (entry_type = 'reservation_release' AND amount > 0) OR
         (entry_type = 'expiration' AND amount < 0) OR
         (entry_type = 'carry_over' AND amount > 0) OR
         (entry_type = 'adjustment')
-    ),
-    CONSTRAINT ledger_reservation_fields CHECK (
-        (entry_type IN ('reservation', 'reservation_release') AND reservation_id IS NOT NULL) OR
-        (entry_type NOT IN ('reservation', 'reservation_release'))
     )
 ) PARTITION BY RANGE (event_time);
 
 -- =============================================================================
 -- RESERVATIONS TABLE
 -- =============================================================================
--- Tracks pending reservations for expiry management.
--- Deleted when committed or released.
+-- Tracks reservation lifecycle for holds management and audit trail.
+-- Reservations are NOT balance changes - they're holds tracked separately.
+-- Status transitions: active -> committed/released/expired
+-- Records are retained for audit (not deleted on completion).
 
 CREATE TABLE meter.reservations (
     reservation_id text PRIMARY KEY,
@@ -151,15 +145,37 @@ CREATE TABLE meter.reservations (
     unit text NOT NULL,
 
     amount numeric NOT NULL,
-    ledger_id bigint NOT NULL,
-    ledger_event_time timestamptz NOT NULL,
+
+    -- Lifecycle tracking
+    status text NOT NULL DEFAULT 'active',
+    completed_at timestamptz,           -- when committed/released/expired
+    actual_amount numeric,              -- actual consumption (for committed)
+
+    -- Reference to consumption ledger entry (set on commit)
+    consumption_entry_id bigint,
 
     expires_at timestamptz NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
 
+    -- Idempotency (separate from request_id which is for tracing)
+    idempotency_key text,
+
+    -- Actor context
     actor_id text,
-    request_id text,
-    metadata jsonb
+    request_id text,                    -- for tracing/correlation
+    metadata jsonb,
+
+    CONSTRAINT reservations_status_valid CHECK (
+        status IN ('active', 'committed', 'released', 'expired')
+    ),
+    CONSTRAINT reservations_completed_fields CHECK (
+        (status = 'active' AND completed_at IS NULL) OR
+        (status != 'active' AND completed_at IS NOT NULL)
+    ),
+    CONSTRAINT reservations_actual_amount CHECK (
+        (status = 'committed' AND actual_amount IS NOT NULL) OR
+        (status != 'committed')
+    )
 );
 
 -- =============================================================================

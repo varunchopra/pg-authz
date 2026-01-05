@@ -38,12 +38,23 @@ class MeterTestHelpers:
             )
         return self.cursor.fetchone()[0]
 
-    def count_reservations(self) -> int:
-        """Count active reservations in namespace."""
-        self.cursor.execute(
-            "SELECT COUNT(*) FROM meter.reservations WHERE namespace = %s",
-            (self.namespace,),
-        )
+    def count_reservations(self, status: str | None = "active") -> int:
+        """Count reservations in namespace, optionally filtered by status.
+
+        Args:
+            status: Filter by status ('active', 'committed', 'released', 'expired').
+                   Pass None to count all reservations regardless of status.
+        """
+        if status:
+            self.cursor.execute(
+                "SELECT COUNT(*) FROM meter.reservations WHERE namespace = %s AND status = %s",
+                (self.namespace, status),
+            )
+        else:
+            self.cursor.execute(
+                "SELECT COUNT(*) FROM meter.reservations WHERE namespace = %s",
+                (self.namespace,),
+            )
         return self.cursor.fetchone()[0]
 
     def get_account_raw(

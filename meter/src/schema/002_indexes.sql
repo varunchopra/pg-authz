@@ -22,9 +22,24 @@ CREATE INDEX ledger_reference_idx
     ON meter.ledger (reference_id)
     WHERE reference_id IS NOT NULL;
 
--- Expired reservations cleanup
-CREATE INDEX reservations_expires_idx
-    ON meter.reservations (expires_at);
+-- Active reservations by expiry (for cleanup job)
+CREATE INDEX reservations_active_expires_idx
+    ON meter.reservations (expires_at)
+    WHERE status = 'active';
+
+-- Active reservations by account (for balance checks)
+CREATE INDEX reservations_active_account_idx
+    ON meter.reservations (namespace, user_id, event_type, resource, unit)
+    WHERE status = 'active';
+
+-- Reservation history by namespace (for audit queries)
+CREATE INDEX reservations_namespace_time_idx
+    ON meter.reservations (namespace, created_at DESC);
+
+-- Idempotency lookup (unique to prevent duplicate reservations)
+CREATE UNIQUE INDEX reservations_idempotency_idx
+    ON meter.reservations (namespace, idempotency_key)
+    WHERE idempotency_key IS NOT NULL;
 
 -- Namespace-level account lookup
 CREATE INDEX accounts_namespace_idx
