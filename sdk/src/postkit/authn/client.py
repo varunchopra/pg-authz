@@ -72,7 +72,14 @@ class AuthnClient(BaseClient):
     def _apply_actor_context(self) -> None:
         """Apply actor context via authn.set_actor()."""
         self.cursor.execute(
-            "SELECT authn.set_actor(%s, %s, %s, %s, %s, %s)",
+            """SELECT authn.set_actor(
+                p_actor_id := %s,
+                p_request_id := %s,
+                p_ip_address := %s,
+                p_user_agent := %s,
+                p_on_behalf_of := %s,
+                p_reason := %s
+            )""",
             (
                 self._actor_id,
                 self._request_id,

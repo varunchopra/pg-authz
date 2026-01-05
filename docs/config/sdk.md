@@ -16,7 +16,7 @@ Activate a specific version.
 
 **Returns:** True if version was found and activated
 
-*Source: sdk/src/postkit/config/client.py:201*
+*Source: sdk/src/postkit/config/client.py:206*
 
 ---
 
@@ -33,7 +33,7 @@ Delete old inactive versions, keeping N most recent per key.
 
 **Returns:** Count of versions deleted
 
-*Source: sdk/src/postkit/config/client.py:339*
+*Source: sdk/src/postkit/config/client.py:344*
 
 ---
 
@@ -62,7 +62,7 @@ Delete all versions of a config entry.
 
 **Returns:** Count of versions deleted
 
-*Source: sdk/src/postkit/config/client.py:283*
+*Source: sdk/src/postkit/config/client.py:288*
 
 ---
 
@@ -80,7 +80,7 @@ Delete a specific version (cannot delete active version).
 
 **Returns:** True if deleted
 
-*Source: sdk/src/postkit/config/client.py:294*
+*Source: sdk/src/postkit/config/client.py:299*
 
 ---
 
@@ -97,7 +97,7 @@ Check if a config key exists.
 
 **Returns:** True if key exists and has an active version
 
-*Source: sdk/src/postkit/config/client.py:309*
+*Source: sdk/src/postkit/config/client.py:314*
 
 ---
 
@@ -115,7 +115,7 @@ Get config entry.
 
 **Returns:** Dict with 'value', 'version', 'created_at' or None if not found
 
-*Source: sdk/src/postkit/config/client.py:79*
+*Source: sdk/src/postkit/config/client.py:84*
 
 ---
 
@@ -134,7 +134,7 @@ Query audit events.
 
 **Returns:** List of audit event dictionaries
 
-*Source: sdk/src/postkit/config/client.py:353*
+*Source: sdk/src/postkit/config/client.py:358*
 
 ---
 
@@ -151,7 +151,7 @@ Get multiple config entries in one query.
 
 **Returns:** List of dicts with 'key', 'value', 'version', 'created_at'
 
-*Source: sdk/src/postkit/config/client.py:113*
+*Source: sdk/src/postkit/config/client.py:118*
 
 ---
 
@@ -175,7 +175,7 @@ config.get_path("flags/checkout", "rollout")
 config.get_path("settings/model", "params", "temperature")
 ```
 
-*Source: sdk/src/postkit/config/client.py:131*
+*Source: sdk/src/postkit/config/client.py:136*
 
 ---
 
@@ -189,7 +189,7 @@ Get namespace statistics.
 
 **Returns:** Dict with 'total_keys', 'total_versions', 'keys_by_prefix'
 
-*Source: sdk/src/postkit/config/client.py:320*
+*Source: sdk/src/postkit/config/client.py:325*
 
 ---
 
@@ -207,7 +207,7 @@ Get just the value (convenience method).
 
 **Returns:** The config value, or default if not found
 
-*Source: sdk/src/postkit/config/client.py:98*
+*Source: sdk/src/postkit/config/client.py:103*
 
 ---
 
@@ -225,7 +225,7 @@ Get version history for a key.
 
 **Returns:** List of dicts with 'version', 'value', 'is_active', 'created_at', 'created_by'
 
-*Source: sdk/src/postkit/config/client.py:258*
+*Source: sdk/src/postkit/config/client.py:263*
 
 ---
 
@@ -244,7 +244,7 @@ List active config entries.
 
 **Returns:** List of dicts with 'key', 'value', 'version', 'created_at'
 
-*Source: sdk/src/postkit/config/client.py:228*
+*Source: sdk/src/postkit/config/client.py:233*
 
 ---
 
@@ -268,7 +268,7 @@ config.merge("flags/checkout", {"rollout": 0.75})
 config.merge("prompts/bot", {"temperature": 0.8, "max_tokens": 2000})
 ```
 
-*Source: sdk/src/postkit/config/client.py:153*
+*Source: sdk/src/postkit/config/client.py:158*
 
 ---
 
@@ -285,7 +285,7 @@ Rollback to previous version.
 
 **Returns:** New active version number, or None if no previous version
 
-*Source: sdk/src/postkit/config/client.py:215*
+*Source: sdk/src/postkit/config/client.py:220*
 
 ---
 
@@ -310,7 +310,7 @@ config.search({"enabled": True})  # All enabled flags
 config.search({"model": "claude-sonnet-4-20250514"}, prefix="prompts/")
 ```
 
-*Source: sdk/src/postkit/config/client.py:175*
+*Source: sdk/src/postkit/config/client.py:180*
 
 ---
 
@@ -328,7 +328,7 @@ Create a new version and activate it.
 
 **Returns:** New version number
 
-*Source: sdk/src/postkit/config/client.py:64*
+*Source: sdk/src/postkit/config/client.py:69*
 
 ---
 

@@ -88,7 +88,7 @@ class TestActorContext:
 
     def test_actor_captured_when_set(self, authz):
         """Actor context is captured in audit events."""
-        authz.set_actor("admin@acme.com", "req-123", "Quarterly review")
+        authz.set_actor("admin@acme.com", "req-123", reason="Quarterly review")
         authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
 
         events = authz.get_audit_events()
@@ -168,7 +168,7 @@ class TestActorContext:
         authz.set_actor(
             "admin@acme.com",
             "req-123",
-            "Initial setup",
+            reason="Initial setup",
             on_behalf_of="user:customer-alice",
         )
         authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))

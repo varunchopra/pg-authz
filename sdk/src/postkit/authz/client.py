@@ -68,8 +68,13 @@ class AuthzClient(BaseClient):
     def _apply_actor_context(self) -> None:
         """Apply actor context via authz.set_actor()."""
         self.cursor.execute(
-            "SELECT authz.set_actor(%s, %s, %s, %s)",
-            (self._actor_id, self._request_id, self._reason, self._on_behalf_of),
+            """SELECT authz.set_actor(
+                p_actor_id := %s,
+                p_request_id := %s,
+                p_on_behalf_of := %s,
+                p_reason := %s
+            )""",
+            (self._actor_id, self._request_id, self._on_behalf_of, self._reason),
         )
 
     def grant(
@@ -521,43 +526,6 @@ class AuthzClient(BaseClient):
             "SELECT authz.clear_hierarchy(%s, %s)",
             (resource_type, self.namespace),
         )
-
-    def set_actor(
-        self,
-        actor_id: str,
-        request_id: str | None = None,
-        reason: str | None = None,
-        on_behalf_of: str | None = None,
-    ) -> None:
-        """
-        Set actor context for audit logging.
-
-        Call this before performing operations to record who made changes.
-        Context persists until clear_actor() is called or client is discarded.
-
-        When actor context is set, write operations (grant, revoke, etc.) are
-        automatically wrapped in a transaction to ensure the audit trigger
-        captures the actor information.
-
-        Args:
-            actor_id: The actor making changes (e.g., 'user:admin-bob', 'agent:support-bot')
-            request_id: Optional request/correlation ID for tracing
-            reason: Optional reason for the changes (e.g., 'support_ticket:12345')
-            on_behalf_of: Optional principal being represented (e.g., 'user:customer-alice')
-
-        Example:
-            authz.set_actor(
-                "user:admin-bob",
-                reason="support_ticket:12345",
-                on_behalf_of="user:customer-alice"
-            )
-            authz.grant("admin", resource=("repo", "api"), subject=("team", "eng"))
-            authz.clear_actor()  # optional, clears context
-        """
-        self._actor_id = actor_id
-        self._request_id = request_id
-        self._reason = reason
-        self._on_behalf_of = on_behalf_of
 
     def get_audit_events(
         self,

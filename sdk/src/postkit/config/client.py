@@ -57,7 +57,12 @@ class ConfigClient(BaseClient):
     def _apply_actor_context(self) -> None:
         """Apply actor context via config.set_actor()."""
         self.cursor.execute(
-            "SELECT config.set_actor(%s, %s, %s, %s)",
+            """SELECT config.set_actor(
+                p_actor_id := %s,
+                p_request_id := %s,
+                p_on_behalf_of := %s,
+                p_reason := %s
+            )""",
             (self._actor_id, self._request_id, self._on_behalf_of, self._reason),
         )
 
