@@ -245,6 +245,76 @@ class AuthnClient(BaseClient):
         )
         return [self._normalize_row(row) for row in result]
 
+    # -------------------------------------------------------------------------
+    # API Keys
+    # -------------------------------------------------------------------------
+
+    def create_api_key(
+        self,
+        user_id: str,
+        key_hash: str,
+        name: str | None = None,
+        expires_in: timedelta | None = None,
+    ) -> str:
+        """
+        Create an API key for programmatic access.
+
+        Args:
+            user_id: User ID (owner of the key)
+            key_hash: Pre-hashed API key (SHA-256)
+            name: Optional friendly name ("Production", "CI/CD")
+            expires_in: Optional expiration duration (None = never expires)
+
+        Returns:
+            API key ID (UUID string)
+        """
+        result = self._write_scalar(
+            "SELECT authn.create_api_key(%s::uuid, %s, %s, %s, %s)",
+            (user_id, key_hash, name, expires_in, self.namespace),
+        )
+        return str(result) if result else None
+
+    def validate_api_key(self, key_hash: str) -> dict | None:
+        """
+        Validate an API key.
+
+        Returns key info if valid, None otherwise.
+        Updates last_used_at on successful validation.
+
+        Returns:
+            Dict with user_id, key_id, name, expires_at or None if invalid
+        """
+        return self._row(
+            "SELECT * FROM authn.validate_api_key(%s, %s)",
+            (key_hash, self.namespace),
+        )
+
+    def revoke_api_key(self, key_id: str) -> bool:
+        """Revoke an API key."""
+        return self._write_scalar(
+            "SELECT authn.revoke_api_key(%s::uuid, %s)",
+            (key_id, self.namespace),
+        )
+
+    def revoke_all_api_keys(self, user_id: str) -> int:
+        """Revoke all API keys for a user. Returns count revoked."""
+        return self._write_scalar(
+            "SELECT authn.revoke_all_api_keys(%s::uuid, %s)",
+            (user_id, self.namespace),
+        )
+
+    def list_api_keys(self, user_id: str) -> list[dict]:
+        """List active API keys for a user. Does not return key_hash."""
+        result = self._fetchall(
+            "SELECT * FROM authn.list_api_keys(%s::uuid, %s)",
+            (user_id, self.namespace),
+        )
+        return [self._normalize_row(row) for row in result]
+
+    # -------------------------------------------------------------------------
+    # Tokens
+    # -------------------------------------------------------------------------
+
     def create_token(
         self,
         user_id: str,

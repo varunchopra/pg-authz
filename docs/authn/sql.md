@@ -2,6 +2,121 @@
 
 # Authn SQL API
 
+## API Keys
+
+### authn.create_api_key
+
+```sql
+authn.create_api_key(p_user_id: uuid, p_key_hash: text, p_name: text, p_expires_in: interval, p_namespace: text) -> uuid
+```
+
+Create an API key for programmatic access
+
+**Parameters:**
+- `p_user_id`: Owner of the key
+- `p_key_hash`: SHA-256 hash of the actual key (caller generates, hashes, stores hash)
+- `p_name`: Optional friendly name ("Production", "CI/CD")
+- `p_expires_in`: Optional expiration interval (NULL = never expires)
+
+**Returns:** API key ID
+
+**Example:**
+```sql
+SELECT authn.create_api_key(user_id, sha256(key), 'Production', '1 year');
+```
+
+*Source: authn/src/functions/025_api_keys.sql:1*
+
+---
+
+### authn.list_api_keys
+
+```sql
+authn.list_api_keys(p_user_id: uuid, p_namespace: text) -> table(id: uuid, name: text, created_at: timestamptz, expires_at: timestamptz, last_used_at: timestamptz)
+```
+
+List API keys for a user (for management UI)
+
+**Parameters:**
+- `p_user_id`: The user whose keys to list
+
+**Returns:** Active keys with metadata (no key_hash exposed)
+
+**Example:**
+```sql
+SELECT * FROM authn.list_api_keys(user_id);
+```
+
+*Source: authn/src/functions/025_api_keys.sql:175*
+
+---
+
+### authn.revoke_all_api_keys
+
+```sql
+authn.revoke_all_api_keys(p_user_id: uuid, p_namespace: text) -> int4
+```
+
+Revoke all API keys for a user
+
+**Parameters:**
+- `p_user_id`: The user whose keys to revoke
+
+**Returns:** Count of keys revoked
+
+**Example:**
+```sql
+SELECT authn.revoke_all_api_keys(user_id); -- Security concern, revoke all
+```
+
+*Source: authn/src/functions/025_api_keys.sql:139*
+
+---
+
+### authn.revoke_api_key
+
+```sql
+authn.revoke_api_key(p_key_id: uuid, p_namespace: text) -> bool
+```
+
+Revoke an API key
+
+**Parameters:**
+- `p_key_id`: The key ID to revoke
+
+**Returns:** True if key was revoked, false if not found or already revoked
+
+**Example:**
+```sql
+SELECT authn.revoke_api_key('key-uuid-here');
+```
+
+*Source: authn/src/functions/025_api_keys.sql:100*
+
+---
+
+### authn.validate_api_key
+
+```sql
+authn.validate_api_key(p_key_hash: text, p_namespace: text) -> table(user_id: uuid, key_id: uuid, name: text, expires_at: timestamptz)
+```
+
+Validate an API key and get owner info (hot path)
+
+**Parameters:**
+- `p_key_hash`: SHA-256 hash of the key being validated
+
+**Returns:** user_id, key_id, name, expires_at if valid; empty if invalid/expired/revoked
+
+**Example:**
+```sql
+SELECT * FROM authn.validate_api_key(sha256(key_from_header));
+```
+
+*Source: authn/src/functions/025_api_keys.sql:48*
+
+---
+
 ## Audit
 
 ### authn.clear_actor
@@ -353,12 +468,12 @@ SELECT authn.remove_mfa(mfa_id);
 ### authn.cleanup_expired
 
 ```sql
-authn.cleanup_expired(p_namespace: text) -> table(sessions_deleted: int8, tokens_deleted: int8, attempts_deleted: int8)
+authn.cleanup_expired(p_namespace: text) -> table(sessions_deleted: int8, tokens_deleted: int8, api_keys_deleted: int8, attempts_deleted: int8)
 ```
 
-Delete expired sessions, tokens, and old login attempts (run via cron)
+Delete expired sessions, tokens, API keys, and old login attempts (run via cron)
 
-**Returns:** sessions_deleted, tokens_deleted, attempts_deleted
+**Returns:** sessions_deleted, tokens_deleted, api_keys_deleted, attempts_deleted
 
 **Example:**
 ```sql
@@ -373,19 +488,19 @@ SELECT * FROM authn.cleanup_expired('default');
 ### authn.get_stats
 
 ```sql
-authn.get_stats(p_namespace: text) -> table(user_count: int8, verified_user_count: int8, disabled_user_count: int8, active_session_count: int8, mfa_enabled_user_count: int8)
+authn.get_stats(p_namespace: text) -> table(user_count: int8, verified_user_count: int8, disabled_user_count: int8, active_session_count: int8, active_api_key_count: int8, mfa_enabled_user_count: int8)
 ```
 
 Get namespace statistics for monitoring dashboards
 
-**Returns:** user_count, verified_user_count, disabled_user_count, active_session_count, mfa_enabled_user_count
+**Returns:** user_count, verified_user_count, disabled_user_count, active_session_count, active_api_key_count, mfa_enabled_user_count
 
 **Example:**
 ```sql
 SELECT * FROM authn.get_stats('default');
 ```
 
-*Source: authn/src/functions/060_maintenance.sql:47*
+*Source: authn/src/functions/060_maintenance.sql:55*
 
 ---
 

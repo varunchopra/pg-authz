@@ -71,3 +71,21 @@ CREATE INDEX login_attempts_lockout_idx ON authn.login_attempts (namespace, emai
 
 -- Cleanup queries - delete old attempts
 CREATE INDEX login_attempts_cleanup_idx ON authn.login_attempts (attempted_at);
+
+-- =============================================================================
+-- API KEYS INDEXES
+-- =============================================================================
+
+-- API key validation (hot path) - covering index for validate_api_key
+-- Includes all fields needed to validate without table lookup
+CREATE INDEX api_keys_lookup_idx ON authn.api_keys (namespace, key_hash)
+    INCLUDE (user_id, name, expires_at, revoked_at)
+    WHERE revoked_at IS NULL;
+
+-- API key listing - active keys for a user, newest first
+CREATE INDEX api_keys_user_active_idx ON authn.api_keys (namespace, user_id, created_at DESC)
+    WHERE revoked_at IS NULL;
+
+-- Cleanup queries - find expired keys (optional cleanup)
+CREATE INDEX api_keys_expired_idx ON authn.api_keys (namespace, expires_at)
+    WHERE revoked_at IS NULL AND expires_at IS NOT NULL;

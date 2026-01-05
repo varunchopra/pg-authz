@@ -254,6 +254,115 @@ class AuthzClient(BaseClient):
             (user_id, permissions, resource_type, resource_id, self.namespace),
         )
 
+    def check_subject(
+        self,
+        subject_type: str,
+        subject_id: str,
+        permission: str,
+        resource: Entity,
+    ) -> bool:
+        """
+        Check if a subject has a permission on a resource.
+
+        Unlike check() which is for users, this works for any subject type
+        (api_key, service, bot, etc.). Use this when checking permissions
+        for non-user entities.
+
+        Args:
+            subject_type: The subject type (e.g., "api_key", "service")
+            subject_id: The subject ID
+            permission: The permission to check (e.g., "read", "write")
+            resource: The resource as (type, id) tuple
+
+        Returns:
+            True if the subject has the permission
+
+        Example:
+            # Check if an API key has read permission
+            if authz.check_subject("api_key", key_id, "read", ("repo", "api")):
+                return repo_contents
+
+            # Check if a service can write to a resource
+            if authz.check_subject("service", "billing", "write", ("customer", "cust-1")):
+                update_customer()
+        """
+        resource_type, resource_id = resource
+        return self._scalar(
+            "SELECT authz.check_subject(%s, %s, %s, %s, %s, %s)",
+            (
+                subject_type,
+                subject_id,
+                permission,
+                resource_type,
+                resource_id,
+                self.namespace,
+            ),
+        )
+
+    def check_subject_any(
+        self,
+        subject_type: str,
+        subject_id: str,
+        permissions: list[str],
+        resource: Entity,
+    ) -> bool:
+        """
+        Check if a subject has any of the specified permissions.
+
+        Args:
+            subject_type: The subject type (e.g., "api_key", "service")
+            subject_id: The subject ID
+            permissions: List of permissions (subject needs at least one)
+            resource: The resource as (type, id) tuple
+
+        Returns:
+            True if the subject has at least one of the permissions
+        """
+        resource_type, resource_id = resource
+        return self._scalar(
+            "SELECT authz.check_subject_any(%s, %s, %s, %s, %s, %s)",
+            (
+                subject_type,
+                subject_id,
+                permissions,
+                resource_type,
+                resource_id,
+                self.namespace,
+            ),
+        )
+
+    def check_subject_all(
+        self,
+        subject_type: str,
+        subject_id: str,
+        permissions: list[str],
+        resource: Entity,
+    ) -> bool:
+        """
+        Check if a subject has all of the specified permissions.
+
+        Args:
+            subject_type: The subject type (e.g., "api_key", "service")
+            subject_id: The subject ID
+            permissions: List of permissions (subject needs all of them)
+            resource: The resource as (type, id) tuple
+
+        Returns:
+            True if the subject has all of the permissions
+        """
+        resource_type, resource_id = resource
+        return self._scalar(
+            "SELECT authz.check_subject_all(%s, %s, %s, %s, %s, %s)",
+            (
+                subject_type,
+                subject_id,
+                permissions,
+                resource_type,
+                resource_id,
+                self.namespace,
+            ),
+        )
+
     def explain(self, user_id: str, permission: str, resource: Entity) -> list[str]:
         """
         Explain why a user has a permission.

@@ -10,6 +10,9 @@
 | [`check`](sdk.md#check) | Check if a user has a permission on a resource. |
 | [`check_all`](sdk.md#check_all) | Check if a user has all of the specified permissions. |
 | [`check_any`](sdk.md#check_any) | Check if a user has any of the specified permissions. |
+| [`check_subject`](sdk.md#check_subject) | Check if a subject has a permission on a resource. |
+| [`check_subject_all`](sdk.md#check_subject_all) | Check if a subject has all of the specified permissions. |
+| [`check_subject_any`](sdk.md#check_subject_any) | Check if a subject has any of the specified permissions. |
 | [`cleanup_expired`](sdk.md#cleanup_expired) | Remove expired grants. |
 | [`clear_actor`](sdk.md#clear_actor) | Clear actor context. |
 | [`clear_expiration`](sdk.md#clear_expiration) | Remove expiration from a grant (make it permanent). |
@@ -62,6 +65,9 @@
 | [`authz.check`](sql.md#authzcheck) | Check if a user has a specific permission on a resource |
 | [`authz.check_all`](sql.md#authzcheck_all) | Check if a user has all of the specified permissions |
 | [`authz.check_any`](sql.md#authzcheck_any) | Check if a user has any of the specified permissions |
+| [`authz.check_subject`](sql.md#authzcheck_subject) | Check if any subject type has a permission on a resource |
+| [`authz.check_subject_all`](sql.md#authzcheck_subject_all) | Check if a subject has all of the specified permissions |
+| [`authz.check_subject_any`](sql.md#authzcheck_subject_any) | Check if a subject has any of the specified permissions |
 | [`authz.write`](sql.md#authzwrite) | Simpler write_tuple when you don't need subject_relation |
 | [`authz.write_tuple`](sql.md#authzwrite_tuple) | Grant a permission to a user or team on a resource |
 | [`authz.write_tuples_bulk`](sql.md#authzwrite_tuples_bulk) | Grant same permission to many users at once (one SQL round-trip) |

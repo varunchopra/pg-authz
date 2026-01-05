@@ -108,6 +108,26 @@ CREATE TABLE authn.login_attempts (
 );
 
 -- =============================================================================
+-- API KEYS TABLE
+-- =============================================================================
+-- Long-lived credentials for programmatic access (like Stripe API keys).
+-- Caller generates key, hashes it, stores hash. Validates by re-hashing.
+CREATE TABLE authn.api_keys (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    namespace text NOT NULL DEFAULT 'default',
+    user_id uuid NOT NULL REFERENCES authn.users(id) ON DELETE CASCADE,
+    key_hash text NOT NULL,  -- SHA-256 of the actual key
+    name text,               -- User-friendly name: "Production", "CI/CD"
+    expires_at timestamptz,  -- NULL = never expires
+    last_used_at timestamptz,
+    revoked_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT api_keys_namespace_key_hash_key UNIQUE (namespace, key_hash),
+    CONSTRAINT api_keys_key_hash_not_empty CHECK (length(trim(key_hash)) > 0)
+);
+
+-- =============================================================================
 -- ROW-LEVEL SECURITY
 -- =============================================================================
 -- Tenant isolation using session variable authn.tenant_id
@@ -144,5 +164,12 @@ ALTER TABLE authn.login_attempts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE authn.login_attempts FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY login_attempts_tenant_isolation ON authn.login_attempts
+    USING (namespace = current_setting('authn.tenant_id', TRUE))
+    WITH CHECK (namespace = current_setting('authn.tenant_id', TRUE));
+
+ALTER TABLE authn.api_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE authn.api_keys FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY api_keys_tenant_isolation ON authn.api_keys
     USING (namespace = current_setting('authn.tenant_id', TRUE))
     WITH CHECK (namespace = current_setting('authn.tenant_id', TRUE));

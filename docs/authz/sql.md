@@ -618,6 +618,85 @@ SELECT authz.check_any('alice', ARRAY['read', 'write'], 'doc', 'spec-123');
 
 ---
 
+### authz.check_subject
+
+```sql
+authz.check_subject(p_subject_type: text, p_subject_id: text, p_permission: text, p_resource_type: text, p_resource_id: text, p_namespace: text) -> bool
+```
+
+Check if any subject type has a permission on a resource
+
+**Parameters:**
+- `p_subject_type`: The subject type (e.g., 'api_key', 'service', 'user')
+- `p_subject_id`: The subject ID
+- `p_permission`: The permission to verify (e.g., 'read', 'write', 'admin')
+- `p_resource_type`: The type of resource (e.g., 'repo', 'doc')
+- `p_resource_id`: The resource identifier
+
+**Returns:** True if the subject has the permission
+
+**Example:**
+```sql
+SELECT authz.check_subject('api_key', 'key-123', 'read', 'repo', 'api');
+SELECT authz.check_subject('service', 'billing', 'write', 'customer', 'cust-1');
+```
+
+*Source: authz/src/functions/024_check_subject.sql:132*
+
+---
+
+### authz.check_subject_all
+
+```sql
+authz.check_subject_all(p_subject_type: text, p_subject_id: text, p_permissions: text[], p_resource_type: text, p_resource_id: text, p_namespace: text) -> bool
+```
+
+Check if a subject has all of the specified permissions
+
+**Parameters:**
+- `p_subject_type`: The subject type
+- `p_subject_id`: The subject ID
+- `p_permissions`: Array of permissions (subject needs all of them)
+- `p_resource_type`: The type of resource
+- `p_resource_id`: The resource identifier
+
+**Returns:** True if the subject has all of the permissions
+
+**Example:**
+```sql
+SELECT authz.check_subject_all('api_key', 'key-123', ARRAY['read', 'write'], 'repo', 'api');
+```
+
+*Source: authz/src/functions/024_check_subject.sql:191*
+
+---
+
+### authz.check_subject_any
+
+```sql
+authz.check_subject_any(p_subject_type: text, p_subject_id: text, p_permissions: text[], p_resource_type: text, p_resource_id: text, p_namespace: text) -> bool
+```
+
+Check if a subject has any of the specified permissions
+
+**Parameters:**
+- `p_subject_type`: The subject type
+- `p_subject_id`: The subject ID
+- `p_permissions`: Array of permissions (subject needs at least one)
+- `p_resource_type`: The type of resource
+- `p_resource_id`: The resource identifier
+
+**Returns:** True if the subject has at least one of the permissions
+
+**Example:**
+```sql
+SELECT authz.check_subject_any('api_key', 'key-123', ARRAY['read', 'write'], 'repo', 'api');
+```
+
+*Source: authz/src/functions/024_check_subject.sql:162*
+
+---
+
 ## Writes
 
 ### authz.write

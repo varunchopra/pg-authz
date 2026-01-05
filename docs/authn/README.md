@@ -9,6 +9,7 @@
 | [`clear_actor`](sdk.md#clear_actor) | Clear actor context. |
 | [`clear_attempts`](sdk.md#clear_attempts) | Clear login attempts for an email. Returns count deleted. |
 | [`consume_token`](sdk.md#consume_token) | Consume a one-time token. |
+| [`create_api_key`](sdk.md#create_api_key) | Create an API key for programmatic access. |
 | [`create_session`](sdk.md#create_session) | Create a new session. |
 | [`create_token`](sdk.md#create_token) | Create a one-time use token. |
 | [`create_user`](sdk.md#create_user) | Create a new user. |
@@ -26,17 +27,21 @@
 | [`has_mfa`](sdk.md#has_mfa) | Check if user has any MFA method enabled. |
 | [`invalidate_tokens`](sdk.md#invalidate_tokens) | Invalidate all unused tokens of a type for a user. |
 | [`is_locked_out`](sdk.md#is_locked_out) | Check if an email is locked out due to too many failed attempts. |
+| [`list_api_keys`](sdk.md#list_api_keys) | List active API keys for a user. Does not return key_hash. |
 | [`list_mfa`](sdk.md#list_mfa) | List MFA methods. Does NOT return secrets. |
 | [`list_sessions`](sdk.md#list_sessions) | List active sessions for a user. Does not return token_hash. |
 | [`list_users`](sdk.md#list_users) | List users with pagination. |
 | [`record_login_attempt`](sdk.md#record_login_attempt) | Record a login attempt. |
 | [`record_mfa_use`](sdk.md#record_mfa_use) | Record that an MFA method was used. |
 | [`remove_mfa`](sdk.md#remove_mfa) | Remove an MFA method. |
+| [`revoke_all_api_keys`](sdk.md#revoke_all_api_keys) | Revoke all API keys for a user. Returns count revoked. |
 | [`revoke_all_sessions`](sdk.md#revoke_all_sessions) | Revoke all sessions for a user. Returns count revoked. |
+| [`revoke_api_key`](sdk.md#revoke_api_key) | Revoke an API key. |
 | [`revoke_session`](sdk.md#revoke_session) | Revoke a session. |
 | [`set_actor`](sdk.md#set_actor) | Set actor context for audit logging. |
 | [`update_email`](sdk.md#update_email) | Update user's email. Clears email_verified_at. |
 | [`update_password`](sdk.md#update_password) | Update user's password hash. |
+| [`validate_api_key`](sdk.md#validate_api_key) | Validate an API key. |
 | [`validate_session`](sdk.md#validate_session) | Validate a session token. |
 | [`verify_email`](sdk.md#verify_email) | Verify email using a token. |
 
@@ -44,6 +49,11 @@
 
 | Function | Description |
 |----------|-------------|
+| [`authn.create_api_key`](sql.md#authncreate_api_key) | Create an API key for programmatic access |
+| [`authn.list_api_keys`](sql.md#authnlist_api_keys) | List API keys for a user (for management UI) |
+| [`authn.revoke_all_api_keys`](sql.md#authnrevoke_all_api_keys) | Revoke all API keys for a user |
+| [`authn.revoke_api_key`](sql.md#authnrevoke_api_key) | Revoke an API key |
+| [`authn.validate_api_key`](sql.md#authnvalidate_api_key) | Validate an API key and get owner info (hot path) |
 | [`authn.clear_actor`](sql.md#authnclear_actor) | Clear actor context |
 | [`authn.create_audit_partition`](sql.md#authncreate_audit_partition) | Create a monthly partition for audit events |
 | [`authn.drop_audit_partitions`](sql.md#authndrop_audit_partitions) | Delete old audit partitions (default: keep 7 years for compliance) |
@@ -61,7 +71,7 @@
 | [`authn.list_mfa`](sql.md#authnlist_mfa) | List user's MFA methods for "manage security" UI (no secrets) |
 | [`authn.record_mfa_use`](sql.md#authnrecord_mfa_use) | Record successful MFA verification (updates last_used_at) |
 | [`authn.remove_mfa`](sql.md#authnremove_mfa) | Remove an MFA method |
-| [`authn.cleanup_expired`](sql.md#authncleanup_expired) | Delete expired sessions, tokens, and old login attempts (run via cron) |
+| [`authn.cleanup_expired`](sql.md#authncleanup_expired) | Delete expired sessions, tokens, API keys, and old login attempts (run via cron) |
 | [`authn.get_stats`](sql.md#authnget_stats) | Get namespace statistics for monitoring dashboards |
 | [`authn.clear_tenant`](sql.md#authnclear_tenant) | Clear tenant context. Queries return no rows (fail-closed for safety). |
 | [`authn.set_tenant`](sql.md#authnset_tenant) | Set the tenant context for Row-Level Security |

@@ -48,6 +48,7 @@ def _cleanup(cursor, namespace: str):
         "DELETE FROM authn.login_attempts WHERE namespace = %s", (namespace,)
     )
     cursor.execute("DELETE FROM authn.mfa_secrets WHERE namespace = %s", (namespace,))
+    cursor.execute("DELETE FROM authn.api_keys WHERE namespace = %s", (namespace,))
     cursor.execute("DELETE FROM authn.tokens WHERE namespace = %s", (namespace,))
     cursor.execute("DELETE FROM authn.sessions WHERE namespace = %s", (namespace,))
     cursor.execute("DELETE FROM authn.users WHERE namespace = %s", (namespace,))
