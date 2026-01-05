@@ -102,6 +102,34 @@ class TestConsume:
         balance = meter.get_balance("user-1", "llm_call", "tokens")
         assert balance["balance"] == 900
 
+    def test_consume_returns_correct_available(self, meter):
+        """Consume returns the new available balance matching get_balance."""
+        meter.allocate("user-1", "llm_call", 1000, "tokens")
+        result = meter.consume("user-1", "llm_call", 100, "tokens")
+
+        assert result["success"] is True
+        assert result["balance"] == 900
+        assert result["available"] == 900  # Must be NEW available, not old
+
+        # Returned available must match get_balance
+        balance = meter.get_balance("user-1", "llm_call", "tokens")
+        assert result["available"] == balance["available"]
+
+    def test_consume_available_with_reservation(self, meter):
+        """Consume returns correct available when reservations exist."""
+        meter.allocate("user-1", "llm_call", 1000, "tokens")
+        meter.reserve("user-1", "llm_call", 200, "tokens")  # reserved=200
+
+        result = meter.consume("user-1", "llm_call", 100, "tokens")
+
+        # After reserve: balance=800, reserved=200, available=600
+        # After consume 100: balance=700, reserved=200, available=500
+        assert result["balance"] == 700
+        assert result["available"] == 500
+
+        balance = meter.get_balance("user-1", "llm_call", "tokens")
+        assert result["available"] == balance["available"]
+
 
 class TestReservation:
     """Tests for meter.reserve(), meter.commit(), meter.release()"""
@@ -119,6 +147,37 @@ class TestReservation:
         assert balance["balance"] == 600
         assert balance["reserved"] == 400
         assert balance["available"] == 200
+
+    def test_reserve_returns_correct_available(self, meter):
+        """Reserve returns the new available balance matching get_balance."""
+        meter.allocate("user-1", "llm_call", 1000, "tokens")
+        result = meter.reserve("user-1", "llm_call", 400, "tokens")
+
+        assert result["granted"] is True
+        assert result["balance"] == 600
+        assert result["available"] == 200  # Must match stored state
+
+        # Returned available must match get_balance
+        balance = meter.get_balance("user-1", "llm_call", "tokens")
+        assert result["available"] == balance["available"]
+
+    def test_reserve_available_with_existing_reservation(self, meter):
+        """Reserve returns correct available when prior reservations exist."""
+        meter.allocate("user-1", "llm_call", 1000, "tokens")
+
+        # First reservation
+        res1 = meter.reserve("user-1", "llm_call", 300, "tokens")
+        # After: balance=700, reserved=300, available=400
+        assert res1["available"] == 400
+
+        # Second reservation
+        res2 = meter.reserve("user-1", "llm_call", 200, "tokens")
+        # After: balance=500, reserved=500, available=0
+        assert res2["balance"] == 500
+        assert res2["available"] == 0
+
+        balance = meter.get_balance("user-1", "llm_call", "tokens")
+        assert res2["available"] == balance["available"]
 
     def test_reserve_fails_if_insufficient(self, meter):
         """Reservation fails if available balance is insufficient."""

@@ -134,7 +134,7 @@ BEGIN
       AND unit = p_unit;
 
     RETURN QUERY SELECT true, v_reservation_id, v_new_balance,
-                        v_available - p_amount, v_expires_at, v_entry_id;
+                        v_new_balance - (v_account.reserved + p_amount), v_expires_at, v_entry_id;
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = meter, pg_temp;
 

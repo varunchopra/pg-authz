@@ -103,6 +103,6 @@ BEGIN
       AND resource = COALESCE(p_resource, '')
       AND unit = p_unit;
 
-    RETURN QUERY SELECT true, v_new_balance, v_new_balance - v_account.reserved + p_amount, v_entry_id;
+    RETURN QUERY SELECT true, v_new_balance, v_new_balance - v_account.reserved, v_entry_id;
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = meter, pg_temp;
