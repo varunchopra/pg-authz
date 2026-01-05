@@ -139,18 +139,12 @@ Record consumption.
 ### get_audit_events
 
 ```python
-get_audit_events(limit: int = 100, event_type: str | None = None, **filters) -> list[dict]
+get_audit_events(*args, **kwargs) -> list[dict]
 ```
 
-Query audit events with optional filters.
+Not supported - meter module does not have audit events.
 
-**Parameters:**
-- `limit`: Maximum number of events to return (default 100)
-- `event_type`: Filter by event type (e.g., 'tuple_created', 'entry_created') **filters: Additional column=value filters (schema-specific)
-
-**Returns:** List of audit event dictionaries
-
-*Source: sdk/src/postkit/meter/client.py:162*
+*Source: sdk/src/postkit/meter/client.py:626*
 
 ---
 

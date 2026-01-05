@@ -10,7 +10,7 @@
 | [`close_period`](sdk.md#close_period) | Close a billing period, handle expiration and carry-over. |
 | [`commit`](sdk.md#commit) | Commit a reservation with actual consumption. |
 | [`consume`](sdk.md#consume) | Record consumption. |
-| [`get_audit_events`](sdk.md#get_audit_events) | Query audit events with optional filters. |
+| [`get_audit_events`](sdk.md#get_audit_events) | Not supported - meter module does not have audit events. |
 | [`get_balance`](sdk.md#get_balance) | Get current balance for an account. |
 | [`get_ledger`](sdk.md#get_ledger) | Get ledger entries for an account. |
 | [`get_stats`](sdk.md#get_stats) | Get namespace statistics. |

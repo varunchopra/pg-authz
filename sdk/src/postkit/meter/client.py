@@ -622,3 +622,18 @@ class MeterClient(BaseClient):
             "total_balance": float(row[3]),
             "total_reserved": float(row[4]),
         }
+
+    def get_audit_events(self, *args, **kwargs) -> list[dict]:
+        """Not supported - meter module does not have audit events.
+
+        The meter module uses a ledger-based design where all transactions
+        are recorded in the ledger table. Use get_ledger() for transaction
+        history instead.
+
+        Raises:
+            NotImplementedError: Always raised. Use get_ledger() instead.
+        """
+        raise NotImplementedError(
+            "MeterClient does not support audit events. "
+            "Use get_ledger() for transaction history."
+        )
