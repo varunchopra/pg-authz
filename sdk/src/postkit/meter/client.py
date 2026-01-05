@@ -91,7 +91,7 @@ class MeterClient(BaseClient):
         Returns:
             Dict with 'balance' and 'entry_id'
         """
-        self.cursor.execute(
+        row = self._write_row(
             "SELECT balance, entry_id FROM meter.allocate(%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s)",
             (
                 user_id,
@@ -105,7 +105,6 @@ class MeterClient(BaseClient):
                 self.namespace,
             ),
         )
-        row = self.cursor.fetchone()
         return {"balance": float(row[0]), "entry_id": row[1]}
 
     def consume(
@@ -136,7 +135,7 @@ class MeterClient(BaseClient):
         Returns:
             Dict with 'success', 'balance', 'available', 'entry_id'
         """
-        self.cursor.execute(
+        row = self._write_row(
             """SELECT success, balance, available, entry_id
                FROM meter.consume(%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s)""",
             (
@@ -152,7 +151,6 @@ class MeterClient(BaseClient):
                 self.namespace,
             ),
         )
-        row = self.cursor.fetchone()
         return {
             "success": row[0],
             "balance": float(row[1]) if row[1] is not None else None,
@@ -190,7 +188,7 @@ class MeterClient(BaseClient):
         Returns:
             Dict with 'granted', 'reservation_id', 'balance', 'available', 'expires_at'
         """
-        self.cursor.execute(
+        row = self._write_row(
             """SELECT granted, reservation_id, balance, available, expires_at
                FROM meter.reserve(%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s)""",
             (
@@ -205,7 +203,6 @@ class MeterClient(BaseClient):
                 self.namespace,
             ),
         )
-        row = self.cursor.fetchone()
         return {
             "granted": row[0],
             "reservation_id": row[1],
@@ -241,7 +238,7 @@ class MeterClient(BaseClient):
             if overage > 0:
                 handle_overage(overage)  # caller's policy
         """
-        self.cursor.execute(
+        row = self._write_row(
             """SELECT success, consumed, released, reserved_amount, balance, entry_id
                FROM meter.commit(%s, %s, %s::jsonb, %s)""",
             (
@@ -251,7 +248,6 @@ class MeterClient(BaseClient):
                 self.namespace,
             ),
         )
-        row = self.cursor.fetchone()
         return {
             "success": row[0],
             "consumed": float(row[1]) if row[1] is not None else None,
@@ -270,7 +266,7 @@ class MeterClient(BaseClient):
         Returns:
             True if released, False if not found
         """
-        return self._scalar(
+        return self._write_scalar(
             "SELECT meter.release(%s, %s)", (reservation_id, self.namespace)
         )
 
@@ -300,7 +296,7 @@ class MeterClient(BaseClient):
         Returns:
             Dict with 'balance' and 'entry_id'
         """
-        self.cursor.execute(
+        row = self._write_row(
             "SELECT balance, entry_id FROM meter.adjust(%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s)",
             (
                 user_id,
@@ -314,7 +310,6 @@ class MeterClient(BaseClient):
                 self.namespace,
             ),
         )
-        row = self.cursor.fetchone()
         return {"balance": float(row[0]), "entry_id": row[1]}
 
     # =========================================================================
@@ -490,7 +485,7 @@ class MeterClient(BaseClient):
             period_allocation: Amount granted each period
             carry_over_limit: Max unused to roll forward (None = no limit)
         """
-        self.cursor.execute(
+        self._write_scalar(
             "SELECT meter.set_period_config(%s, %s, %s, %s, %s, %s, %s, %s)",
             (
                 user_id,
@@ -524,11 +519,10 @@ class MeterClient(BaseClient):
         Returns:
             Dict with 'expired', 'carried_over', 'new_balance'
         """
-        self.cursor.execute(
+        row = self._write_row(
             "SELECT expired, carried_over, new_balance FROM meter.close_period(%s, %s, %s, %s, %s, %s)",
             (user_id, event_type, unit, resource, period_end, self.namespace),
         )
-        row = self.cursor.fetchone()
         return {
             "expired": float(row[0]),
             "carried_over": float(row[1]),
@@ -557,7 +551,7 @@ class MeterClient(BaseClient):
         Returns:
             New balance
         """
-        result = self._scalar(
+        result = self._write_scalar(
             "SELECT meter.open_period(%s, %s, %s, %s, %s, %s, %s)",
             (
                 user_id,
@@ -577,7 +571,7 @@ class MeterClient(BaseClient):
         Returns:
             Count of reservations released
         """
-        return self._scalar(
+        return self._write_scalar(
             "SELECT meter.release_expired_reservations(%s)", (self.namespace,)
         )
 

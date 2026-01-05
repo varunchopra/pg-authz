@@ -89,7 +89,7 @@ class BaseClient(ABC):
         """
         ...
 
-    def _write_scalar(self, sql: str, params: tuple):
+    def _write_with_actor(self, executor):
         """Execute a write operation with actor context for audit logging.
 
         Actor context uses PostgreSQL's transaction-local settings (set_config with
@@ -106,9 +106,12 @@ class BaseClient(ABC):
 
         Note: This method assumes single-threaded access to the cursor.
         psycopg cursors are not thread-safe; do not share clients across threads.
+
+        Args:
+            executor: Callable that performs the actual SQL execution and returns result
         """
         if self._actor_id is None:
-            return self._scalar(sql, params)
+            return executor()
 
         # Check if already in a transaction (psycopg transaction_status: 0 = idle)
         in_transaction = self.cursor.connection.info.transaction_status != 0
@@ -116,18 +119,35 @@ class BaseClient(ABC):
         if in_transaction:
             # Caller manages transaction - just set actor context
             self._apply_actor_context()
-            return self._scalar(sql, params)
+            return executor()
 
         # Autocommit mode - wrap in transaction so actor context persists
         try:
             self.cursor.execute("BEGIN")
             self._apply_actor_context()
-            result = self._scalar(sql, params)
+            result = executor()
             self.cursor.execute("COMMIT")
             return result
         except Exception:
             self.cursor.execute("ROLLBACK")
             raise
+
+    def _write_scalar(self, sql: str, params: tuple):
+        """Execute a write operation with actor context, returning single scalar value."""
+        return self._write_with_actor(lambda: self._scalar(sql, params))
+
+    def _write_row(self, sql: str, params: tuple) -> tuple | None:
+        """Execute a write operation with actor context, returning single row.
+
+        Like _write_scalar but returns full row for multi-column results.
+        Used by operations that return composite types (balance + entry_id, etc.)
+        """
+
+        def execute():
+            self.cursor.execute(sql, params)
+            return self.cursor.fetchone()
+
+        return self._write_with_actor(execute)
 
     def set_actor(
         self,

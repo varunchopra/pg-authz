@@ -22,7 +22,7 @@ Create an adjustment entry (correction, refund, etc.).
 
 **Returns:** Dict with 'balance' and 'entry_id'
 
-*Source: sdk/src/postkit/meter/client.py:277*
+*Source: sdk/src/postkit/meter/client.py:273*
 
 ---
 
@@ -58,7 +58,7 @@ clear_actor() -> None
 
 Clear actor context.
 
-*Source: sdk/src/postkit/meter/client.py:155*
+*Source: sdk/src/postkit/meter/client.py:175*
 
 ---
 
@@ -79,7 +79,7 @@ Close a billing period, handle expiration and carry-over.
 
 **Returns:** Dict with 'expired', 'carried_over', 'new_balance'
 
-*Source: sdk/src/postkit/meter/client.py:507*
+*Source: sdk/src/postkit/meter/client.py:502*
 
 ---
 
@@ -107,7 +107,7 @@ if overage > 0:
     handle_overage(overage)  # caller's policy
 ```
 
-*Source: sdk/src/postkit/meter/client.py:217*
+*Source: sdk/src/postkit/meter/client.py:214*
 
 ---
 
@@ -132,7 +132,7 @@ Record consumption.
 
 **Returns:** Dict with 'success', 'balance', 'available', 'entry_id'
 
-*Source: sdk/src/postkit/meter/client.py:111*
+*Source: sdk/src/postkit/meter/client.py:110*
 
 ---
 
@@ -144,7 +144,7 @@ get_audit_events(*args, **kwargs) -> list[dict]
 
 Not supported - meter module does not have audit events.
 
-*Source: sdk/src/postkit/meter/client.py:639*
+*Source: sdk/src/postkit/meter/client.py:633*
 
 ---
 
@@ -164,7 +164,7 @@ Get current balance for an account.
 
 **Returns:** Dict with 'balance', 'reserved', 'available'
 
-*Source: sdk/src/postkit/meter/client.py:324*
+*Source: sdk/src/postkit/meter/client.py:319*
 
 ---
 
@@ -187,7 +187,7 @@ Get ledger entries for an account.
 
 **Returns:** List of ledger entry dicts
 
-*Source: sdk/src/postkit/meter/client.py:413*
+*Source: sdk/src/postkit/meter/client.py:408*
 
 ---
 
@@ -201,7 +201,7 @@ Get namespace statistics.
 
 **Returns:** Dict with counts and totals
 
-*Source: sdk/src/postkit/meter/client.py:618*
+*Source: sdk/src/postkit/meter/client.py:612*
 
 ---
 
@@ -221,7 +221,7 @@ Get aggregated consumption for a user.
 **Returns:** List of dicts with 'event_type', 'resource', 'unit',
 'total_consumed', 'event_count'
 
-*Source: sdk/src/postkit/meter/client.py:380*
+*Source: sdk/src/postkit/meter/client.py:375*
 
 ---
 
@@ -239,7 +239,7 @@ Get all balances for a user across all event types and resources.
 **Returns:** List of dicts with 'event_type', 'resource', 'unit', 'balance',
 'reserved', 'available'
 
-*Source: sdk/src/postkit/meter/client.py:353*
+*Source: sdk/src/postkit/meter/client.py:348*
 
 ---
 
@@ -261,7 +261,7 @@ Open a new billing period with allocation.
 
 **Returns:** New balance
 
-*Source: sdk/src/postkit/meter/client.py:538*
+*Source: sdk/src/postkit/meter/client.py:532*
 
 ---
 
@@ -276,7 +276,7 @@ Check for discrepancies in account invariants.
 **Returns:** List of dicts with 'user_id', 'event_type', 'resource', 'unit',
 'issue_type', 'expected', 'actual', 'discrepancy'
 
-*Source: sdk/src/postkit/meter/client.py:588*
+*Source: sdk/src/postkit/meter/client.py:582*
 
 ---
 
@@ -293,7 +293,7 @@ Release a reservation without consuming.
 
 **Returns:** True if released, False if not found
 
-*Source: sdk/src/postkit/meter/client.py:264*
+*Source: sdk/src/postkit/meter/client.py:260*
 
 ---
 
@@ -307,7 +307,7 @@ Release all expired reservations for this namespace.
 
 **Returns:** Count of reservations released
 
-*Source: sdk/src/postkit/meter/client.py:574*
+*Source: sdk/src/postkit/meter/client.py:568*
 
 ---
 
@@ -331,7 +331,7 @@ Reserve quota for pending operation (streaming, uncertain consumption).
 
 **Returns:** Dict with 'granted', 'reservation_id', 'balance', 'available', 'expires_at'
 
-*Source: sdk/src/postkit/meter/client.py:163*
+*Source: sdk/src/postkit/meter/client.py:161*
 
 ---
 
@@ -349,7 +349,7 @@ Set actor context for audit logging.
 - `on_behalf_of`: Optional principal being represented (e.g., 'user:customer-alice')
 - `reason`: Optional reason for the action (e.g., 'deployment:v1.2.3')
 
-*Source: sdk/src/postkit/meter/client.py:132*
+*Source: sdk/src/postkit/meter/client.py:152*
 
 ---
 
@@ -370,6 +370,6 @@ Configure period settings for an account.
 - `period_allocation`: Amount granted each period
 - `carry_over_limit`: Max unused to roll forward (None = no limit)
 
-*Source: sdk/src/postkit/meter/client.py:472*
+*Source: sdk/src/postkit/meter/client.py:467*
 
 ---

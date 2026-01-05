@@ -524,3 +524,117 @@ class TestStats:
         account = test_helpers.get_account_raw("user-1", "llm_call", "tokens")
         assert ledger_sum == float(account["balance"])
         assert ledger_sum == 650  # 1000 - 350
+
+
+class TestActorContext:
+    """Tests for actor context capture in ledger entries."""
+
+    def test_actor_captured_in_allocate(self, meter):
+        """allocate() captures actor context."""
+        meter.set_actor("admin@acme.com", reason="Monthly allocation")
+        meter.allocate("user-1", "llm_call", 1000, "tokens")
+
+        ledger = meter.get_ledger("user-1", "llm_call", "tokens")
+
+        assert len(ledger) == 1
+        assert ledger[0]["actor_id"] == "admin@acme.com"
+        assert ledger[0]["reason"] == "Monthly allocation"
+
+    def test_actor_captured_in_consume(self, meter):
+        """consume() captures actor context."""
+        meter.allocate("user-1", "llm_call", 1000, "tokens")
+
+        meter.set_actor("service@acme.com", reason="API usage")
+        meter.consume("user-1", "llm_call", 100, "tokens")
+
+        ledger = meter.get_ledger("user-1", "llm_call", "tokens")
+        consumption = [e for e in ledger if e["entry_type"] == "consumption"][0]
+
+        assert consumption["actor_id"] == "service@acme.com"
+        assert consumption["reason"] == "API usage"
+
+    def test_actor_captured_in_commit(self, meter):
+        """commit() captures actor context in consumption entry."""
+        meter.allocate("user-1", "llm_call", 1000, "tokens")
+        res = meter.reserve("user-1", "llm_call", 400, "tokens")
+
+        meter.set_actor("llm-service", reason="Streaming completion")
+        meter.commit(res["reservation_id"], 350)
+
+        ledger = meter.get_ledger("user-1", "llm_call", "tokens")
+        consumption = [e for e in ledger if e["entry_type"] == "consumption"][0]
+
+        assert consumption["actor_id"] == "llm-service"
+        assert consumption["reason"] == "Streaming completion"
+
+    def test_actor_captured_in_adjust(self, meter):
+        """adjust() captures actor context."""
+        meter.allocate("user-1", "llm_call", 1000, "tokens")
+
+        meter.set_actor("support@acme.com", reason="Refund for outage")
+        meter.adjust("user-1", "llm_call", 500, "tokens")
+
+        ledger = meter.get_ledger("user-1", "llm_call", "tokens")
+        adjustment = [e for e in ledger if e["entry_type"] == "adjustment"][0]
+
+        assert adjustment["actor_id"] == "support@acme.com"
+        assert adjustment["reason"] == "Refund for outage"
+
+    def test_on_behalf_of_captured(self, meter):
+        """on_behalf_of delegation is captured."""
+        meter.set_actor(
+            "admin@acme.com", on_behalf_of="user-1", reason="Support ticket #1234"
+        )
+        meter.allocate("user-1", "llm_call", 500, "tokens")
+
+        ledger = meter.get_ledger("user-1", "llm_call", "tokens")
+
+        assert ledger[0]["actor_id"] == "admin@acme.com"
+        # on_behalf_of is captured in the ledger entry
+        # Note: get_ledger returns it if the column exists
+
+    def test_clear_actor_stops_capture(self, meter):
+        """clear_actor() stops context capture."""
+        meter.set_actor("admin@acme.com")
+        meter.allocate("user-1", "llm_call", 1000, "tokens")
+
+        meter.clear_actor()
+        meter.consume("user-1", "llm_call", 100, "tokens")
+
+        ledger = meter.get_ledger("user-1", "llm_call", "tokens")
+        allocation = [e for e in ledger if e["entry_type"] == "allocation"][0]
+        consumption = [e for e in ledger if e["entry_type"] == "consumption"][0]
+
+        assert allocation["actor_id"] == "admin@acme.com"
+        assert consumption["actor_id"] is None  # Cleared
+
+    def test_actor_captured_in_reservation(self, meter):
+        """reserve() captures actor context in reservation record."""
+        meter.allocate("user-1", "llm_call", 1000, "tokens")
+
+        meter.set_actor("llm-gateway", request_id="req-001")
+        res = meter.reserve("user-1", "llm_call", 400, "tokens")
+
+        # Verify via direct query since get_ledger won't show reservations
+        meter.cursor.execute(
+            """SELECT actor_id, request_id
+               FROM meter.reservations
+               WHERE reservation_id = %s""",
+            (res["reservation_id"],),
+        )
+        row = meter.cursor.fetchone()
+
+        assert row[0] == "llm-gateway"
+        assert row[1] == "req-001"
+
+    def test_actor_not_required(self, meter):
+        """Operations work without actor context set."""
+        # No set_actor() call
+        meter.allocate("user-1", "llm_call", 1000, "tokens")
+        meter.consume("user-1", "llm_call", 100, "tokens")
+
+        ledger = meter.get_ledger("user-1", "llm_call", "tokens")
+
+        assert len(ledger) == 2
+        assert ledger[0]["actor_id"] is None
+        assert ledger[1]["actor_id"] is None

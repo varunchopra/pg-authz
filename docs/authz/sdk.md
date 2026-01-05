@@ -38,7 +38,7 @@ Grant permission to many users at once (single statement).
 authz.bulk_grant("read", resource=("doc", "1"), subject_ids=["alice", "bob", "carol"])
 ```
 
-*Source: sdk/src/postkit/authz/client.py:671*
+*Source: sdk/src/postkit/authz/client.py:680*
 
 ---
 
@@ -60,7 +60,7 @@ authz.bulk_grant_resources(
 )
 ```
 
-*Source: sdk/src/postkit/authz/client.py:688*
+*Source: sdk/src/postkit/authz/client.py:697*
 
 ---
 
@@ -214,7 +214,7 @@ result = authz.cleanup_expired()
 print(f"Removed {result['tuples_deleted']} expired grants")
 ```
 
-*Source: sdk/src/postkit/authz/client.py:757*
+*Source: sdk/src/postkit/authz/client.py:766*
 
 ---
 
@@ -226,7 +226,7 @@ clear_actor() -> None
 
 Clear actor context.
 
-*Source: sdk/src/postkit/authz/client.py:155*
+*Source: sdk/src/postkit/authz/client.py:175*
 
 ---
 
@@ -250,7 +250,7 @@ Remove expiration from a grant (make it permanent).
 authz.clear_expiration("read", resource=("doc", "1"), subject=("user", "alice"))
 ```
 
-*Source: sdk/src/postkit/authz/client.py:817*
+*Source: sdk/src/postkit/authz/client.py:826*
 
 ---
 
@@ -314,7 +314,7 @@ new_expires = authz.extend_expiration("read", resource=("doc", "1"),
                                       extension=timedelta(days=30))
 ```
 
-*Source: sdk/src/postkit/authz/client.py:852*
+*Source: sdk/src/postkit/authz/client.py:861*
 
 ---
 
@@ -354,7 +354,7 @@ for event in events:
     print(f"{event['event_type']}: {event['resource']}")
 ```
 
-*Source: sdk/src/postkit/authz/client.py:530*
+*Source: sdk/src/postkit/authz/client.py:539*
 
 ---
 
@@ -410,7 +410,7 @@ for grant in expiring:
     print(f"{grant['subject']} access to {grant['resource']} expires {grant['expires_at']}")
 ```
 
-*Source: sdk/src/postkit/authz/client.py:727*
+*Source: sdk/src/postkit/authz/client.py:736*
 
 ---
 
@@ -520,7 +520,7 @@ Set actor context for audit logging.
 - `on_behalf_of`: Optional principal being represented (e.g., 'user:customer-alice')
 - `reason`: Optional reason for the action (e.g., 'deployment:v1.2.3')
 
-*Source: sdk/src/postkit/authz/client.py:132*
+*Source: sdk/src/postkit/authz/client.py:152*
 
 ---
 
@@ -546,7 +546,7 @@ authz.set_expiration("read", resource=("doc", "1"), subject=("user", "alice"),
                     expires_at=datetime.now(timezone.utc) + timedelta(days=30))
 ```
 
-*Source: sdk/src/postkit/authz/client.py:778*
+*Source: sdk/src/postkit/authz/client.py:787*
 
 ---
 
@@ -591,7 +591,7 @@ stats = authz.stats()
 print(f"Tuples: {stats['tuple_count']}, Users: {stats['unique_users']}")
 ```
 
-*Source: sdk/src/postkit/authz/client.py:645*
+*Source: sdk/src/postkit/authz/client.py:654*
 
 ---
 
@@ -610,6 +610,6 @@ for issue in issues:
     print(f"{issue['status']}: {issue['details']}")
 ```
 
-*Source: sdk/src/postkit/authz/client.py:620*
+*Source: sdk/src/postkit/authz/client.py:629*
 
 ---

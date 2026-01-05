@@ -82,21 +82,21 @@ True
 ... )
 1
 
-# Deep merge updates into the existing config, creating a new version.
+# Shallow merge: top-level keys are replaced, creating a new version.
 >>> config.merge("prompts/support-bot", {"model": {"temperature": 0.8}})
 2
 
-# Read a nested value.
+# Read a nested value (note: shallow merge replaced entire "model" object).
 >>> config.get_path("prompts/support-bot", "model", "temperature")
 0.8
 
-# User has 10k tokens.
->>> meter.allocate("user-123", "llm_call", 10000, "tokens")
+# Alice has 10k tokens.
+>>> meter.allocate("alice", "llm_call", 10000, "tokens")
 {'balance': 10000.0, 'entry_id': 1}
 
 # Reserve 4k for streaming (hold, not spent yet).
->>> res = meter.reserve("user-123", "llm_call", 4000, "tokens")
->>> meter.get_balance("user-123", "llm_call", "tokens")
+>>> res = meter.reserve("alice", "llm_call", 4000, "tokens")
+>>> meter.get_balance("alice", "llm_call", "tokens")
 {'balance': 10000.0, 'reserved': 4000.0, 'available': 6000.0}
 
 # Stream done - commit actual usage.

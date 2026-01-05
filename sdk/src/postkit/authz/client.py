@@ -49,7 +49,7 @@ class AuthzClient(BaseClient):
         authz = AuthzClient(cursor, namespace="production")
 
         # Set actor context for audit logging
-        authz.set_actor("admin@acme.com", "req-123", "Quarterly review")
+        authz.set_actor("admin@acme.com", "req-123", reason="Quarterly review")
 
         # Grant permission (actor context automatically included in audit)
         authz.grant("admin", resource=("repo", "api"), subject=("team", "eng"))
@@ -527,6 +527,15 @@ class AuthzClient(BaseClient):
             (resource_type, self.namespace),
         )
 
+    # NOTE: This method uses keyword-only arguments (`*,`) unlike other clients.
+    # This is intentional because:
+    # 1. The authz audit schema has composite resource/subject pairs (type, id)
+    #    that are passed as Entity tuples - positional args would be confusing
+    # 2. This method has a custom implementation (doesn't call super()) because
+    #    the return structure differs - it returns tuples like ("doc", "1")
+    #    instead of flat strings like other modules
+    # 3. The underlying audit_events table has different columns (subject_type,
+    #    subject_id, subject_relation) that don't exist in authn/config
     def get_audit_events(
         self,
         *,
