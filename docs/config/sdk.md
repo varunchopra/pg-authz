@@ -45,7 +45,7 @@ clear_actor() -> None
 
 Clear actor context.
 
-*Source: sdk/src/postkit/config/client.py:175*
+*Source: sdk/src/postkit/config/client.py:248*
 
 ---
 
@@ -346,6 +346,6 @@ Set actor context for audit logging.
 - `on_behalf_of`: Optional principal being represented (e.g., 'user:customer-alice')
 - `reason`: Optional reason for the action (e.g., 'deployment:v1.2.3')
 
-*Source: sdk/src/postkit/config/client.py:152*
+*Source: sdk/src/postkit/config/client.py:225*
 
 ---

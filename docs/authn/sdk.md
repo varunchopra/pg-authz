@@ -18,7 +18,7 @@ Add an MFA method for a user.
 
 **Returns:** MFA ID (UUID string)
 
-*Source: sdk/src/postkit/authn/client.py:384*
+*Source: sdk/src/postkit/authn/client.py:398*
 
 ---
 
@@ -30,7 +30,7 @@ cleanup_expired() -> dict
 
 Clean up expired sessions, tokens, and old login attempts.
 
-*Source: sdk/src/postkit/authn/client.py:484*
+*Source: sdk/src/postkit/authn/client.py:498*
 
 ---
 
@@ -42,7 +42,7 @@ clear_actor() -> None
 
 Clear actor context.
 
-*Source: sdk/src/postkit/authn/client.py:536*
+*Source: sdk/src/postkit/authn/client.py:550*
 
 ---
 
@@ -54,7 +54,7 @@ clear_attempts(email: str) -> int
 
 Clear login attempts for an email. Returns count deleted.
 
-*Source: sdk/src/postkit/authn/client.py:477*
+*Source: sdk/src/postkit/authn/client.py:491*
 
 ---
 
@@ -66,7 +66,7 @@ consume_token(token_hash: str, token_type: str) -> dict | None
 
 Consume a one-time token.
 
-*Source: sdk/src/postkit/authn/client.py:354*
+*Source: sdk/src/postkit/authn/client.py:368*
 
 ---
 
@@ -86,7 +86,7 @@ Create an API key for programmatic access.
 
 **Returns:** API key ID (UUID string)
 
-*Source: sdk/src/postkit/authn/client.py:263*
+*Source: sdk/src/postkit/authn/client.py:277*
 
 ---
 
@@ -127,7 +127,7 @@ Create a one-time use token.
 
 **Returns:** Token ID (UUID string)
 
-*Source: sdk/src/postkit/authn/client.py:329*
+*Source: sdk/src/postkit/authn/client.py:343*
 
 ---
 
@@ -207,7 +207,7 @@ get_audit_events(limit: int = 100, event_type: str | None = None, resource_type:
 
 Query audit events.
 
-*Source: sdk/src/postkit/authn/client.py:542*
+*Source: sdk/src/postkit/authn/client.py:556*
 
 ---
 
@@ -231,7 +231,7 @@ get_mfa(user_id: str, mfa_type: str) -> list[dict]
 
 Get MFA secrets for verification. Returns secrets!
 
-*Source: sdk/src/postkit/authn/client.py:409*
+*Source: sdk/src/postkit/authn/client.py:423*
 
 ---
 
@@ -243,7 +243,7 @@ get_recent_attempts(email: str, limit: int = 10) -> list[dict]
 
 Get recent login attempts for an email.
 
-*Source: sdk/src/postkit/authn/client.py:470*
+*Source: sdk/src/postkit/authn/client.py:484*
 
 ---
 
@@ -255,7 +255,7 @@ get_stats() -> dict
 
 Get namespace statistics.
 
-*Source: sdk/src/postkit/authn/client.py:492*
+*Source: sdk/src/postkit/authn/client.py:506*
 
 ---
 
@@ -291,7 +291,7 @@ has_mfa(user_id: str) -> bool
 
 Check if user has any MFA method enabled.
 
-*Source: sdk/src/postkit/authn/client.py:439*
+*Source: sdk/src/postkit/authn/client.py:453*
 
 ---
 
@@ -303,7 +303,7 @@ invalidate_tokens(user_id: str, token_type: str) -> int
 
 Invalidate all unused tokens of a type for a user.
 
-*Source: sdk/src/postkit/authn/client.py:377*
+*Source: sdk/src/postkit/authn/client.py:391*
 
 ---
 
@@ -315,7 +315,7 @@ is_locked_out(email: str, window: timedelta | None = None, max_attempts: int | N
 
 Check if an email is locked out due to too many failed attempts.
 
-*Source: sdk/src/postkit/authn/client.py:458*
+*Source: sdk/src/postkit/authn/client.py:472*
 
 ---
 
@@ -327,7 +327,7 @@ list_api_keys(user_id: str) -> list[dict]
 
 List active API keys for a user. Does not return key_hash.
 
-*Source: sdk/src/postkit/authn/client.py:317*
+*Source: sdk/src/postkit/authn/client.py:331*
 
 ---
 
@@ -339,7 +339,7 @@ list_mfa(user_id: str) -> list[dict]
 
 List MFA methods. Does NOT return secrets.
 
-*Source: sdk/src/postkit/authn/client.py:417*
+*Source: sdk/src/postkit/authn/client.py:431*
 
 ---
 
@@ -351,7 +351,7 @@ list_sessions(user_id: str) -> list[dict]
 
 List active sessions for a user. Does not return token_hash.
 
-*Source: sdk/src/postkit/authn/client.py:251*
+*Source: sdk/src/postkit/authn/client.py:265*
 
 ---
 
@@ -375,7 +375,7 @@ record_login_attempt(email: str, success: bool, ip_address: str | None = None) -
 
 Record a login attempt.
 
-*Source: sdk/src/postkit/authn/client.py:446*
+*Source: sdk/src/postkit/authn/client.py:460*
 
 ---
 
@@ -387,7 +387,7 @@ record_mfa_use(mfa_id: str) -> bool
 
 Record that an MFA method was used.
 
-*Source: sdk/src/postkit/authn/client.py:432*
+*Source: sdk/src/postkit/authn/client.py:446*
 
 ---
 
@@ -399,7 +399,7 @@ remove_mfa(mfa_id: str) -> bool
 
 Remove an MFA method.
 
-*Source: sdk/src/postkit/authn/client.py:425*
+*Source: sdk/src/postkit/authn/client.py:439*
 
 ---
 
@@ -411,7 +411,7 @@ revoke_all_api_keys(user_id: str) -> int
 
 Revoke all API keys for a user. Returns count revoked.
 
-*Source: sdk/src/postkit/authn/client.py:310*
+*Source: sdk/src/postkit/authn/client.py:324*
 
 ---
 
@@ -423,7 +423,7 @@ revoke_all_sessions(user_id: str) -> int
 
 Revoke all sessions for a user. Returns count revoked.
 
-*Source: sdk/src/postkit/authn/client.py:244*
+*Source: sdk/src/postkit/authn/client.py:258*
 
 ---
 
@@ -435,7 +435,7 @@ revoke_api_key(key_id: str) -> bool
 
 Revoke an API key.
 
-*Source: sdk/src/postkit/authn/client.py:303*
+*Source: sdk/src/postkit/authn/client.py:317*
 
 ---
 
@@ -448,6 +448,18 @@ revoke_session(token_hash: str) -> bool
 Revoke a session.
 
 *Source: sdk/src/postkit/authn/client.py:237*
+
+---
+
+### revoke_session_by_id
+
+```python
+revoke_session_by_id(session_id: str, user_id: str) -> bool
+```
+
+Revoke a session by ID (for manage devices UI).
+
+*Source: sdk/src/postkit/authn/client.py:244*
 
 ---
 
@@ -478,7 +490,7 @@ authn.set_actor(
 )
 ```
 
-*Source: sdk/src/postkit/authn/client.py:500*
+*Source: sdk/src/postkit/authn/client.py:514*
 
 ---
 
@@ -516,7 +528,7 @@ Validate an API key.
 
 **Returns:** Dict with user_id, key_id, name, expires_at or None if invalid
 
-*Source: sdk/src/postkit/authn/client.py:288*
+*Source: sdk/src/postkit/authn/client.py:302*
 
 ---
 
@@ -540,6 +552,6 @@ verify_email(token_hash: str) -> dict | None
 
 Verify email using a token.
 
-*Source: sdk/src/postkit/authn/client.py:366*
+*Source: sdk/src/postkit/authn/client.py:380*
 
 ---

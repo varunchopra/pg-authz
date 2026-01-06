@@ -32,7 +32,7 @@ SELECT authn.create_api_key(user_id, sha256(key), 'Production', '1 year');
 ### authn.list_api_keys
 
 ```sql
-authn.list_api_keys(p_user_id: uuid, p_namespace: text) -> table(id: uuid, name: text, created_at: timestamptz, expires_at: timestamptz, last_used_at: timestamptz)
+authn.list_api_keys(p_user_id: uuid, p_namespace: text) -> table(key_id: uuid, name: text, created_at: timestamptz, expires_at: timestamptz, last_used_at: timestamptz)
 ```
 
 List API keys for a user (for management UI)
@@ -378,12 +378,12 @@ SELECT authn.add_mfa(user_id, 'totp', 'JBSWY3DPEHPK3PXP', 'Authenticator');
 ### authn.get_mfa
 
 ```sql
-authn.get_mfa(p_user_id: uuid, p_mfa_type: text, p_namespace: text) -> table(id: uuid, secret: text, name: text)
+authn.get_mfa(p_user_id: uuid, p_mfa_type: text, p_namespace: text) -> table(mfa_id: uuid, secret: text, name: text)
 ```
 
 Get MFA secrets for verification (returns raw secrets)
 
-**Returns:** id, secret, name. Use to verify TOTP code or WebAuthn assertion.
+**Returns:** mfa_id, secret, name. Use to verify TOTP code or WebAuthn assertion.
 
 **Example:**
 ```sql
@@ -414,7 +414,7 @@ IF authn.has_mfa(user_id) THEN prompt_for_mfa(); END IF;
 ### authn.list_mfa
 
 ```sql
-authn.list_mfa(p_user_id: uuid, p_namespace: text) -> table(id: uuid, mfa_type: text, name: text, created_at: timestamptz, last_used_at: timestamptz)
+authn.list_mfa(p_user_id: uuid, p_namespace: text) -> table(mfa_id: uuid, mfa_type: text, name: text, created_at: timestamptz, last_used_at: timestamptz)
 ```
 
 List user's MFA methods for "manage security" UI (no secrets)
@@ -592,7 +592,7 @@ SELECT authn.extend_session(token_hash, '30 days'); -- "remember me"
 ### authn.list_sessions
 
 ```sql
-authn.list_sessions(p_user_id: uuid, p_namespace: text) -> table(id: uuid, created_at: timestamptz, expires_at: timestamptz, ip_address: inet, user_agent: text)
+authn.list_sessions(p_user_id: uuid, p_namespace: text) -> table(session_id: uuid, created_at: timestamptz, expires_at: timestamptz, ip_address: inet, user_agent: text)
 ```
 
 List active sessions for "manage devices" UI
@@ -641,6 +641,29 @@ SELECT authn.revoke_session(token_hash); -- User clicks "log out"
 ```
 
 *Source: authn/src/functions/020_sessions.sql:124*
+
+---
+
+### authn.revoke_session_by_id
+
+```sql
+authn.revoke_session_by_id(p_session_id: uuid, p_user_id: uuid, p_namespace: text) -> bool
+```
+
+Revoke a specific session by ID (for "manage devices" UI)
+
+**Parameters:**
+- `p_session_id`: Session ID to revoke
+- `p_user_id`: User ID (for ownership verification)
+
+**Returns:** true if revoked, false if not found or not owned by user
+
+**Example:**
+```sql
+SELECT authn.revoke_session_by_id(session_id, user_id);
+```
+
+*Source: authn/src/functions/020_sessions.sql:233*
 
 ---
 

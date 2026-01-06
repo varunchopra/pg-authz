@@ -17,6 +17,12 @@ Then build the dist files:
 cd postkit && make build && cd ..
 ```
 
+To use the Python SDK, install from the local checkout:
+
+```bash
+pip install -e "./postkit/sdk[binary]"
+```
+
 ## Instructions
 
 1. Read `postkit/AGENTS.md` first (written specifically for LLMs)

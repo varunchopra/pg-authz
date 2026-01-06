@@ -38,6 +38,7 @@
 | [`revoke_all_sessions`](sdk.md#revoke_all_sessions) | Revoke all sessions for a user. Returns count revoked. |
 | [`revoke_api_key`](sdk.md#revoke_api_key) | Revoke an API key. |
 | [`revoke_session`](sdk.md#revoke_session) | Revoke a session. |
+| [`revoke_session_by_id`](sdk.md#revoke_session_by_id) | Revoke a session by ID (for manage devices UI). |
 | [`set_actor`](sdk.md#set_actor) | Set actor context for audit logging with authn-specific fields. |
 | [`update_email`](sdk.md#update_email) | Update user's email. Clears email_verified_at. |
 | [`update_password`](sdk.md#update_password) | Update user's password hash. |
@@ -80,6 +81,7 @@
 | [`authn.list_sessions`](sql.md#authnlist_sessions) | List active sessions for "manage devices" UI |
 | [`authn.revoke_all_sessions`](sql.md#authnrevoke_all_sessions) | Log out all sessions for a user (password change, security concern) |
 | [`authn.revoke_session`](sql.md#authnrevoke_session) | Log out a specific session |
+| [`authn.revoke_session_by_id`](sql.md#authnrevoke_session_by_id) | Revoke a specific session by ID (for "manage devices" UI) |
 | [`authn.validate_session`](sql.md#authnvalidate_session) | Check if session is valid and get user info (hot path, no logging) |
 | [`authn.consume_token`](sql.md#authnconsume_token) | Use a one-time token (marks as used, can't be reused) |
 | [`authn.create_token`](sql.md#authncreate_token) | Create a one-time token for password reset, email verification, or magic link |

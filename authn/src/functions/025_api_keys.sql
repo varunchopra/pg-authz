@@ -184,7 +184,7 @@ CREATE OR REPLACE FUNCTION authn.list_api_keys(
     p_namespace text DEFAULT 'default'
 )
 RETURNS TABLE(
-    id uuid,
+    key_id uuid,
     name text,
     created_at timestamptz,
     expires_at timestamptz,
@@ -197,7 +197,7 @@ BEGIN
 
     RETURN QUERY
     SELECT
-        ak.id,
+        ak.id AS key_id,
         ak.name,
         ak.created_at,
         ak.expires_at,

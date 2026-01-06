@@ -205,7 +205,7 @@ CREATE OR REPLACE FUNCTION authn.list_sessions(
     p_namespace text DEFAULT 'default'
 )
 RETURNS TABLE(
-    id uuid,
+    session_id uuid,
     created_at timestamptz,
     expires_at timestamptz,
     ip_address inet,
@@ -218,7 +218,7 @@ BEGIN
 
     RETURN QUERY
     SELECT
-        s.id,
+        s.id AS session_id,
         s.created_at,
         s.expires_at,
         s.ip_address,
@@ -231,4 +231,43 @@ BEGIN
     ORDER BY s.created_at DESC;
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = authn, pg_temp;
+
+-- @function authn.revoke_session_by_id
+-- @brief Revoke a specific session by ID (for "manage devices" UI)
+-- @param p_session_id Session ID to revoke
+-- @param p_user_id User ID (for ownership verification)
+-- @returns true if revoked, false if not found or not owned by user
+-- @example SELECT authn.revoke_session_by_id(session_id, user_id);
+CREATE OR REPLACE FUNCTION authn.revoke_session_by_id(
+    p_session_id uuid,
+    p_user_id uuid,
+    p_namespace text DEFAULT 'default'
+)
+RETURNS boolean
+AS $$
+DECLARE
+    v_count int;
+BEGIN
+    PERFORM authn._validate_namespace(p_namespace);
+
+    UPDATE authn.sessions
+    SET revoked_at = now()
+    WHERE id = p_session_id
+      AND user_id = p_user_id  -- Ownership check
+      AND namespace = p_namespace
+      AND revoked_at IS NULL;
+
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+
+    IF v_count > 0 THEN
+        -- Audit log
+        PERFORM authn._log_event(
+            'session_revoked', p_namespace, 'session', p_session_id::text,
+            NULL, jsonb_build_object('user_id', p_user_id)
+        );
+    END IF;
+
+    RETURN v_count > 0;
+END;
+$$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
 

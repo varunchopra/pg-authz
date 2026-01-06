@@ -7,12 +7,57 @@ and actor context management used by AuthnClient, AuthzClient, and ConfigClient.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any, Callable, TypeVar
 
 import psycopg
+from psycopg.rows import dict_row, kwargs_row
+
+T = TypeVar("T")
+
+# Known row factories that return dict-like objects (iteration yields keys, not values)
+_DICT_LIKE_FACTORIES = frozenset({dict_row, kwargs_row})
+
+# SQLSTATE to exception class mapping
+# Reference: https://www.postgresql.org/docs/current/errcodes-appendix.html
+_SQLSTATE_EXCEPTIONS: dict[
+    str, type[PostkitError]
+] = {}  # Populated after class definitions
 
 
 class PostkitError(Exception):
     """Base exception for postkit operations."""
+
+    def __init__(self, message: str, sqlstate: str | None = None):
+        super().__init__(message)
+        self.sqlstate = sqlstate
+
+
+class UniqueViolationError(PostkitError):
+    """Raised when a unique constraint is violated (e.g., duplicate email)."""
+
+    pass
+
+
+class ForeignKeyViolationError(PostkitError):
+    """Raised when a foreign key constraint is violated."""
+
+    pass
+
+
+class CheckViolationError(PostkitError):
+    """Raised when a check constraint is violated (e.g., invalid format)."""
+
+    pass
+
+
+# Populate SQLSTATE mapping after classes are defined
+_SQLSTATE_EXCEPTIONS.update(
+    {
+        "23505": UniqueViolationError,  # unique_violation
+        "23503": ForeignKeyViolationError,  # foreign_key_violation
+        "23514": CheckViolationError,  # check_violation
+    }
+)
 
 
 class BaseClient(ABC):
@@ -20,26 +65,45 @@ class BaseClient(ABC):
 
     Provides shared functionality:
     - Database helper methods (_scalar, _fetchall, _write_scalar)
-    - Error handling
+    - Error handling with SQLSTATE preservation
     - Tenant context (RLS)
     - Actor context for audit logging
 
     Subclasses must define:
-    - _schema: The PostgreSQL schema name ("authn", "authz", "config")
+    - _schema: The PostgreSQL schema name ("authn", "authz", "config", "meter")
     - _error_class: The exception class to raise on errors
     - _apply_actor_context(): How to apply actor context via SQL
     """
 
-    _schema: str  # "authn", "authz", "config"
-    _error_class: type[Exception] = PostkitError
+    _schema: str  # Must be a valid SQL identifier
+    _error_class: type[PostkitError] = PostkitError
 
-    def __init__(self, cursor, namespace: str):
+    def __init__(self, cursor: psycopg.Cursor[tuple[Any, ...]], namespace: str) -> None:
         """Initialize the client.
 
         Args:
-            cursor: A DB-API 2.0 cursor (psycopg2, psycopg3, etc.)
+            cursor: A psycopg3 cursor with default (tuple) row factory.
+                Do NOT use row_factory=dict_row - the SDK returns dicts automatically.
             namespace: Tenant namespace for multi-tenancy
+
+        Raises:
+            ValueError: If cursor has a dict-returning row factory, or schema is invalid.
         """
+        # S16: Validate schema name is a safe identifier
+        if not self._schema.isidentifier():
+            raise ValueError(f"Invalid schema name: {self._schema}")
+
+        # S13: Check against known dict-returning factories by identity
+        if (
+            hasattr(cursor, "row_factory")
+            and cursor.row_factory in _DICT_LIKE_FACTORIES
+        ):
+            raise ValueError(
+                "postkit requires tuple row factory (the default). "
+                "Remove row_factory=dict_row or kwargs_row from your cursor/connection. "
+                "The SDK returns dicts automatically by combining column names with tuple values."
+            )
+
         self.cursor = cursor
         self.namespace = namespace
         # Core actor context fields (shared by all clients)
@@ -51,10 +115,21 @@ class BaseClient(ABC):
         self.cursor.execute(f"SELECT {self._schema}.set_tenant(%s)", (namespace,))
 
     def _handle_error(self, e: psycopg.Error) -> None:
-        """Convert psycopg errors to SDK exceptions."""
-        raise self._error_class(str(e)) from e
+        """Convert psycopg errors to SDK exceptions, preserving SQLSTATE.
 
-    def _scalar(self, sql: str, params: tuple):
+        Uses specific exception subclasses for common database errors
+        (unique violation, foreign key violation, etc.) to enable
+        precise error handling by callers.
+        """
+        sqlstate = getattr(e, "sqlstate", None)
+        message = str(e)
+
+        # Use specific exception class if we have one for this SQLSTATE
+        exc_class = _SQLSTATE_EXCEPTIONS.get(sqlstate, self._error_class)
+
+        raise exc_class(message, sqlstate) from e
+
+    def _scalar(self, sql: str, params: tuple[Any, ...]) -> Any:
         """Execute SQL and return single scalar value."""
         try:
             self.cursor.execute(sql, params)
@@ -63,16 +138,26 @@ class BaseClient(ABC):
         except psycopg.Error as e:
             self._handle_error(e)
 
-    def _fetchall(self, sql: str, params: tuple) -> list[dict]:
+    def _fetchall(self, sql: str, params: tuple[Any, ...]) -> list[dict[str, Any]]:
         """Execute SQL and return all rows as list of dicts."""
         try:
             self.cursor.execute(sql, params)
             columns = [desc[0] for desc in self.cursor.description]
-            return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+            rows = self.cursor.fetchall()
+
+            # S13: Defensive runtime check for dict-like rows
+            if rows and isinstance(rows[0], dict):
+                raise self._error_class(
+                    "Cursor returned dict rows. postkit requires tuple row factory. "
+                    "The SDK builds dicts internally from tuple rows.",
+                    sqlstate=None,
+                )
+
+            return [dict(zip(columns, row)) for row in rows]
         except psycopg.Error as e:
             self._handle_error(e)
 
-    def _fetchall_raw(self, sql: str, params: tuple) -> list[tuple]:
+    def _fetchall_raw(self, sql: str, params: tuple[Any, ...]) -> list[tuple[Any, ...]]:
         """Execute SQL and return all rows as raw tuples."""
         try:
             self.cursor.execute(sql, params)
@@ -89,22 +174,16 @@ class BaseClient(ABC):
         """
         ...
 
-    def _write_with_actor(self, executor):
+    def _write_with_actor(self, executor: Callable[[], T]) -> T:
         """Execute a write operation with actor context for audit logging.
 
-        Actor context uses PostgreSQL's transaction-local settings (set_config with
-        is_local=true). This means the actor info only persists within a transaction.
+        Actor context uses PostgreSQL's transaction-local settings (SET LOCAL).
+        This requires a transaction to persist between setting context and executing.
 
-        When actor context is set:
-        - In autocommit mode: Each statement is its own transaction, so we must:
-          1. Begin an explicit transaction
-          2. Set actor context
-          3. Execute the write (triggers capture actor from settings)
-          4. Commit
-        - In manual transaction mode: The caller controls the transaction, so we just
-          set the actor context and let them commit when ready.
+        - In autocommit mode: We wrap in an explicit transaction
+        - In manual transaction mode: Caller controls the transaction
 
-        Note: This method assumes single-threaded access to the cursor.
+        Note: This method assumes single-threaded cursor access.
         psycopg cursors are not thread-safe; do not share clients across threads.
 
         Args:
@@ -113,37 +192,31 @@ class BaseClient(ABC):
         if self._actor_id is None:
             return executor()
 
-        # Check if already in a transaction (psycopg transaction_status: 0 = idle)
-        in_transaction = self.cursor.connection.info.transaction_status != 0
+        conn = self.cursor.connection
+        in_transaction = conn.info.transaction_status != 0
 
         if in_transaction:
             # Caller manages transaction - just set actor context
             self._apply_actor_context()
             return executor()
+        else:
+            # S15: Use psycopg's transaction manager for proper cleanup
+            with conn.transaction():
+                self._apply_actor_context()
+                return executor()
 
-        # Autocommit mode - wrap in transaction so actor context persists
-        try:
-            self.cursor.execute("BEGIN")
-            self._apply_actor_context()
-            result = executor()
-            self.cursor.execute("COMMIT")
-            return result
-        except Exception:
-            self.cursor.execute("ROLLBACK")
-            raise
-
-    def _write_scalar(self, sql: str, params: tuple):
+    def _write_scalar(self, sql: str, params: tuple[Any, ...]) -> Any:
         """Execute a write operation with actor context, returning single scalar value."""
         return self._write_with_actor(lambda: self._scalar(sql, params))
 
-    def _write_row(self, sql: str, params: tuple) -> tuple | None:
+    def _write_row(self, sql: str, params: tuple[Any, ...]) -> tuple[Any, ...] | None:
         """Execute a write operation with actor context, returning single row.
 
         Like _write_scalar but returns full row for multi-column results.
         Used by operations that return composite types (balance + entry_id, etc.)
         """
 
-        def execute():
+        def execute() -> tuple[Any, ...] | None:
             self.cursor.execute(sql, params)
             return self.cursor.fetchone()
 
@@ -183,8 +256,8 @@ class BaseClient(ABC):
         self,
         limit: int = 100,
         event_type: str | None = None,
-        **filters,
-    ) -> list[dict]:
+        **filters: Any,
+    ) -> list[dict[str, Any]]:
         """Query audit events with optional filters.
 
         Args:
@@ -196,7 +269,7 @@ class BaseClient(ABC):
             List of audit event dictionaries
         """
         conditions = ["namespace = %s"]
-        params: list = [self.namespace]
+        params: list[Any] = [self.namespace]
 
         if event_type is not None:
             conditions.append("event_type = %s")

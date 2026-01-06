@@ -241,6 +241,20 @@ class AuthnClient(BaseClient):
             (token_hash, self.namespace),
         )
 
+    def revoke_session_by_id(self, session_id: str, user_id: str) -> bool:
+        """Revoke a session by ID (for manage devices UI).
+
+        **Parameters:**
+        - `session_id`: Session ID to revoke
+        - `user_id`: User ID (for ownership verification)
+
+        **Returns:** True if revoked, False if not found or not owned by user
+        """
+        return self._write_scalar(
+            "SELECT authn.revoke_session_by_id(%s::uuid, %s::uuid, %s)",
+            (session_id, user_id, self.namespace),
+        )
+
     def revoke_all_sessions(self, user_id: str) -> int:
         """Revoke all sessions for a user. Returns count revoked."""
         return self._write_scalar(

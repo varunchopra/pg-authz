@@ -43,7 +43,7 @@ $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
 
 -- @function authn.get_mfa
 -- @brief Get MFA secrets for verification (returns raw secrets)
--- @returns id, secret, name. Use to verify TOTP code or WebAuthn assertion.
+-- @returns mfa_id, secret, name. Use to verify TOTP code or WebAuthn assertion.
 -- @example SELECT * FROM authn.get_mfa(user_id, 'totp'); -- Verify code against secret
 CREATE OR REPLACE FUNCTION authn.get_mfa(
     p_user_id uuid,
@@ -51,7 +51,7 @@ CREATE OR REPLACE FUNCTION authn.get_mfa(
     p_namespace text DEFAULT 'default'
 )
 RETURNS TABLE(
-    id uuid,
+    mfa_id uuid,
     secret text,
     name text
 )
@@ -63,7 +63,7 @@ BEGIN
 
     RETURN QUERY
     SELECT
-        m.id,
+        m.id AS mfa_id,
         m.secret,
         m.name
     FROM authn.mfa_secrets m
@@ -81,7 +81,7 @@ CREATE OR REPLACE FUNCTION authn.list_mfa(
     p_namespace text DEFAULT 'default'
 )
 RETURNS TABLE(
-    id uuid,
+    mfa_id uuid,
     mfa_type text,
     name text,
     created_at timestamptz,
@@ -94,7 +94,7 @@ BEGIN
 
     RETURN QUERY
     SELECT
-        m.id,
+        m.id AS mfa_id,
         m.mfa_type,
         m.name,
         m.created_at,
