@@ -63,11 +63,14 @@ class AuthnClient(BaseClient):
         return {k: str(v) if isinstance(v, UUID) else v for k, v in row.items()}
 
     def _row(self, sql: str, params: tuple) -> dict | None:
-        """Execute SQL and return single row as dict with normalized types."""
-        result = self._fetchall(sql, params)
-        if not result:
+        """Execute SQL and return single row as dict with normalized types.
+
+        Extends base _row() with UUID-to-string normalization for authn module.
+        """
+        result = super()._row(sql, params)
+        if result is None:
             return None
-        return self._normalize_row(result[0])
+        return self._normalize_row(result)
 
     def _apply_actor_context(self) -> None:
         """Apply actor context via authn.set_actor()."""

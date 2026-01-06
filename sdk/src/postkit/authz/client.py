@@ -600,8 +600,7 @@ class AuthzClient(BaseClient):
             LIMIT %s
         """
 
-        self.cursor.execute(sql, tuple(params))
-        rows = self.cursor.fetchall()
+        rows = self._fetchall_raw(sql, tuple(params))
 
         return [
             {
@@ -666,16 +665,13 @@ class AuthzClient(BaseClient):
             stats = authz.stats()
             print(f"Tuples: {stats['tuple_count']}, Users: {stats['unique_users']}")
         """
-        self.cursor.execute("SELECT * FROM authz.get_stats(%s)", (self.namespace,))
-        row = self.cursor.fetchone()
-        if row:
-            return {
-                "tuple_count": row[0],
-                "hierarchy_rule_count": row[1],
-                "unique_users": row[2],
-                "unique_resources": row[3],
-            }
-        return {}
+        return (
+            self._row(
+                "SELECT tuple_count, hierarchy_rule_count, unique_users, unique_resources FROM authz.get_stats(%s)",
+                (self.namespace,),
+            )
+            or {}
+        )
 
     def bulk_grant(
         self, permission: str, *, resource: Entity, subject_ids: list[str]
@@ -777,12 +773,11 @@ class AuthzClient(BaseClient):
             result = authz.cleanup_expired()
             print(f"Removed {result['tuples_deleted']} expired grants")
         """
-        self.cursor.execute(
-            "SELECT * FROM authz.cleanup_expired(%s)",
+        result = self._scalar(
+            "SELECT authz.cleanup_expired(%s)",
             (self.namespace,),
         )
-        row = self.cursor.fetchone()
-        return {"tuples_deleted": row[0]}
+        return {"tuples_deleted": result}
 
     def set_expiration(
         self,

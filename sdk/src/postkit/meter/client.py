@@ -40,7 +40,7 @@ class MeterClient(BaseClient):
     _schema = "meter"
     _error_class = MeterError
 
-    def __init__(self, cursor, namespace: str = "default"):
+    def __init__(self, cursor, namespace: str):
         """Initialize the meter client.
 
         Args:
@@ -334,16 +334,10 @@ class MeterClient(BaseClient):
         Returns:
             Dict with 'balance', 'reserved', 'available'
         """
-        self.cursor.execute(
+        return self._row(
             "SELECT balance, reserved, available FROM meter.get_balance(%s, %s, %s, %s, %s)",
             (user_id, event_type, unit, resource, self.namespace),
-        )
-        row = self.cursor.fetchone()
-        return {
-            "balance": float(row[0]),
-            "reserved": float(row[1]),
-            "available": float(row[2]),
-        }
+        ) or {"balance": 0.0, "reserved": 0.0, "available": 0.0}
 
     def get_user_balances(self, user_id: str) -> list[dict]:
         """Get all balances for a user across all event types and resources.
@@ -355,22 +349,11 @@ class MeterClient(BaseClient):
             List of dicts with 'event_type', 'resource', 'unit', 'balance',
             'reserved', 'available'
         """
-        self.cursor.execute(
+        return self._fetchall(
             """SELECT event_type, resource, unit, balance, reserved, available
                FROM meter.get_user_balances(%s, %s)""",
             (user_id, self.namespace),
         )
-        return [
-            {
-                "event_type": row[0],
-                "resource": row[1],
-                "unit": row[2],
-                "balance": float(row[3]),
-                "reserved": float(row[4]),
-                "available": float(row[5]),
-            }
-            for row in self.cursor.fetchall()
-        ]
 
     def get_usage(
         self,
@@ -389,21 +372,11 @@ class MeterClient(BaseClient):
             List of dicts with 'event_type', 'resource', 'unit',
             'total_consumed', 'event_count'
         """
-        self.cursor.execute(
+        return self._fetchall(
             """SELECT event_type, resource, unit, total_consumed, event_count
                FROM meter.get_usage(%s, %s, %s, %s)""",
             (user_id, start_time, end_time, self.namespace),
         )
-        return [
-            {
-                "event_type": row[0],
-                "resource": row[1],
-                "unit": row[2],
-                "total_consumed": float(row[3]),
-                "event_count": row[4],
-            }
-            for row in self.cursor.fetchall()
-        ]
 
     def get_ledger(
         self,
@@ -429,7 +402,7 @@ class MeterClient(BaseClient):
         Returns:
             List of ledger entry dicts
         """
-        self.cursor.execute(
+        return self._fetchall(
             """SELECT id, entry_type, amount, balance_after, event_time,
                       reservation_id, reference_id, actor_id, reason, metadata
                FROM meter.get_ledger(%s, %s, %s, %s, %s, %s, %s, %s)""",
@@ -444,21 +417,6 @@ class MeterClient(BaseClient):
                 self.namespace,
             ),
         )
-        return [
-            {
-                "id": row[0],
-                "entry_type": row[1],
-                "amount": float(row[2]),
-                "balance_after": float(row[3]),
-                "event_time": row[4],
-                "reservation_id": row[5],
-                "reference_id": row[6],
-                "actor_id": row[7],
-                "reason": row[8],
-                "metadata": row[9],
-            }
-            for row in self.cursor.fetchall()
-        ]
 
     # =========================================================================
     # Periods
@@ -590,24 +548,11 @@ class MeterClient(BaseClient):
             List of dicts with 'user_id', 'event_type', 'resource', 'unit',
             'issue_type', 'expected', 'actual', 'discrepancy'
         """
-        self.cursor.execute(
+        return self._fetchall(
             """SELECT user_id, event_type, resource, unit, issue_type, expected, actual, discrepancy
                FROM meter.reconcile(%s)""",
             (self.namespace,),
         )
-        return [
-            {
-                "user_id": row[0],
-                "event_type": row[1],
-                "resource": row[2],
-                "unit": row[3],
-                "issue_type": row[4],
-                "expected": float(row[5]),
-                "actual": float(row[6]),
-                "discrepancy": float(row[7]),
-            }
-            for row in self.cursor.fetchall()
-        ]
 
     def get_stats(self) -> dict:
         """Get namespace statistics.
@@ -615,19 +560,17 @@ class MeterClient(BaseClient):
         Returns:
             Dict with counts and totals
         """
-        self.cursor.execute(
+        return self._row(
             """SELECT total_accounts, total_ledger_entries, active_reservations,
                       total_balance, total_reserved
                FROM meter.get_stats(%s)""",
             (self.namespace,),
-        )
-        row = self.cursor.fetchone()
-        return {
-            "total_accounts": row[0],
-            "total_ledger_entries": row[1],
-            "active_reservations": row[2],
-            "total_balance": float(row[3]),
-            "total_reserved": float(row[4]),
+        ) or {
+            "total_accounts": 0,
+            "total_ledger_entries": 0,
+            "active_reservations": 0,
+            "total_balance": 0.0,
+            "total_reserved": 0.0,
         }
 
     def get_audit_events(self, *args, **kwargs) -> list[dict]:

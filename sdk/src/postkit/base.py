@@ -7,6 +7,7 @@ and actor context management used by AuthnClient, AuthzClient, and ConfigClient.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from decimal import Decimal
 from typing import Any, Callable, TypeVar
 
 import psycopg
@@ -138,6 +139,15 @@ class BaseClient(ABC):
         except psycopg.Error as e:
             self._handle_error(e)
 
+    def _normalize_value(self, value: Any) -> Any:
+        """Normalize database values to Python types.
+
+        Converts Decimal to float for consistent numeric handling.
+        """
+        if isinstance(value, Decimal):
+            return float(value)
+        return value
+
     def _fetchall(self, sql: str, params: tuple[Any, ...]) -> list[dict[str, Any]]:
         """Execute SQL and return all rows as list of dicts."""
         try:
@@ -153,7 +163,10 @@ class BaseClient(ABC):
                     sqlstate=None,
                 )
 
-            return [dict(zip(columns, row)) for row in rows]
+            return [
+                {col: self._normalize_value(val) for col, val in zip(columns, row)}
+                for row in rows
+            ]
         except psycopg.Error as e:
             self._handle_error(e)
 
@@ -162,6 +175,18 @@ class BaseClient(ABC):
         try:
             self.cursor.execute(sql, params)
             return self.cursor.fetchall()
+        except psycopg.Error as e:
+            self._handle_error(e)
+
+    def _row(self, sql: str, params: tuple[Any, ...]) -> dict[str, Any] | None:
+        """Execute SQL and return single row as dict, or None if not found."""
+        try:
+            self.cursor.execute(sql, params)
+            row = self.cursor.fetchone()
+            if row is None:
+                return None
+            columns = [desc[0] for desc in self.cursor.description]
+            return {col: self._normalize_value(val) for col, val in zip(columns, row)}
         except psycopg.Error as e:
             self._handle_error(e)
 
@@ -291,6 +316,4 @@ class BaseClient(ABC):
             LIMIT %s
         """
 
-        self.cursor.execute(sql, tuple(params))
-        columns = [desc[0] for desc in self.cursor.description]
-        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+        return self._fetchall(sql, tuple(params))

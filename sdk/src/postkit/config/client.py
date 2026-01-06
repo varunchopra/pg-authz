@@ -45,7 +45,7 @@ class ConfigClient(BaseClient):
     _schema = "config"
     _error_class = ConfigError
 
-    def __init__(self, cursor, namespace: str = "default"):
+    def __init__(self, cursor, namespace: str):
         """Initialize the config client.
 
         Args:
@@ -91,14 +91,10 @@ class ConfigClient(BaseClient):
         Returns:
             Dict with 'value', 'version', 'created_at' or None if not found
         """
-        self.cursor.execute(
+        return self._row(
             "SELECT value, version, created_at FROM config.get(%s, %s, %s)",
             (key, version, self.namespace),
         )
-        row = self.cursor.fetchone()
-        if row is None:
-            return None
-        return {"value": row[0], "version": row[1], "created_at": row[2]}
 
     def get_value(self, key: str, default: Any = None) -> Any:
         """Get just the value (convenience method).
@@ -124,14 +120,10 @@ class ConfigClient(BaseClient):
         Returns:
             List of dicts with 'key', 'value', 'version', 'created_at'
         """
-        self.cursor.execute(
+        return self._fetchall(
             "SELECT key, value, version, created_at FROM config.get_batch(%s, %s)",
             (keys, self.namespace),
         )
-        return [
-            {"key": row[0], "value": row[1], "version": row[2], "created_at": row[3]}
-            for row in self.cursor.fetchall()
-        ]
 
     def get_path(self, key: str, *path: str) -> Any:
         """Get a specific path within a config value.
@@ -148,12 +140,10 @@ class ConfigClient(BaseClient):
             config.get_path("flags/checkout", "rollout")
             config.get_path("settings/model", "params", "temperature")
         """
-        self.cursor.execute(
+        return self._scalar(
             "SELECT config.get_path(%s, %s, %s)",
             (key, list(path), self.namespace),
         )
-        row = self.cursor.fetchone()
-        return row[0] if row else None
 
     def merge(self, key: str, changes: dict) -> int:
         """Merge changes into config, creating new version.
@@ -194,14 +184,10 @@ class ConfigClient(BaseClient):
             config.search({"enabled": True})  # All enabled flags
             config.search({"model": "claude-sonnet-4-20250514"}, prefix="prompts/")
         """
-        self.cursor.execute(
+        return self._fetchall(
             "SELECT key, value, version, created_at FROM config.search(%s::jsonb, %s, %s, %s)",
             (json.dumps(contains), prefix, self.namespace, limit),
         )
-        return [
-            {"key": row[0], "value": row[1], "version": row[2], "created_at": row[3]}
-            for row in self.cursor.fetchall()
-        ]
 
     def activate(self, key: str, version: int) -> bool:
         """Activate a specific version.
@@ -246,19 +232,10 @@ class ConfigClient(BaseClient):
         Returns:
             List of dicts with 'key', 'value', 'version', 'created_at'
         """
-        self.cursor.execute(
+        return self._fetchall(
             "SELECT key, value, version, created_at FROM config.list(%s, %s, %s, %s)",
             (prefix, self.namespace, limit, cursor),
         )
-        return [
-            {
-                "key": row[0],
-                "value": row[1],
-                "version": row[2],
-                "created_at": row[3],
-            }
-            for row in self.cursor.fetchall()
-        ]
 
     def history(self, key: str, limit: int = 50) -> list[dict]:
         """Get version history for a key.
@@ -270,20 +247,10 @@ class ConfigClient(BaseClient):
         Returns:
             List of dicts with 'version', 'value', 'is_active', 'created_at', 'created_by'
         """
-        self.cursor.execute(
+        return self._fetchall(
             "SELECT version, value, is_active, created_at, created_by FROM config.history(%s, %s, %s)",
             (key, self.namespace, limit),
         )
-        return [
-            {
-                "version": row[0],
-                "value": row[1],
-                "is_active": row[2],
-                "created_at": row[3],
-                "created_by": row[4],
-            }
-            for row in self.cursor.fetchall()
-        ]
 
     def delete(self, key: str) -> int:
         """Delete all versions of a config entry.
@@ -328,18 +295,14 @@ class ConfigClient(BaseClient):
         Returns:
             Dict with 'total_keys', 'total_versions', 'keys_by_prefix'
         """
-        self.cursor.execute(
+        row = self._row(
             "SELECT total_keys, total_versions, keys_by_prefix FROM config.get_stats(%s)",
             (self.namespace,),
         )
-        row = self.cursor.fetchone()
         if row is None:
             return {"total_keys": 0, "total_versions": 0, "keys_by_prefix": {}}
-        return {
-            "total_keys": row[0],
-            "total_versions": row[1],
-            "keys_by_prefix": row[2] or {},
-        }
+        # Handle NULL keys_by_prefix from SQL
+        return {**row, "keys_by_prefix": row["keys_by_prefix"] or {}}
 
     def cleanup_old_versions(self, keep_versions: int = 10) -> int:
         """Delete old inactive versions, keeping N most recent per key.
