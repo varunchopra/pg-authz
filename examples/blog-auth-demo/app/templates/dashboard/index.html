@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Dashboard</h1>
+</div>
+
+<div class="dashboard-grid">
+    <div class="sidebar">
+        <div class="user-profile">
+            <h2>Profile</h2>
+            <div class="profile-item">
+                <div class="profile-label">Email</div>
+                <div class="profile-value">{{ user.email }}</div>
+            </div>
+            <div class="profile-item">
+                <div class="profile-label">User ID</div>
+                <div class="profile-value"><code>{{ user.user_id[:8] }}...</code></div>
+            </div>
+            <div class="profile-item">
+                <div class="profile-label">Created</div>
+                <div class="profile-value">{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else 'N/A' }}</div>
+            </div>
+        </div>
+
+        <div class="nav-menu">
+            <h2>Manage</h2>
+            <a href="{{ url_for('views.dashboard.sessions') }}">
+                Sessions <span class="count">{{ session_count }}</span>
+            </a>
+            <a href="{{ url_for('views.dashboard.api_keys') }}">
+                API Keys <span class="count">{{ api_key_count }}</span>
+            </a>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-value">{{ session_count }}</div>
+                <div class="stat-label">Active Sessions</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">{{ api_key_count }}</div>
+                <div class="stat-label">API Keys</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <h2>Quick Actions</h2>
+            </div>
+            <a href="{{ url_for('views.dashboard.sessions') }}" class="btn">Manage Sessions</a>
+            <a href="{{ url_for('views.dashboard.api_keys') }}" class="btn">Manage API Keys</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,250 @@
+import logging
+import os
+from typing import TypeVar
+
+from flask import Blueprint, jsonify, request
+from postkit.base import UniqueViolationError
+from pydantic import ValidationError
+from werkzeug.exceptions import BadRequest
+
+from ...auth import (
+    DUMMY_HASH,
+    create_token,
+    get_current_user,
+    hash_password,
+    hash_token,
+    require_auth,
+    verify_password,
+)
+from ...db import get_authn, get_db
+from ...schemas import (
+    LoginRequest,
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    SignupRequest,
+)
+
+bp = Blueprint("api_users", __name__)
+log = logging.getLogger(__name__)
+
+# Only expose debug features in development
+DEBUG = os.environ.get("DEBUG", "").lower() in ("1", "true")
+
+T = TypeVar("T")
+
+
+def validate(model: type[T]) -> T:
+    """Validate request JSON against a Pydantic model."""
+    if request.json is None:
+        raise BadRequest("Request body required")
+    return model.model_validate(request.json)
+
+
+@bp.post("/signup")
+def signup():
+    try:
+        data = validate(SignupRequest)
+    except ValidationError as e:
+        return jsonify({"error": "validation failed", "details": e.errors()}), 400
+
+    authn = get_authn()
+
+    try:
+        user_id = authn.create_user(data.email, hash_password(data.password))
+        log.info(f"User created: user_id={user_id[:8]}...")
+        return jsonify({"user_id": user_id}), 201
+    except UniqueViolationError:
+        return jsonify({"error": "email already registered"}), 409
+    except Exception:
+        log.exception("Signup failed")
+        return jsonify({"error": "signup failed"}), 500
+
+
+@bp.post("/login")
+def login():
+    try:
+        data = validate(LoginRequest)
+    except ValidationError as e:
+        return jsonify({"error": "validation failed", "details": e.errors()}), 400
+
+    authn = get_authn()
+    email = data.email.lower()
+
+    if authn.is_locked_out(email):
+        log.warning("Locked out login attempt")
+        return jsonify({"error": "too many attempts, try again later"}), 429
+
+    creds = authn.get_credentials(email)
+
+    # Constant-time password verification to prevent timing attacks
+    password_hash = (
+        creds["password_hash"] if creds and creds.get("password_hash") else DUMMY_HASH
+    )
+    password_valid = verify_password(data.password, password_hash)
+
+    # Check if user exists, has password, is not disabled, and password is valid
+    if (
+        not creds
+        or not creds.get("password_hash")
+        or creds.get("disabled_at")
+        or not password_valid
+    ):
+        authn.record_login_attempt(email, success=False, ip_address=request.remote_addr)
+        log.warning("Failed login attempt")
+        return jsonify({"error": "invalid credentials"}), 401
+
+    authn.record_login_attempt(email, success=True, ip_address=request.remote_addr)
+
+    raw_token, token_hash = create_token()
+    authn.create_session(
+        user_id=creds["user_id"],
+        token_hash=token_hash,
+        ip_address=request.remote_addr,
+        user_agent=request.headers.get("User-Agent", "")[:1024],
+    )
+
+    log.info(f"User logged in: user_id={creds['user_id'][:8]}...")
+    return jsonify({"token": raw_token})
+
+
+@bp.post("/logout")
+@require_auth
+def logout():
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token_hash = hash_token(auth_header[7:])
+        get_authn().revoke_session(token_hash)
+    return jsonify({"ok": True})
+
+
+@bp.get("/me")
+@require_auth
+def me():
+    user = get_authn().get_user(get_current_user())
+    if not user:
+        return jsonify({"error": "user not found"}), 404
+
+    return jsonify(
+        {
+            "id": user["user_id"],
+            "email": user["email"],
+            "created_at": user["created_at"].isoformat(),
+            "email_verified_at": user["email_verified_at"].isoformat()
+            if user.get("email_verified_at")
+            else None,
+        }
+    )
+
+
+@bp.post("/forgot-password")
+def forgot_password():
+    try:
+        data = validate(PasswordResetRequest)
+    except ValidationError as e:
+        return jsonify({"error": "validation failed", "details": e.errors()}), 400
+
+    authn = get_authn()
+    user = authn.get_user_by_email(data.email.lower())
+
+    # Always return success to prevent email enumeration
+    if not user:
+        log.info("Password reset for non-existent email")
+        return jsonify({"ok": True})
+
+    raw_token, token_hash = create_token()
+    authn.create_token(
+        user_id=user["user_id"],
+        token_hash=token_hash,
+        token_type="password_reset",
+    )
+
+    log.info(f"Password reset token created: user_id={user['user_id'][:8]}...")
+
+    # Only return token in debug mode - in production, send email
+    if DEBUG:
+        return jsonify({"ok": True, "debug_token": raw_token})
+    return jsonify({"ok": True})
+
+
+@bp.post("/reset-password")
+def reset_password():
+    try:
+        data = validate(PasswordResetConfirm)
+    except ValidationError as e:
+        return jsonify({"error": "validation failed", "details": e.errors()}), 400
+
+    authn = get_authn()
+    token_hash = hash_token(data.token)
+
+    token_data = authn.consume_token(token_hash, "password_reset")
+    if not token_data:
+        return jsonify({"error": "invalid or expired token"}), 400
+
+    # Atomic: update password and revoke sessions together
+    with get_db().transaction():
+        authn.update_password(token_data["user_id"], hash_password(data.password))
+        authn.revoke_all_sessions(token_data["user_id"])
+
+    log.info(f"Password reset completed: user_id={token_data['user_id'][:8]}...")
+    return jsonify({"ok": True})
+
+
+@bp.get("/sessions")
+@require_auth
+def list_sessions():
+    sessions = get_authn().list_sessions(get_current_user())
+    return jsonify(
+        {
+            "sessions": [
+                {
+                    "id": s["session_id"],
+                    "ip_address": str(s["ip_address"]) if s.get("ip_address") else None,
+                    "user_agent": s.get("user_agent"),
+                    "created_at": s["created_at"].isoformat(),
+                    "expires_at": s["expires_at"].isoformat(),
+                }
+                for s in sessions
+            ]
+        }
+    )
+
+
+@bp.delete("/sessions/<session_id>")
+@require_auth
+def revoke_session(session_id: str):
+    """Revoke a specific session by ID."""
+    user_id = get_current_user()
+    revoked = get_authn().revoke_session_by_id(session_id, user_id)
+
+    if not revoked:
+        return jsonify({"error": "session not found"}), 404
+
+    log.info(f"Session revoked: session_id={session_id[:8]}...")
+    return jsonify({"ok": True})
+
+
+@bp.delete("/sessions")
+@require_auth
+def revoke_all_other_sessions():
+    """Revoke all sessions except the current one."""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return jsonify({"error": "requires bearer token"}), 400
+
+    user_id = get_current_user()
+    authn = get_authn()
+
+    # Revoke all and create a new session for the current user
+    count = authn.revoke_all_sessions(user_id)
+
+    # Re-create current session
+    raw_token, token_hash = create_token()
+    authn.create_session(
+        user_id=user_id,
+        token_hash=token_hash,
+        ip_address=request.remote_addr,
+        user_agent=request.headers.get("User-Agent", "")[:1024],
+    )
+
+    log.info(f"Revoked {count} sessions, created new session")
+    return jsonify({"ok": True, "revoked": count, "new_token": raw_token})

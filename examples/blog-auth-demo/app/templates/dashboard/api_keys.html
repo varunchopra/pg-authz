@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}API Keys{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>API Keys</h1>
+    <a href="{{ url_for('views.dashboard.index') }}" class="btn">Back to Dashboard</a>
+</div>
+
+{% if new_key %}
+<div class="new-key-banner">
+    <strong>New API Key Created</strong>
+    <div class="warning">Copy this key now. You won't be able to see it again.</div>
+    <div class="key-value">
+        <code id="new-key">{{ new_key }}</code>
+        <button type="button" class="btn btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('new-key').textContent).then(() => alert('Copied!'))">Copy</button>
+    </div>
+</div>
+{% endif %}
+
+<div class="section">
+    <div class="section-header">
+        <h2>Create New Key</h2>
+    </div>
+    <form method="POST" action="{{ url_for('views.dashboard.create_api_key') }}" class="inline-form">
+        <div class="form-group">
+            <label for="name">Key Name</label>
+            <input type="text" id="name" name="name" placeholder="e.g., Production API" maxlength="64">
+        </div>
+        <button type="submit" class="btn btn-primary">Create Key</button>
+    </form>
+</div>
+
+<div class="section">
+    <div class="section-header">
+        <h2>Your API Keys</h2>
+    </div>
+
+    {% if keys %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Key ID</th>
+                <th>Created</th>
+                <th>Last Used</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for key in keys %}
+            <tr>
+                <td>{{ key.name or 'Unnamed' }}</td>
+                <td><code>{{ key.key_id[:12] }}...</code></td>
+                <td>{{ key.created_at.strftime('%Y-%m-%d %H:%M') if key.created_at else 'N/A' }}</td>
+                <td>{{ key.last_used_at.strftime('%Y-%m-%d %H:%M') if key.last_used_at else 'Never' }}</td>
+                <td class="actions">
+                    <form method="POST" action="{{ url_for('views.dashboard.revoke_api_key', key_id=key.key_id) }}" style="display: inline;">
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Revoke this API key?')">Revoke</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-message">No API keys yet. Create one above.</div>
+    {% endif %}
+</div>
+{% endblock %}
