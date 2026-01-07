@@ -329,18 +329,21 @@ class BaseClient(ABC):
         self._on_behalf_of = None
         self._reason = None
 
-    def get_audit_events(
+    def _get_audit_events(
         self,
         limit: int = 100,
         event_type: str | None = None,
-        **filters: Any,
+        filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """Query audit events with optional filters.
+        """Internal helper for audit event queries.
+
+        Subclasses should define their own public get_audit_events() with
+        explicit parameters and call this helper.
 
         Args:
-            limit: Maximum number of events to return (default 100)
-            event_type: Filter by event type (e.g., 'tuple_created', 'entry_created')
-            **filters: Additional column=value filters (schema-specific)
+            limit: Maximum number of events to return
+            event_type: Filter by event type
+            filters: Pre-validated column:value pairs (keys MUST be safe identifiers)
 
         Returns:
             List of audit event dictionaries
@@ -352,11 +355,14 @@ class BaseClient(ABC):
             conditions.append("event_type = %s")
             params.append(event_type)
 
-        # Handle schema-specific filters
-        for col, val in filters.items():
-            if val is not None:
-                conditions.append(f"{col} = %s")
-                params.append(val)
+        if filters:
+            for col, val in filters.items():
+                if val is not None:
+                    # Defense-in-depth: validate column name is safe identifier
+                    if not col.isidentifier():
+                        raise ValueError(f"Invalid column name: {col}")
+                    conditions.append(f"{col} = %s")
+                    params.append(val)
 
         params.append(limit)
 
@@ -369,6 +375,12 @@ class BaseClient(ABC):
         """
 
         return self._fetch_all(sql, tuple(params))
+
+    def get_audit_events(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        """Query audit events. Subclasses must override with explicit parameters."""
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must override get_audit_events() with explicit parameters"
+        )
 
     def get_stats(self) -> dict:
         """Get namespace statistics. Subclasses should override with module-specific stats."""

@@ -1,6 +1,7 @@
 """Core SDK tests for postkit.meter - happy path and basic functionality."""
 
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 
 
 class TestAllocate:
@@ -531,26 +532,26 @@ class TestActorContext:
 
     def test_actor_captured_in_allocate(self, meter):
         """allocate() captures actor context."""
-        meter.set_actor("admin@acme.com", reason="Monthly allocation")
+        meter.set_actor("user:admin", reason="Monthly allocation")
         meter.allocate("alice", "llm_call", 1000, "tokens")
 
         ledger = meter.get_ledger("alice", "llm_call", "tokens")
 
         assert len(ledger) == 1
-        assert ledger[0]["actor_id"] == "admin@acme.com"
+        assert ledger[0]["actor_id"] == "user:admin"
         assert ledger[0]["reason"] == "Monthly allocation"
 
     def test_actor_captured_in_consume(self, meter):
         """consume() captures actor context."""
         meter.allocate("alice", "llm_call", 1000, "tokens")
 
-        meter.set_actor("service@acme.com", reason="API usage")
+        meter.set_actor("service:api", reason="API usage")
         meter.consume("alice", "llm_call", 100, "tokens")
 
         ledger = meter.get_ledger("alice", "llm_call", "tokens")
         consumption = [e for e in ledger if e["entry_type"] == "consumption"][0]
 
-        assert consumption["actor_id"] == "service@acme.com"
+        assert consumption["actor_id"] == "service:api"
         assert consumption["reason"] == "API usage"
 
     def test_actor_captured_in_commit(self, meter):
@@ -558,44 +559,44 @@ class TestActorContext:
         meter.allocate("alice", "llm_call", 1000, "tokens")
         res = meter.reserve("alice", "llm_call", 400, "tokens")
 
-        meter.set_actor("llm-service", reason="Streaming completion")
+        meter.set_actor("service:llm", reason="Streaming completion")
         meter.commit(res["reservation_id"], 350)
 
         ledger = meter.get_ledger("alice", "llm_call", "tokens")
         consumption = [e for e in ledger if e["entry_type"] == "consumption"][0]
 
-        assert consumption["actor_id"] == "llm-service"
+        assert consumption["actor_id"] == "service:llm"
         assert consumption["reason"] == "Streaming completion"
 
     def test_actor_captured_in_adjust(self, meter):
         """adjust() captures actor context."""
         meter.allocate("alice", "llm_call", 1000, "tokens")
 
-        meter.set_actor("support@acme.com", reason="Refund for outage")
+        meter.set_actor("user:support", reason="Refund for outage")
         meter.adjust("alice", "llm_call", 500, "tokens")
 
         ledger = meter.get_ledger("alice", "llm_call", "tokens")
         adjustment = [e for e in ledger if e["entry_type"] == "adjustment"][0]
 
-        assert adjustment["actor_id"] == "support@acme.com"
+        assert adjustment["actor_id"] == "user:support"
         assert adjustment["reason"] == "Refund for outage"
 
     def test_on_behalf_of_captured(self, meter):
         """on_behalf_of delegation is captured."""
         meter.set_actor(
-            "admin@acme.com", on_behalf_of="alice", reason="Support ticket #1234"
+            "user:admin", on_behalf_of="user:alice", reason="Support ticket #1234"
         )
         meter.allocate("alice", "llm_call", 500, "tokens")
 
         ledger = meter.get_ledger("alice", "llm_call", "tokens")
 
-        assert ledger[0]["actor_id"] == "admin@acme.com"
+        assert ledger[0]["actor_id"] == "user:admin"
         # on_behalf_of is captured in the ledger entry
         # Note: get_ledger returns it if the column exists
 
     def test_clear_actor_stops_capture(self, meter):
         """clear_actor() stops context capture."""
-        meter.set_actor("admin@acme.com")
+        meter.set_actor("user:admin")
         meter.allocate("alice", "llm_call", 1000, "tokens")
 
         meter.clear_actor()
@@ -605,14 +606,14 @@ class TestActorContext:
         allocation = [e for e in ledger if e["entry_type"] == "allocation"][0]
         consumption = [e for e in ledger if e["entry_type"] == "consumption"][0]
 
-        assert allocation["actor_id"] == "admin@acme.com"
+        assert allocation["actor_id"] == "user:admin"
         assert consumption["actor_id"] is None  # Cleared
 
     def test_actor_captured_in_reservation(self, meter):
         """reserve() captures actor context in reservation record."""
         meter.allocate("alice", "llm_call", 1000, "tokens")
 
-        meter.set_actor("llm-gateway", request_id="req-001")
+        meter.set_actor("service:gateway", request_id="req-001")
         res = meter.reserve("alice", "llm_call", 400, "tokens")
 
         # Verify via direct query since get_ledger won't show reservations
@@ -624,7 +625,7 @@ class TestActorContext:
         )
         row = meter.cursor.fetchone()
 
-        assert row[0] == "llm-gateway"
+        assert row[0] == "service:gateway"
         assert row[1] == "req-001"
 
     def test_actor_not_required(self, meter):
@@ -638,3 +639,29 @@ class TestActorContext:
         assert len(ledger) == 2
         assert ledger[0]["actor_id"] is None
         assert ledger[1]["actor_id"] is None
+
+
+class TestNormalizeValue:
+    """Tests for Decimal normalization - ensures SDK returns float, not Decimal."""
+
+    def test_decimal_normalized_to_float(self, meter):
+        """Decimal values from DB are converted to float."""
+        meter.allocate("alice", "llm_call", 1000, "tokens")
+        balance = meter.get_balance("alice", "llm_call", "tokens")
+
+        # PostgreSQL returns numeric as Decimal, SDK should normalize to float
+        assert isinstance(balance["balance"], float), (
+            f"Expected float, got {type(balance['balance'])}"
+        )
+        assert not isinstance(balance["balance"], Decimal)
+
+    def test_all_balance_fields_are_float(self, meter):
+        """All numeric fields in balance response are floats."""
+        meter.allocate("alice", "llm_call", 1000, "tokens")
+        meter.reserve("alice", "llm_call", 200, "tokens")
+        balance = meter.get_balance("alice", "llm_call", "tokens")
+
+        for field in ["balance", "reserved", "available"]:
+            assert isinstance(balance[field], float), (
+                f"{field}: Expected float, got {type(balance[field])}"
+            )

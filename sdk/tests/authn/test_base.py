@@ -131,3 +131,37 @@ class TestExceptionHierarchy:
 
         # And from Exception
         assert issubclass(PostkitError, Exception)
+
+
+class TestNormalizeValue:
+    """Tests for value type normalization in _normalize_value."""
+
+    def test_uuid_normalized_to_str(self, authn):
+        """UUID values from DB are converted to str."""
+        user_id = authn.create_user("uuid_test@example.com", "hash")
+        user = authn.get_user(user_id)
+
+        # Verify returned user_id in dict is a string, not UUID object
+        assert isinstance(user["user_id"], str), (
+            f"Expected str, got {type(user['user_id'])}"
+        )
+        assert len(user["user_id"]) == 36  # UUID string format: 8-4-4-4-12
+
+    def test_ipv4_address_normalized_to_str(self, authn):
+        """IPv4Address values from DB are converted to str."""
+        user_id = authn.create_user("ipv4_test@example.com", "hash")
+        authn.create_session(user_id, "token_hash", ip_address="192.168.1.100")
+        sessions = authn.list_sessions(user_id)
+
+        ip = sessions[0]["ip_address"]
+        assert isinstance(ip, str), f"Expected str, got {type(ip)}"
+        assert ip == "192.168.1.100"
+
+    def test_ipv6_address_normalized_to_str(self, authn):
+        """IPv6Address values from DB are converted to str."""
+        user_id = authn.create_user("ipv6_test@example.com", "hash")
+        authn.create_session(user_id, "token_hash", ip_address="::1")
+        sessions = authn.list_sessions(user_id)
+
+        ip = sessions[0]["ip_address"]
+        assert isinstance(ip, str), f"Expected str, got {type(ip)}"

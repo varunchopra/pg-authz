@@ -1,8 +1,13 @@
 """Tests for audit logging and partition management."""
 
+import hashlib
 from datetime import datetime
 
+import psycopg
 import pytest
+from postkit.authn import AuthnClient
+
+from tests.conftest import DATABASE_URL
 
 
 class TestCreateAuditPartition:
@@ -192,7 +197,7 @@ class TestSetActor:
     def test_actor_context_captured_in_audit(self, authn, test_helpers):
         """Actor context is captured when audit events are logged."""
         # Use SDK's set_actor which handles transaction correctly
-        authn.set_actor("admin-user", "request-789")
+        authn.set_actor("user:admin", request_id="request-789")
 
         # Create a user (which logs an audit event)
         user_id = authn.create_user("audit-test@example.com", "hash")
@@ -201,7 +206,7 @@ class TestSetActor:
         events = authn.get_audit_events(event_type="user_created")
         matching = [e for e in events if e["resource_id"] == user_id]
         assert len(matching) >= 1
-        assert matching[0]["actor_id"] == "admin-user"
+        assert matching[0]["actor_id"] == "user:admin"
         assert matching[0]["request_id"] == "request-789"
 
     def test_on_behalf_of_captured_in_audit(self, authn, test_helpers):
@@ -285,8 +290,6 @@ class TestSetActorMergeSemantics:
 
     def test_api_key_auth_flow(self, authn):
         """API key auth sets HTTP context first, then actor after validation."""
-        import hashlib
-
         # Setup
         user_id = authn.create_user("apikey-test@example.com", "hash")
         raw_key = "test-api-key-12345"
@@ -321,6 +324,35 @@ class TestSetActorMergeSemantics:
         assert event["request_id"] == "req-api-456"
         assert event["ip_address"] == "192.168.1.100"
         assert event["user_agent"] == "TestClient/2.0"
+
+    def test_actor_context_in_caller_transaction(self, db_connection):
+        """Actor context works when SDK runs inside caller's transaction."""
+        # db_connection ensures schema is installed; we create our own non-autocommit conn
+        conn = psycopg.connect(DATABASE_URL, autocommit=False)
+        cursor = conn.cursor()
+        namespace = "test_txn_actor"
+
+        try:
+            client = AuthnClient(cursor, namespace)
+            client.set_actor("user:alice", request_id="req-789")
+
+            user_id = client.create_user("alice@example.com", "hash")
+            conn.commit()
+
+            events = client.get_audit_events(event_type="user_created")
+            event = next(e for e in events if e["resource_id"] == user_id)
+
+            assert event["actor_id"] == "user:alice"
+            assert event["request_id"] == "req-789"
+        finally:
+            # Cleanup
+            cursor.execute(
+                "DELETE FROM authn.audit_events WHERE namespace = %s", (namespace,)
+            )
+            cursor.execute("DELETE FROM authn.users WHERE namespace = %s", (namespace,))
+            conn.commit()
+            cursor.close()
+            conn.close()
 
 
 class TestClearActor:

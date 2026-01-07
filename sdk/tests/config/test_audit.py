@@ -280,3 +280,29 @@ class TestCleanupOldVersions:
         assert deleted == 1
         # Should have: v1 (active), v3 (kept inactive)
         assert test_helpers.count_versions("prompts/bot") == 2
+
+
+class TestAuditSecurityValidation:
+    """Tests for audit event query security."""
+
+    def test_rejects_invalid_column_names(self, config):
+        """SQL injection via column name is prevented."""
+        # Attempt to inject SQL via column name
+        with pytest.raises(ValueError, match="Invalid column name"):
+            config._get_audit_events(filters={"1=1; DROP TABLE--": "value"})
+
+    def test_rejects_column_names_with_spaces(self, config):
+        """Column names with spaces are rejected."""
+        with pytest.raises(ValueError, match="Invalid column name"):
+            config._get_audit_events(filters={"key or 1=1": "value"})
+
+    def test_rejects_column_names_with_operators(self, config):
+        """Column names with SQL operators are rejected."""
+        with pytest.raises(ValueError, match="Invalid column name"):
+            config._get_audit_events(filters={"key=": "value"})
+
+    def test_accepts_valid_column_names(self, config):
+        """Valid Python identifiers are accepted as column names."""
+        # This should not raise - 'key' is a valid identifier
+        result = config._get_audit_events(filters={"key": "nonexistent"})
+        assert result == []  # No matching events, but query executed safely

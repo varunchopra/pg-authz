@@ -129,7 +129,7 @@ Query audit events.
 
 **Parameters:**
 - `limit`: Maximum number of events to return (default 100)
-- `event_type`: Filter by event type (e.g., 'entry_created')
+- `event_type`: Filter by event type (e.g., 'entry_created', 'entry_deleted')
 - `key`: Filter by config key
 
 **Returns:** List of audit event dictionaries

@@ -338,10 +338,16 @@ class ConfigClient(BaseClient):
 
         Args:
             limit: Maximum number of events to return (default 100)
-            event_type: Filter by event type (e.g., 'entry_created')
+            event_type: Filter by event type (e.g., 'entry_created', 'entry_deleted')
             key: Filter by config key
 
         Returns:
             List of audit event dictionaries
         """
-        return super().get_audit_events(limit=limit, event_type=event_type, key=key)
+        filters: dict[str, Any] = {}
+        if key is not None:
+            filters["key"] = key
+
+        return self._get_audit_events(
+            limit=limit, event_type=event_type, filters=filters
+        )

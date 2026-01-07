@@ -208,6 +208,16 @@ class TestSDKValidation:
         with pytest.raises(AuthzError, match="must start with lowercase"):
             authz.grant("read", resource=("doc", "1"), subject=("USER", "alice"))
 
+    def test_invalid_subject_relation_raises(self, authz):
+        """grant rejects invalid subject_relation (must be lowercase identifier)."""
+        with pytest.raises(AuthzError, match="must start with lowercase"):
+            authz.grant(
+                "read",
+                resource=("doc", "1"),
+                subject=("team", "eng"),
+                subject_relation="ADMIN",
+            )
+
     def test_empty_resource_id_raises(self, authz):
         with pytest.raises(AuthzError, match="cannot be empty"):
             authz.grant("read", resource=("doc", ""), subject=("user", "alice"))
@@ -289,6 +299,16 @@ class TestDeleteValidation:
         """delete rejects empty subject_id."""
         with pytest.raises(AuthzError, match="cannot be empty"):
             authz.revoke("read", resource=("doc", "1"), subject=("user", ""))
+
+    def test_delete_rejects_invalid_subject_relation(self, authz):
+        """revoke rejects invalid subject_relation."""
+        with pytest.raises(AuthzError, match="must start with lowercase"):
+            authz.revoke(
+                "read",
+                resource=("doc", "1"),
+                subject=("team", "eng"),
+                subject_relation="ADMIN",
+            )
 
     def test_delete_valid_input_succeeds(self, authz):
         """delete with valid input succeeds (even if tuple doesn't exist)."""

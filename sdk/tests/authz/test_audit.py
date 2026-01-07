@@ -4,8 +4,9 @@ Audit logging tests for postkit/authz.
 Tests audit event capture, actor context, filtering, and partition management.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
+import psycopg
 import pytest
 
 
@@ -195,8 +196,6 @@ class TestActorContext:
         """SQL clear_actor() function clears session context including on_behalf_of."""
         # Need non-autocommit connection for transaction-local settings
         info = db_connection.info
-        import psycopg
-
         conn = psycopg.connect(
             host=info.host,
             port=info.port,
@@ -444,8 +443,6 @@ class TestPartitionManagement:
     def test_drop_preserves_recent_partitions(self, authz):
         """drop_audit_partitions preserves recent partitions."""
         # Create a partition for current year + 1 (definitely recent)
-        from datetime import date
-
         future_year = date.today().year + 1
         authz.cursor.execute(f"SELECT authz.create_audit_partition({future_year}, 6)")
 

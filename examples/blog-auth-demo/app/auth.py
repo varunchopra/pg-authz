@@ -109,8 +109,6 @@ def get_session_user() -> str | None:
         return None
 
     # Validate session against database
-    from .db import get_authn
-
     db_session = get_authn().validate_session(token_hash)
     if not db_session:
         # Session revoked - clear Flask session

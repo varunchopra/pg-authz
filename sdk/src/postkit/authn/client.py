@@ -9,6 +9,7 @@ This module provides:
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from typing import Any
 
 from postkit.base import BaseClient, PostkitError
 
@@ -102,7 +103,7 @@ class AuthnClient(BaseClient):
             (email, password_hash, self.namespace),
             write=True,
         )
-        return str(result) if result else None
+        return str(result)
 
     def get_user(self, user_id: str) -> dict | None:
         """Get user by ID. Does not return password_hash."""
@@ -203,7 +204,7 @@ class AuthnClient(BaseClient):
             (user_id, token_hash, expires_in, ip_address, user_agent, self.namespace),
             write=True,
         )
-        return str(result) if result else None
+        return str(result)
 
     def validate_session(self, token_hash: str) -> dict | None:
         """
@@ -315,7 +316,7 @@ class AuthnClient(BaseClient):
             (user_id, key_hash, name, expires_in, self.namespace),
             write=True,
         )
-        return str(result) if result else None
+        return str(result)
 
     def validate_api_key(self, key_hash: str) -> dict | None:
         """
@@ -379,7 +380,7 @@ class AuthnClient(BaseClient):
             (user_id, token_hash, token_type, expires_in, self.namespace),
             write=True,
         )
-        return str(result) if result else None
+        return str(result)
 
     def consume_token(self, token_hash: str, token_type: str) -> dict | None:
         """
@@ -438,7 +439,7 @@ class AuthnClient(BaseClient):
             (user_id, mfa_type, secret, name, self.namespace),
             write=True,
         )
-        return str(result) if result else None
+        return str(result)
 
     def get_mfa(self, user_id: str, mfa_type: str) -> list[dict]:
         """Get MFA secrets for verification. Returns secrets!"""
@@ -583,10 +584,23 @@ class AuthnClient(BaseClient):
         resource_type: str | None = None,
         resource_id: str | None = None,
     ) -> list[dict]:
-        """Query audit events."""
-        return super().get_audit_events(
-            limit=limit,
-            event_type=event_type,
-            resource_type=resource_type,
-            resource_id=resource_id,
+        """Query audit events.
+
+        Args:
+            limit: Maximum number of events to return (default 100)
+            event_type: Filter by event type (e.g., 'user_created', 'session_revoked')
+            resource_type: Filter by resource type (e.g., 'user', 'session')
+            resource_id: Filter by resource ID
+
+        Returns:
+            List of audit event dictionaries
+        """
+        filters: dict[str, Any] = {}
+        if resource_type is not None:
+            filters["resource_type"] = resource_type
+        if resource_id is not None:
+            filters["resource_id"] = resource_id
+
+        return self._get_audit_events(
+            limit=limit, event_type=event_type, filters=filters
         )
