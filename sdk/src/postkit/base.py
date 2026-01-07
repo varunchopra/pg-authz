@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from decimal import Decimal
+from ipaddress import IPv4Address, IPv6Address
 from typing import Any, Callable, TypeVar
 from uuid import UUID
 
@@ -128,15 +129,12 @@ class BaseClient(ABC):
         raise exc_class(message, sqlstate) from e
 
     def _normalize_value(self, value: Any) -> Any:
-        """Normalize database values to Python types.
-
-        Converts:
-        - Decimal to float for JSON serialization
-        - UUID to str for JSON serialization and API consistency
-        """
+        """Normalize database values to Python types."""
         if isinstance(value, Decimal):
             return float(value)
         if isinstance(value, UUID):
+            return str(value)
+        if isinstance(value, (IPv4Address, IPv6Address)):
             return str(value)
         return value
 
@@ -148,6 +146,12 @@ class BaseClient(ABC):
         with the appropriate parameters.
         """
         ...
+
+    def _has_context(self) -> bool:
+        """Check if any context field is set."""
+        return bool(
+            self._actor_id or self._request_id or self._on_behalf_of or self._reason
+        )
 
     def _with_actor(self, executor: Callable[[], T]) -> T:
         """Execute operation with actor context for audit logging.
@@ -164,7 +168,7 @@ class BaseClient(ABC):
         Args:
             executor: Callable that performs the actual SQL execution and returns result
         """
-        if self._actor_id is None:
+        if not self._has_context():
             return executor()
 
         conn = self.cursor.connection
@@ -291,26 +295,32 @@ class BaseClient(ABC):
 
     def set_actor(
         self,
-        actor_id: str,
+        actor_id: str | None = None,
         request_id: str | None = None,
         on_behalf_of: str | None = None,
         reason: str | None = None,
     ) -> None:
-        """Set actor context for audit logging.
-
-        Call this before performing operations to record who made changes.
-        Context persists until clear_actor() is called or client is discarded.
+        """Set actor context for audit logging. Only updates fields that are passed.
 
         Args:
-            actor_id: The actor making changes (e.g., 'user:admin-bob', 'agent:support-bot')
-            request_id: Optional request/correlation ID for tracing
-            on_behalf_of: Optional principal being represented (e.g., 'user:customer-alice')
-            reason: Optional reason for the action (e.g., 'deployment:v1.2.3')
+            actor_id: The actor making changes (e.g., 'user:alice', 'service:billing')
+            request_id: Request/correlation ID for tracing
+            on_behalf_of: Principal being represented (e.g., 'user:customer')
+            reason: Reason for the action (e.g., 'support_ticket:123')
+
+        Example:
+            client.clear_actor()
+            client.set_actor(request_id="req-123")  # Set request context first
+            client.set_actor(actor_id="user:alice")  # Add actor after auth
         """
-        self._actor_id = actor_id
-        self._request_id = request_id
-        self._on_behalf_of = on_behalf_of
-        self._reason = reason
+        if actor_id is not None:
+            self._actor_id = actor_id
+        if request_id is not None:
+            self._request_id = request_id
+        if on_behalf_of is not None:
+            self._on_behalf_of = on_behalf_of
+        if reason is not None:
+            self._reason = reason
 
     def clear_actor(self) -> None:
         """Clear actor context."""

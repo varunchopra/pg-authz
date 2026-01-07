@@ -39,16 +39,15 @@ def hash_token(token: str) -> str:
 
 
 def _set_user_context(user_id: str, session_id: str | None = None) -> str:
-    """Cache user_id (and optionally session_id) and set actor context for audit trails."""
+    """Cache user_id (and optionally session_id) and set actor context for audit trails.
+
+    Request context (IP, user_agent, request_id) is already set by before_request.
+    This just adds the actor_id after authentication.
+    """
     g.current_user_id = user_id
     if session_id:
         g.current_session_id = session_id
-    get_authn().set_actor(
-        f"user:{user_id}",
-        request_id=g.get("request_id"),
-        ip_address=request.remote_addr,
-        user_agent=request.headers.get("User-Agent", "")[:1024],
-    )
+    get_authn().set_actor(actor_id=f"user:{user_id}")
     return user_id
 
 

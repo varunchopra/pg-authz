@@ -57,6 +57,10 @@ class AuthnClient(BaseClient):
         self._ip_address: str | None = None
         self._user_agent: str | None = None
 
+    def _has_context(self) -> bool:
+        """Check if any context field is set (includes authn-specific fields)."""
+        return super()._has_context() or self._ip_address or self._user_agent
+
     def _apply_actor_context(self) -> None:
         """Apply actor context via authn.set_actor()."""
         self.cursor.execute(
@@ -483,6 +487,7 @@ class AuthnClient(BaseClient):
         self._fetch_val(
             "SELECT authn.record_login_attempt(%s, %s, %s::inet, %s)",
             (email, success, ip_address, self.namespace),
+            write=True,
         )
 
     def is_locked_out(
@@ -533,7 +538,7 @@ class AuthnClient(BaseClient):
 
     def set_actor(
         self,
-        actor_id: str,
+        actor_id: str | None = None,
         request_id: str | None = None,
         on_behalf_of: str | None = None,
         reason: str | None = None,
@@ -541,31 +546,29 @@ class AuthnClient(BaseClient):
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> None:
-        """Set actor context for audit logging with authn-specific fields.
-
-        Extends the base set_actor() with IP address and user agent tracking,
-        which are relevant for authentication audit trails.
+        """Set actor context for audit logging. Only updates fields that are passed.
 
         Args:
-            actor_id: The actor making changes (e.g., 'user:admin-bob', 'agent:support-bot')
-            request_id: Optional request/correlation ID for tracing
-            on_behalf_of: Optional principal being represented (e.g., 'user:customer-alice')
-            reason: Optional reason/context for the action (e.g., 'support_ticket:12345')
-            ip_address: Optional client IP address (keyword-only, authn-specific)
-            user_agent: Optional client user agent string (keyword-only, authn-specific)
+            actor_id: The actor making changes (e.g., 'user:alice')
+            request_id: Request/correlation ID for tracing
+            on_behalf_of: Principal being represented
+            reason: Reason for the action
+            ip_address: Client IP address
+            user_agent: Client user agent string
 
         Example:
-            authn.set_actor(
-                "user:admin-bob",
-                on_behalf_of="user:customer-alice",
-                reason="support_ticket:12345",
-                ip_address="192.168.1.1",
-                user_agent="Mozilla/5.0"
-            )
+            # In before_request: set HTTP context
+            authn.clear_actor()
+            authn.set_actor(request_id=req_id, ip_address=ip, user_agent=ua)
+
+            # After authentication: add actor_id (preserves HTTP context)
+            authn.set_actor(actor_id="user:alice")
         """
         super().set_actor(actor_id, request_id, on_behalf_of, reason)
-        self._ip_address = ip_address
-        self._user_agent = user_agent
+        if ip_address is not None:
+            self._ip_address = ip_address
+        if user_agent is not None:
+            self._user_agent = user_agent
 
     def clear_actor(self) -> None:
         """Clear actor context."""

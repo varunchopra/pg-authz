@@ -58,7 +58,7 @@ clear_actor() -> None
 
 Clear actor context.
 
-*Source: sdk/src/postkit/base.py:315*
+*Source: sdk/src/postkit/base.py:325*
 
 ---
 
@@ -338,18 +338,25 @@ Reserve quota for pending operation (streaming, uncertain consumption).
 ### set_actor
 
 ```python
-set_actor(actor_id: str, request_id: str | None = None, on_behalf_of: str | None = None, reason: str | None = None) -> None
+set_actor(actor_id: str | None = None, request_id: str | None = None, on_behalf_of: str | None = None, reason: str | None = None) -> None
 ```
 
-Set actor context for audit logging.
+Set actor context for audit logging. Only updates fields that are passed.
 
 **Parameters:**
-- `actor_id`: The actor making changes (e.g., 'user:admin-bob', 'agent:support-bot')
-- `request_id`: Optional request/correlation ID for tracing
-- `on_behalf_of`: Optional principal being represented (e.g., 'user:customer-alice')
-- `reason`: Optional reason for the action (e.g., 'deployment:v1.2.3')
+- `actor_id`: The actor making changes (e.g., 'user:alice', 'service:billing')
+- `request_id`: Request/correlation ID for tracing
+- `on_behalf_of`: Principal being represented (e.g., 'user:customer')
+- `reason`: Reason for the action (e.g., 'support_ticket:123')
 
-*Source: sdk/src/postkit/base.py:292*
+**Example:**
+```python
+client.clear_actor()
+client.set_actor(request_id="req-123")  # Set request context first
+client.set_actor(actor_id="user:alice")  # Add actor after auth
+```
+
+*Source: sdk/src/postkit/base.py:296*
 
 ---
 

@@ -246,6 +246,83 @@ class TestSetActor:
         assert matching[0]["reason"] is None
 
 
+class TestSetActorMergeSemantics:
+    """Tests for set_actor merge/bind semantics (clear + bind pattern)."""
+
+    def test_clear_bind_pattern(self, authn):
+        """HTTP context captured before auth, then actor_id added after."""
+        authn.clear_actor()
+        authn.set_actor(
+            request_id="req-123",
+            ip_address="10.0.0.1",
+            user_agent="TestClient/1.0",
+        )
+
+        # Before auth: HTTP context captured, no actor
+        user1 = authn.create_user("before-auth@example.com", "hash")
+        event1 = next(
+            e
+            for e in authn.get_audit_events(event_type="user_created")
+            if e["resource_id"] == user1
+        )
+        assert event1["actor_id"] is None
+        assert event1["request_id"] == "req-123"
+        assert event1["ip_address"] == "10.0.0.1"
+        assert event1["user_agent"] == "TestClient/1.0"
+
+        # After auth: actor_id added, HTTP context preserved
+        authn.set_actor(actor_id="user:alice")
+        user2 = authn.create_user("after-auth@example.com", "hash")
+        event2 = next(
+            e
+            for e in authn.get_audit_events(event_type="user_created")
+            if e["resource_id"] == user2
+        )
+        assert event2["actor_id"] == "user:alice"
+        assert event2["request_id"] == "req-123"
+        assert event2["ip_address"] == "10.0.0.1"
+        assert event2["user_agent"] == "TestClient/1.0"
+
+    def test_api_key_auth_flow(self, authn):
+        """API key auth sets HTTP context first, then actor after validation."""
+        import hashlib
+
+        # Setup
+        user_id = authn.create_user("apikey-test@example.com", "hash")
+        raw_key = "test-api-key-12345"
+        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+        authn.create_api_key(user_id, key_hash, name="Test Key")
+
+        # Request starts: HTTP context captured before auth
+        authn.clear_actor()
+        authn.set_actor(
+            request_id="req-api-456",
+            ip_address="192.168.1.100",
+            user_agent="TestClient/2.0",
+        )
+
+        # Auth middleware validates API key
+        key_info = authn.validate_api_key(key_hash)
+        assert key_info is not None
+
+        # After auth: actor identity is bound
+        authn.set_actor(actor_id=f"user:{key_info['user_id']}")
+
+        # User performs an action
+        raw_key2 = "test-api-key-67890"
+        key_hash2 = hashlib.sha256(raw_key2.encode()).hexdigest()
+        key_id2 = authn.create_api_key(user_id, key_hash2, name="Second Key")
+
+        # Audit trail has complete context
+        events = authn.get_audit_events(event_type="api_key_created")
+        event = next(e for e in events if e["resource_id"] == key_id2)
+
+        assert event["actor_id"] == f"user:{user_id}"
+        assert event["request_id"] == "req-api-456"
+        assert event["ip_address"] == "192.168.1.100"
+        assert event["user_agent"] == "TestClient/2.0"
+
+
 class TestClearActor:
     def test_clears_actor_context(self, test_helpers):
         """clear_actor removes all actor context within a transaction."""

@@ -22,7 +22,7 @@
 | [`rollback`](sdk.md#rollback) | Rollback to previous version. |
 | [`search`](sdk.md#search) | Find configs where value contains given JSON. |
 | [`set`](sdk.md#set) | Create a new version and activate it. |
-| [`set_actor`](sdk.md#set_actor) | Set actor context for audit logging. |
+| [`set_actor`](sdk.md#set_actor) | Set actor context for audit logging. Only updates fields that are passed. |
 
 ## SQL Functions
 

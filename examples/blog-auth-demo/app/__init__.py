@@ -21,10 +21,17 @@ def create_app():
     # Database lifecycle
     db.init_app(app)
 
-    # Request context middleware
+    # Request context middleware (clear + bind pattern)
     @app.before_request
     def set_request_context():
         g.request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        authn = db.get_authn()
+        authn.clear_actor()
+        authn.set_actor(
+            request_id=g.request_id,
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get("User-Agent", "")[:1024],
+        )
 
     @app.after_request
     def add_request_id_header(response):

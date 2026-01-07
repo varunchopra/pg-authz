@@ -40,7 +40,7 @@
 | [`revoke_other_sessions`](sdk.md#revoke_other_sessions) | Revoke all sessions except the specified one ("sign out other devices"). |
 | [`revoke_session`](sdk.md#revoke_session) | Revoke a session. |
 | [`revoke_session_by_id`](sdk.md#revoke_session_by_id) | Revoke a session by ID (for manage devices UI). |
-| [`set_actor`](sdk.md#set_actor) | Set actor context for audit logging with authn-specific fields. |
+| [`set_actor`](sdk.md#set_actor) | Set actor context for audit logging. Only updates fields that are passed. |
 | [`update_email`](sdk.md#update_email) | Update user's email. Clears email_verified_at. |
 | [`update_password`](sdk.md#update_password) | Update user's password hash. |
 | [`validate_api_key`](sdk.md#validate_api_key) | Validate an API key. |

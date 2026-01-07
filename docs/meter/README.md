@@ -21,7 +21,7 @@
 | [`release`](sdk.md#release) | Release a reservation without consuming. |
 | [`release_expired_reservations`](sdk.md#release_expired_reservations) | Release all expired reservations for this namespace. |
 | [`reserve`](sdk.md#reserve) | Reserve quota for pending operation (streaming, uncertain consumption). |
-| [`set_actor`](sdk.md#set_actor) | Set actor context for audit logging. |
+| [`set_actor`](sdk.md#set_actor) | Set actor context for audit logging. Only updates fields that are passed. |
 | [`set_period_config`](sdk.md#set_period_config) | Configure period settings for an account. |
 
 ## SQL Functions

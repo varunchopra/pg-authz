@@ -28,7 +28,7 @@
 | [`list_users`](sdk.md#list_users) | List users who have a permission on a resource. |
 | [`remove_hierarchy_rule`](sdk.md#remove_hierarchy_rule) | Remove a single hierarchy rule. |
 | [`revoke`](sdk.md#revoke) | Revoke a permission on a resource from a subject. |
-| [`set_actor`](sdk.md#set_actor) | Set actor context for audit logging. |
+| [`set_actor`](sdk.md#set_actor) | Set actor context for audit logging. Only updates fields that are passed. |
 | [`set_expiration`](sdk.md#set_expiration) | Set or update expiration on an existing grant. |
 | [`set_hierarchy`](sdk.md#set_hierarchy) | Define permission hierarchy for a resource type. |
 | [`verify`](sdk.md#verify) | Check for data integrity issues (e.g., group membership cycles). |
