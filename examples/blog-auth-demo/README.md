@@ -87,8 +87,11 @@ curl -X POST http://localhost:5001/api/reset-password \
 # List sessions
 curl http://localhost:5001/api/sessions -H "Authorization: Bearer TOKEN"
 
-# Revoke all other sessions (returns new token)
+# Revoke all other sessions (keeps current session)
 curl -X DELETE http://localhost:5001/api/sessions -H "Authorization: Bearer TOKEN"
+
+# Revoke a specific session
+curl -X DELETE http://localhost:5001/api/sessions/SESSION_ID -H "Authorization: Bearer TOKEN"
 ```
 
 ### API Keys
@@ -126,8 +129,9 @@ curl http://localhost:5001/api/auth/google
 | GET | /api/me | Bearer/Api-Key | Current user |
 | POST | /api/forgot-password | - | Request password reset |
 | POST | /api/reset-password | - | Reset with token |
-| GET | /api/sessions | Bearer/Api-Key | List sessions |
+| GET | /api/sessions | Bearer | List sessions |
 | DELETE | /api/sessions | Bearer | Revoke all other sessions |
+| DELETE | /api/sessions/:id | Bearer | Revoke a specific session |
 | GET | /api/auth/google | - | Get OAuth URL |
 | GET | /api/auth/google/callback | - | OAuth callback |
 | POST | /api/api-keys | Bearer/Api-Key | Create API key |

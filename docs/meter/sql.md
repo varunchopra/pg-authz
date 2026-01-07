@@ -216,7 +216,7 @@ Close a billing period, handle expiration and carry-over
 
 **Example:**
 ```sql
-SELECT * FROM meter.close_period('user-123', 'llm_call', 'tokens', NULL, '2025-01-31');
+SELECT * FROM meter.close_period('alice', 'llm_call', 'tokens', NULL, '2025-01-31');
 ```
 
 *Source: meter/src/functions/030_periods.sql:48*
@@ -244,7 +244,7 @@ Open a new billing period with fresh allocation
 
 **Example:**
 ```sql
-SELECT meter.open_period('user-123', 'llm_call', 'tokens', NULL, '2025-02-01');
+SELECT meter.open_period('alice', 'llm_call', 'tokens', NULL, '2025-02-01');
 ```
 
 *Source: meter/src/functions/030_periods.sql:128*
@@ -293,7 +293,7 @@ Configure period settings for an account
 
 **Example:**
 ```sql
-SELECT meter.set_period_config('user-123', 'llm_call', 'tokens', NULL, '2025-01-01', 100000, 10000);
+SELECT meter.set_period_config('alice', 'llm_call', 'tokens', NULL, '2025-01-01', 100000, 10000);
 ```
 
 *Source: meter/src/functions/030_periods.sql:1*
@@ -321,7 +321,7 @@ Get full account details
 
 **Example:**
 ```sql
-SELECT * FROM meter.get_account('user-123', 'llm_call', 'tokens');
+SELECT * FROM meter.get_account('alice', 'llm_call', 'tokens');
 ```
 
 *Source: meter/src/functions/020_query.sql:37*
@@ -347,7 +347,7 @@ Get current balance for an account
 
 **Example:**
 ```sql
-SELECT * FROM meter.get_balance('user-123', 'llm_call', 'tokens', 'claude-sonnet');
+SELECT * FROM meter.get_balance('alice', 'llm_call', 'tokens', 'claude-sonnet');
 ```
 
 *Source: meter/src/functions/020_query.sql:1*
@@ -376,7 +376,7 @@ Get ledger entries for an account
 
 **Example:**
 ```sql
-SELECT * FROM meter.get_ledger('user-123', 'llm_call', 'tokens', p_limit := 50);
+SELECT * FROM meter.get_ledger('alice', 'llm_call', 'tokens', p_limit := 50);
 ```
 
 *Source: meter/src/functions/020_query.sql:100*
@@ -425,7 +425,7 @@ Get aggregated usage (consumption only) for a user
 
 **Example:**
 ```sql
-SELECT * FROM meter.get_usage('user-123', '2025-01-01', '2025-02-01');
+SELECT * FROM meter.get_usage('alice', '2025-01-01', '2025-02-01');
 ```
 
 *Source: meter/src/functions/020_query.sql:159*
@@ -448,7 +448,7 @@ Get all balances for a user across all event types and resources
 
 **Example:**
 ```sql
-SELECT * FROM meter.get_user_balances('user-123');
+SELECT * FROM meter.get_user_balances('alice');
 ```
 
 *Source: meter/src/functions/020_query.sql:63*
@@ -480,7 +480,7 @@ Create an adjustment entry (correction, refund, etc.)
 
 **Example:**
 ```sql
-SELECT * FROM meter.adjust('user-123', 'llm_call', -500, 'tokens', 'claude-sonnet', p_reference_id := 12345);
+SELECT * FROM meter.adjust('alice', 'llm_call', -500, 'tokens', 'claude-sonnet', p_reference_id := 12345);
 ```
 
 *Source: meter/src/functions/013_adjust.sql:1*
@@ -510,7 +510,7 @@ Add quota/credits to an account
 
 **Example:**
 ```sql
-SELECT * FROM meter.allocate('user-123', 'llm_call', 100000, 'tokens', 'claude-sonnet');
+SELECT * FROM meter.allocate('alice', 'llm_call', 100000, 'tokens', 'claude-sonnet');
 ```
 
 *Source: meter/src/functions/010_allocate.sql:1*
@@ -567,7 +567,7 @@ Record consumption (debit from account)
 
 **Example:**
 ```sql
-SELECT * FROM meter.consume('user-123', 'llm_call', 1500, 'tokens', 'claude-sonnet');
+SELECT * FROM meter.consume('alice', 'llm_call', 1500, 'tokens', 'claude-sonnet');
 ```
 
 *Source: meter/src/functions/011_consume.sql:1*
@@ -620,7 +620,7 @@ Reserve quota for pending operation. Reservations are HOLDS, not balance changes
 
 **Example:**
 ```sql
-SELECT * FROM meter.reserve('user-123', 'llm_call', 4000, 'tokens', 'claude-sonnet');
+SELECT * FROM meter.reserve('alice', 'llm_call', 4000, 'tokens', 'claude-sonnet');
 ```
 
 *Source: meter/src/functions/012_reserve.sql:1*

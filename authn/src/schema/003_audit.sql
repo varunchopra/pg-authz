@@ -72,7 +72,7 @@ CREATE TABLE authn.audit_events (
     CONSTRAINT audit_events_type_valid CHECK (event_type IN (
         'user_created', 'user_updated', 'user_disabled', 'user_enabled', 'user_deleted',
         'password_updated', 'email_updated', 'email_verified',
-        'session_created', 'session_extended', 'session_revoked', 'sessions_revoked_all',
+        'session_created', 'session_extended', 'session_revoked', 'sessions_revoked_all', 'sessions_revoked_other',
         'token_created', 'token_consumed',
         'api_key_created', 'api_key_revoked', 'api_keys_revoked_all',
         'mfa_added', 'mfa_removed', 'mfa_used',

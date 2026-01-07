@@ -10,7 +10,7 @@ class TestStatistics:
 
     def test_empty_namespace_returns_zeros(self, authz):
         """Empty namespace returns all zeros."""
-        stats = authz.stats()
+        stats = authz.get_stats()
         assert stats["tuple_count"] == 0
         assert stats["hierarchy_rule_count"] == 0
         assert stats["unique_users"] == 0
@@ -21,7 +21,7 @@ class TestStatistics:
         authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
         authz.grant("read", resource=("doc", "2"), subject=("user", "bob"))
 
-        stats = authz.stats()
+        stats = authz.get_stats()
         assert stats["tuple_count"] == 2
         assert stats["unique_users"] == 2
         assert stats["unique_resources"] == 2
@@ -31,7 +31,7 @@ class TestStatistics:
         authz.set_hierarchy("doc", "admin", "write", "read")
         authz.grant("admin", resource=("doc", "1"), subject=("user", "alice"))
 
-        stats = authz.stats()
+        stats = authz.get_stats()
         assert stats["tuple_count"] == 1
         assert stats["hierarchy_rule_count"] == 2  # admin->write, write->read
 
@@ -41,7 +41,7 @@ class TestStatistics:
         authz.grant("member", resource=("team", "eng"), subject=("user", "bob"))
         authz.grant("read", resource=("doc", "1"), subject=("team", "eng"))
 
-        stats = authz.stats()
+        stats = authz.get_stats()
         assert stats["tuple_count"] == 3
         assert stats["unique_users"] == 2
         assert stats["unique_resources"] == 2  # team:eng and doc:1

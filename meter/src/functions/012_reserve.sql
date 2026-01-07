@@ -13,7 +13,7 @@
 -- @param p_metadata Optional JSON metadata
 -- @param p_namespace Tenant namespace
 -- @returns granted flag, reservation_id, balance, available, expires_at
--- @example SELECT * FROM meter.reserve('user-123', 'llm_call', 4000, 'tokens', 'claude-sonnet');
+-- @example SELECT * FROM meter.reserve('alice', 'llm_call', 4000, 'tokens', 'claude-sonnet');
 CREATE FUNCTION meter.reserve(
     p_user_id text,
     p_event_type text,

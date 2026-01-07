@@ -13,7 +13,7 @@
 -- @param p_metadata Optional JSON metadata
 -- @param p_namespace Tenant namespace
 -- @returns success flag, new balance, available balance, entry_id
--- @example SELECT * FROM meter.consume('user-123', 'llm_call', 1500, 'tokens', 'claude-sonnet');
+-- @example SELECT * FROM meter.consume('alice', 'llm_call', 1500, 'tokens', 'claude-sonnet');
 CREATE FUNCTION meter.consume(
     p_user_id text,
     p_event_type text,

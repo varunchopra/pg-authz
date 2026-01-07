@@ -5,7 +5,14 @@
 {% block content %}
 <div class="page-header">
     <h1>Active Sessions</h1>
-    <a href="{{ url_for('views.dashboard.index') }}" class="btn">Back to Dashboard</a>
+    <div class="actions">
+        {% if sessions|length > 1 %}
+        <form method="POST" action="{{ url_for('views.dashboard.revoke_other_sessions') }}">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Sign out of all other devices?')">Sign Out Other Devices</button>
+        </form>
+        {% endif %}
+        <a href="{{ url_for('views.dashboard.index') }}" class="btn">Back to Dashboard</a>
+    </div>
 </div>
 
 {% if sessions %}

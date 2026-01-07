@@ -226,7 +226,7 @@ clear_actor() -> None
 
 Clear actor context.
 
-*Source: sdk/src/postkit/authz/client.py:273*
+*Source: sdk/src/postkit/base.py:273*
 
 ---
 
@@ -355,6 +355,30 @@ for event in events:
 ```
 
 *Source: sdk/src/postkit/authz/client.py:539*
+
+---
+
+### get_stats
+
+```python
+get_stats() -> dict
+```
+
+Get namespace statistics for monitoring.
+
+**Returns:** Dictionary with:
+- tuple_count: Number of relationship tuples
+- hierarchy_rule_count: Number of hierarchy rules
+- unique_users: Distinct users with permissions
+- unique_resources: Distinct resources with permissions
+
+**Example:**
+```python
+stats = authz.get_stats()
+print(f"Tuples: {stats['tuple_count']}, Users: {stats['unique_users']}")
+```
+
+*Source: sdk/src/postkit/authz/client.py:653*
 
 ---
 
@@ -520,7 +544,7 @@ Set actor context for audit logging.
 - `on_behalf_of`: Optional principal being represented (e.g., 'user:customer-alice')
 - `reason`: Optional reason for the action (e.g., 'deployment:v1.2.3')
 
-*Source: sdk/src/postkit/authz/client.py:250*
+*Source: sdk/src/postkit/base.py:250*
 
 ---
 
@@ -568,30 +592,6 @@ authz.set_hierarchy("repo", "admin", "write", "read")
 ```
 
 *Source: sdk/src/postkit/authz/client.py:481*
-
----
-
-### stats
-
-```python
-stats() -> dict
-```
-
-Get namespace statistics for monitoring.
-
-**Returns:** Dictionary with:
-- tuple_count: Number of relationship tuples
-- hierarchy_rule_count: Number of hierarchy rules
-- unique_users: Distinct users with permissions
-- unique_resources: Distinct resources with permissions
-
-**Example:**
-```python
-stats = authz.stats()
-print(f"Tuples: {stats['tuple_count']}, Users: {stats['unique_users']}")
-```
-
-*Source: sdk/src/postkit/authz/client.py:653*
 
 ---
 

@@ -12,7 +12,7 @@
 -- @param p_metadata Optional JSON metadata
 -- @param p_namespace Tenant namespace
 -- @returns New balance and entry_id
--- @example SELECT * FROM meter.adjust('user-123', 'llm_call', -500, 'tokens', 'claude-sonnet', p_reference_id := 12345);
+-- @example SELECT * FROM meter.adjust('alice', 'llm_call', -500, 'tokens', 'claude-sonnet', p_reference_id := 12345);
 CREATE FUNCTION meter.adjust(
     p_user_id text,
     p_event_type text,

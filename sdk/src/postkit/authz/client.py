@@ -650,7 +650,7 @@ class AuthzClient(BaseClient):
             for r in rows
         ]
 
-    def stats(self) -> dict:
+    def get_stats(self) -> dict:
         """
         Get namespace statistics for monitoring.
 
@@ -662,7 +662,7 @@ class AuthzClient(BaseClient):
             - unique_resources: Distinct resources with permissions
 
         Example:
-            stats = authz.stats()
+            stats = authz.get_stats()
             print(f"Tuples: {stats['tuple_count']}, Users: {stats['unique_users']}")
         """
         return (

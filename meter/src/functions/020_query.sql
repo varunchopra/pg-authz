@@ -8,7 +8,7 @@
 -- @param p_resource Optional resource identifier
 -- @param p_namespace Tenant namespace
 -- @returns balance, reserved, available (balance - reserved)
--- @example SELECT * FROM meter.get_balance('user-123', 'llm_call', 'tokens', 'claude-sonnet');
+-- @example SELECT * FROM meter.get_balance('alice', 'llm_call', 'tokens', 'claude-sonnet');
 CREATE FUNCTION meter.get_balance(
     p_user_id text,
     p_event_type text,
@@ -45,7 +45,7 @@ $$ LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = meter, pg_temp;
 -- @param p_resource Optional resource identifier
 -- @param p_namespace Tenant namespace
 -- @returns Full account row
--- @example SELECT * FROM meter.get_account('user-123', 'llm_call', 'tokens');
+-- @example SELECT * FROM meter.get_account('alice', 'llm_call', 'tokens');
 CREATE FUNCTION meter.get_account(
     p_user_id text,
     p_event_type text,
@@ -68,7 +68,7 @@ $$ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = meter, pg_temp;
 -- @param p_user_id User ID
 -- @param p_namespace Tenant namespace
 -- @returns List of balances per event_type/resource/unit
--- @example SELECT * FROM meter.get_user_balances('user-123');
+-- @example SELECT * FROM meter.get_user_balances('alice');
 CREATE FUNCTION meter.get_user_balances(
     p_user_id text,
     p_namespace text DEFAULT 'default'
@@ -111,7 +111,7 @@ $$ LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = meter, pg_temp;
 -- @param p_limit Maximum entries to return (default 100, max 10000)
 -- @param p_namespace Tenant namespace
 -- @returns Ledger entries
--- @example SELECT * FROM meter.get_ledger('user-123', 'llm_call', 'tokens', p_limit := 50);
+-- @example SELECT * FROM meter.get_ledger('alice', 'llm_call', 'tokens', p_limit := 50);
 CREATE FUNCTION meter.get_ledger(
     p_user_id text,
     p_event_type text,
@@ -166,7 +166,7 @@ $$ LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = meter, pg_temp;
 -- @param p_end_time End of period
 -- @param p_namespace Tenant namespace
 -- @returns Aggregated consumption per event_type/resource/unit
--- @example SELECT * FROM meter.get_usage('user-123', '2025-01-01', '2025-02-01');
+-- @example SELECT * FROM meter.get_usage('alice', '2025-01-01', '2025-02-01');
 CREATE FUNCTION meter.get_usage(
     p_user_id text,
     p_start_time timestamptz,

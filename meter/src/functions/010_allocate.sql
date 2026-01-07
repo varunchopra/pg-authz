@@ -12,7 +12,7 @@
 -- @param p_metadata Optional JSON metadata
 -- @param p_namespace Tenant namespace
 -- @returns New balance and entry_id
--- @example SELECT * FROM meter.allocate('user-123', 'llm_call', 100000, 'tokens', 'claude-sonnet');
+-- @example SELECT * FROM meter.allocate('alice', 'llm_call', 100000, 'tokens', 'claude-sonnet');
 CREATE FUNCTION meter.allocate(
     p_user_id text,
     p_event_type text,

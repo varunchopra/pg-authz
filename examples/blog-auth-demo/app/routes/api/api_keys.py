@@ -17,7 +17,9 @@ def create():
     try:
         data = ApiKeyRequest.model_validate(request.json or {})
     except ValidationError as e:
-        return jsonify({"error": "validation failed", "details": e.errors()}), 400
+        return jsonify(
+            {"error": "validation failed", "details": e.errors(include_context=False)}
+        ), 400
 
     raw_key, key_hash = create_token()
     key_id = get_authn().create_api_key(

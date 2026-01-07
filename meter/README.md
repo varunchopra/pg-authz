@@ -14,15 +14,15 @@ See [installation instructions](../README.md#install) in the main README.
 
 ```sql
 -- Grant tokens to a user
-SELECT * FROM meter.allocate('user-123', 'llm_call', 100000, 'tokens', 'claude-sonnet');
+SELECT * FROM meter.allocate('alice', 'llm_call', 100000, 'tokens', 'claude-sonnet');
 -- -> balance: 100000, entry_id: 1
 
 -- Record consumption (immediate, known amount)
-SELECT * FROM meter.consume('user-123', 'llm_call', 1500, 'tokens', 'claude-sonnet');
+SELECT * FROM meter.consume('alice', 'llm_call', 1500, 'tokens', 'claude-sonnet');
 -- -> success: true, balance: 98500
 
 -- Check balance
-SELECT * FROM meter.get_balance('user-123', 'llm_call', 'tokens', 'claude-sonnet');
+SELECT * FROM meter.get_balance('alice', 'llm_call', 'tokens', 'claude-sonnet');
 -- -> balance: 98500, reserved: 0, available: 98500
 ```
 
@@ -32,7 +32,7 @@ For operations where you don't know the final cost upfront (streaming LLM calls,
 
 ```sql
 -- 1. Reserve before starting (holds tokens, doesn't deduct)
-SELECT * FROM meter.reserve('user-123', 'llm_call', 4000, 'tokens', 'claude-sonnet');
+SELECT * FROM meter.reserve('alice', 'llm_call', 4000, 'tokens', 'claude-sonnet');
 -- -> granted: true, reservation_id: 'res_abc123', available: 94500
 
 -- 2. Do your streaming LLM call...
@@ -55,38 +55,38 @@ For monthly quotas with optional carry-over:
 ```sql
 -- Configure account: 50k tokens/month, carry up to 10k unused
 SELECT meter.set_period_config(
-    'user-123', 'llm_call', 'tokens',
+    'alice', 'llm_call', 'tokens',
     p_period_allocation := 50000,
     p_carry_over_limit := 10000
 );
 
 -- Open January with 50k allocation
-SELECT meter.open_period('user-123', 'llm_call', 'tokens', '2025-01-01');
+SELECT meter.open_period('alice', 'llm_call', 'tokens', '2025-01-01');
 
 -- ... user consumes 35k during January ...
 
 -- Close January (15k unused, 10k carries over, 5k expires)
-SELECT * FROM meter.close_period('user-123', 'llm_call', 'tokens', '2025-01-01');
+SELECT * FROM meter.close_period('alice', 'llm_call', 'tokens', '2025-01-01');
 -- -> expired: 5000, carried_over: 10000
 
 -- Open February (10k carried + 50k new = 60k available)
-SELECT meter.open_period('user-123', 'llm_call', 'tokens', '2025-02-01');
+SELECT meter.open_period('alice', 'llm_call', 'tokens', '2025-02-01');
 ```
 
 ## Usage Queries
 
 ```sql
 -- All balances for a user
-SELECT * FROM meter.get_user_balances('user-123');
+SELECT * FROM meter.get_user_balances('alice');
 
 -- Consumption in a time period
-SELECT * FROM meter.get_usage('user-123', '2025-01-01', '2025-02-01');
+SELECT * FROM meter.get_usage('alice', '2025-01-01', '2025-02-01');
 
 -- Org-wide usage totals
 SELECT * FROM meter.get_namespace_usage('2025-01-01', '2025-02-01');
 
 -- Full ledger history
-SELECT * FROM meter.get_ledger('user-123', 'llm_call', 'tokens', p_limit := 50);
+SELECT * FROM meter.get_ledger('alice', 'llm_call', 'tokens', p_limit := 50);
 ```
 
 ## Idempotency
@@ -95,7 +95,7 @@ All write operations support idempotency keys for safe retries:
 
 ```sql
 SELECT * FROM meter.consume(
-    'user-123', 'llm_call', 1500, 'tokens',
+    'alice', 'llm_call', 1500, 'tokens',
     p_idempotency_key := 'req-abc-123'
 );
 -- Safe to retry - same key returns same result without double-charging

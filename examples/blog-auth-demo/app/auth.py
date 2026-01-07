@@ -38,9 +38,11 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def _set_user_context(user_id: str) -> str:
-    """Cache user_id and set actor context for audit trails."""
+def _set_user_context(user_id: str, session_id: str | None = None) -> str:
+    """Cache user_id (and optionally session_id) and set actor context for audit trails."""
     g.current_user_id = user_id
+    if session_id:
+        g.current_session_id = session_id
     get_authn().set_actor(
         f"user:{user_id}",
         request_id=g.get("request_id"),
@@ -61,7 +63,7 @@ def get_current_user() -> str | None:
     if auth_header.startswith("Bearer "):
         sess = authn.validate_session(hash_token(auth_header[7:]))
         if sess:
-            return _set_user_context(sess["user_id"])
+            return _set_user_context(sess["user_id"], sess.get("session_id"))
 
     # Api-Key header for API key auth
     api_key = request.headers.get("Api-Key")
@@ -96,8 +98,9 @@ def login_user(user_id: str) -> None:
 
 
 def logout_user() -> None:
-    """Clear user_id from Flask session."""
+    """Clear authentication data from Flask session."""
     session.pop("user_id", None)
+    session.pop("token_hash", None)
 
 
 def get_session_user() -> str | None:

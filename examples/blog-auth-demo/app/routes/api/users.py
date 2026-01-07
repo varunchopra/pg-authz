@@ -10,6 +10,7 @@ from werkzeug.exceptions import BadRequest
 from ...auth import (
     DUMMY_HASH,
     create_token,
+    get_current_session_id,
     get_current_user,
     hash_password,
     hash_token,
@@ -45,7 +46,9 @@ def signup():
     try:
         data = validate(SignupRequest)
     except ValidationError as e:
-        return jsonify({"error": "validation failed", "details": e.errors()}), 400
+        return jsonify(
+            {"error": "validation failed", "details": e.errors(include_context=False)}
+        ), 400
 
     authn = get_authn()
 
@@ -65,16 +68,17 @@ def login():
     try:
         data = validate(LoginRequest)
     except ValidationError as e:
-        return jsonify({"error": "validation failed", "details": e.errors()}), 400
+        return jsonify(
+            {"error": "validation failed", "details": e.errors(include_context=False)}
+        ), 400
 
     authn = get_authn()
-    email = data.email.lower()
 
-    if authn.is_locked_out(email):
+    if authn.is_locked_out(data.email):
         log.warning("Locked out login attempt")
         return jsonify({"error": "too many attempts, try again later"}), 429
 
-    creds = authn.get_credentials(email)
+    creds = authn.get_credentials(data.email)
 
     # Constant-time password verification to prevent timing attacks
     password_hash = (
@@ -89,11 +93,13 @@ def login():
         or creds.get("disabled_at")
         or not password_valid
     ):
-        authn.record_login_attempt(email, success=False, ip_address=request.remote_addr)
+        authn.record_login_attempt(
+            data.email, success=False, ip_address=request.remote_addr
+        )
         log.warning("Failed login attempt")
         return jsonify({"error": "invalid credentials"}), 401
 
-    authn.record_login_attempt(email, success=True, ip_address=request.remote_addr)
+    authn.record_login_attempt(data.email, success=True, ip_address=request.remote_addr)
 
     raw_token, token_hash = create_token()
     authn.create_session(
@@ -141,10 +147,12 @@ def forgot_password():
     try:
         data = validate(PasswordResetRequest)
     except ValidationError as e:
-        return jsonify({"error": "validation failed", "details": e.errors()}), 400
+        return jsonify(
+            {"error": "validation failed", "details": e.errors(include_context=False)}
+        ), 400
 
     authn = get_authn()
-    user = authn.get_user_by_email(data.email.lower())
+    user = authn.get_user_by_email(data.email)
 
     # Always return success to prevent email enumeration
     if not user:
@@ -171,7 +179,9 @@ def reset_password():
     try:
         data = validate(PasswordResetConfirm)
     except ValidationError as e:
-        return jsonify({"error": "validation failed", "details": e.errors()}), 400
+        return jsonify(
+            {"error": "validation failed", "details": e.errors(include_context=False)}
+        ), 400
 
     authn = get_authn()
     token_hash = hash_token(data.token)
@@ -225,26 +235,14 @@ def revoke_session(session_id: str):
 
 @bp.delete("/sessions")
 @require_auth
-def revoke_all_other_sessions():
-    """Revoke all sessions except the current one."""
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return jsonify({"error": "requires bearer token"}), 400
+def revoke_other_sessions():
+    """Revoke all sessions except the current one ('sign out other devices')."""
+    session_id = get_current_session_id()
+    if not session_id:
+        return jsonify({"error": "requires session auth (Bearer token)"}), 400
 
     user_id = get_current_user()
-    authn = get_authn()
+    count = get_authn().revoke_other_sessions(user_id, session_id)
 
-    # Revoke all and create a new session for the current user
-    count = authn.revoke_all_sessions(user_id)
-
-    # Re-create current session
-    raw_token, token_hash = create_token()
-    authn.create_session(
-        user_id=user_id,
-        token_hash=token_hash,
-        ip_address=request.remote_addr,
-        user_agent=request.headers.get("User-Agent", "")[:1024],
-    )
-
-    log.info(f"Revoked {count} sessions, created new session")
-    return jsonify({"ok": True, "revoked": count, "new_token": raw_token})
+    log.info(f"Revoked {count} other sessions for user_id={user_id[:8]}...")
+    return jsonify({"ok": True, "revoked": count})

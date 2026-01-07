@@ -39,7 +39,7 @@ class TestLargeGroups:
             assert authz.check(f"user-{i}", "read", ("doc", "shared"))
 
         # Check stats
-        stats = authz.stats()
+        stats = authz.get_stats()
         assert stats["tuple_count"] == num_users + 1
 
         # Performance assertions (adjust thresholds for your environment)
@@ -148,7 +148,7 @@ class TestAmplification:
         for i in range(10):
             authz.grant("admin", resource=("doc", f"doc-{i}"), subject=("team", "eng"))
 
-        stats = authz.stats()
+        stats = authz.get_stats()
 
         # Tuples: 100 memberships + 10 team grants = 110
         # With lazy evaluation, no computed table exists

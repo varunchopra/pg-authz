@@ -23,13 +23,13 @@
 
             <div class="form-group">
                 <label for="password">Password</label>
-                <input type="password" id="password" name="password" required minlength="8">
-                <small>At least 8 characters</small>
+                <input type="password" id="password" name="password" required minlength="{{ min_password_length }}">
+                <small>At least {{ min_password_length }} characters</small>
             </div>
 
             <div class="form-group">
                 <label for="confirm">Confirm Password</label>
-                <input type="password" id="confirm" name="confirm" required minlength="8">
+                <input type="password" id="confirm" name="confirm" required minlength="{{ min_password_length }}">
             </div>
 
             <button type="submit" class="btn btn-primary">Sign Up</button>

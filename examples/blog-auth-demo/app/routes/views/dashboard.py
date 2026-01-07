@@ -2,12 +2,20 @@
 
 import logging
 
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import (
+    Blueprint,
+    flash,
+    g,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
 from ...auth import (
     create_token,
     get_current_session_id,
-    get_session_user,
     require_login,
 )
 from ...db import get_authn
@@ -19,7 +27,7 @@ log = logging.getLogger(__name__)
 @bp.get("/dashboard")
 @require_login
 def index():
-    user_id = get_session_user()
+    user_id = g.current_user_id
     authn = get_authn()
 
     user = authn.get_user(user_id)
@@ -41,7 +49,7 @@ def index():
 @bp.get("/sessions")
 @require_login
 def sessions():
-    user_id = get_session_user()
+    user_id = g.current_user_id
     current_session_id = get_current_session_id()
     authn = get_authn()
 
@@ -57,7 +65,7 @@ def sessions():
 @bp.post("/sessions/<session_id>/revoke")
 @require_login
 def revoke_session(session_id: str):
-    user_id = get_session_user()
+    user_id = g.current_user_id
     authn = get_authn()
 
     revoked = authn.revoke_session_by_id(session_id, user_id)
@@ -71,10 +79,31 @@ def revoke_session(session_id: str):
     return redirect(url_for("views.dashboard.sessions"))
 
 
+@bp.post("/sessions/revoke-others")
+@require_login
+def revoke_other_sessions():
+    user_id = g.current_user_id
+    current_session_id = get_current_session_id()
+
+    if not current_session_id:
+        flash("Could not identify current session", "error")
+        return redirect(url_for("views.dashboard.sessions"))
+
+    count = get_authn().revoke_other_sessions(user_id, current_session_id)
+
+    if count > 0:
+        flash(f"Signed out of {count} other device(s)", "success")
+        log.info(f"Revoked {count} other sessions for user_id={user_id[:8]}...")
+    else:
+        flash("No other sessions to revoke", "info")
+
+    return redirect(url_for("views.dashboard.sessions"))
+
+
 @bp.get("/api-keys")
 @require_login
 def api_keys():
-    user_id = get_session_user()
+    user_id = g.current_user_id
     authn = get_authn()
 
     keys = authn.list_api_keys(user_id)
@@ -88,7 +117,7 @@ def api_keys():
 @bp.post("/api-keys")
 @require_login
 def create_api_key():
-    user_id = get_session_user()
+    user_id = g.current_user_id
     name = request.form.get("name", "").strip() or "Unnamed Key"
 
     raw_key, key_hash = create_token()
@@ -109,7 +138,7 @@ def create_api_key():
 @bp.post("/api-keys/<key_id>/revoke")
 @require_login
 def revoke_api_key(key_id: str):
-    user_id = get_session_user()
+    user_id = g.current_user_id
     authn = get_authn()
 
     # Verify ownership

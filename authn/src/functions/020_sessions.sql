@@ -196,6 +196,48 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
 
+-- @function authn.revoke_other_sessions
+-- @brief Log out all sessions except the current one ("sign out other devices")
+-- @param p_user_id User whose sessions to revoke
+-- @param p_except_session_id Session ID to preserve (current session)
+-- @returns Count of sessions revoked (excludes the preserved session)
+-- @example SELECT authn.revoke_other_sessions(user_id, current_session_id);
+CREATE OR REPLACE FUNCTION authn.revoke_other_sessions(
+    p_user_id uuid,
+    p_except_session_id uuid,
+    p_namespace text DEFAULT 'default'
+)
+RETURNS int
+AS $$
+DECLARE
+    v_count int;
+BEGIN
+    PERFORM authn._validate_namespace(p_namespace);
+
+    UPDATE authn.sessions
+    SET revoked_at = now()
+    WHERE user_id = p_user_id
+      AND namespace = p_namespace
+      AND id != p_except_session_id
+      AND revoked_at IS NULL;
+
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+
+    IF v_count > 0 THEN
+        -- Audit log
+        PERFORM authn._log_event(
+            'sessions_revoked_other', p_namespace, 'user', p_user_id::text,
+            NULL, jsonb_build_object(
+                'sessions_revoked', v_count,
+                'preserved_session_id', p_except_session_id
+            )
+        );
+    END IF;
+
+    RETURN v_count;
+END;
+$$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
+
 -- @function authn.list_sessions
 -- @brief List active sessions for "manage devices" UI
 -- @returns Active sessions with IP, user agent, timestamps (no token hash)

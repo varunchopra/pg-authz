@@ -604,7 +604,7 @@ List active sessions for "manage devices" UI
 SELECT * FROM authn.list_sessions(user_id);
 ```
 
-*Source: authn/src/functions/020_sessions.sql:197*
+*Source: authn/src/functions/020_sessions.sql:239*
 
 ---
 
@@ -624,6 +624,29 @@ SELECT authn.revoke_all_sessions(user_id); -- "Log out everywhere"
 ```
 
 *Source: authn/src/functions/020_sessions.sql:162*
+
+---
+
+### authn.revoke_other_sessions
+
+```sql
+authn.revoke_other_sessions(p_user_id: uuid, p_except_session_id: uuid, p_namespace: text) -> int4
+```
+
+Log out all sessions except the current one ("sign out other devices")
+
+**Parameters:**
+- `p_user_id`: User whose sessions to revoke
+- `p_except_session_id`: Session ID to preserve (current session)
+
+**Returns:** Count of sessions revoked (excludes the preserved session)
+
+**Example:**
+```sql
+SELECT authn.revoke_other_sessions(user_id, current_session_id);
+```
+
+*Source: authn/src/functions/020_sessions.sql:197*
 
 ---
 
@@ -663,7 +686,7 @@ Revoke a specific session by ID (for "manage devices" UI)
 SELECT authn.revoke_session_by_id(session_id, user_id);
 ```
 
-*Source: authn/src/functions/020_sessions.sql:233*
+*Source: authn/src/functions/020_sessions.sql:275*
 
 ---
 

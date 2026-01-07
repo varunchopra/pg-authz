@@ -7,6 +7,7 @@ from urllib.parse import urlencode
 
 import requests as http_requests
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from postkit.base import UniqueViolationError
 
 from ...auth import (
     DUMMY_HASH,
@@ -20,6 +21,13 @@ from ...auth import (
 )
 from ...config import Config
 from ...db import get_authn, get_db
+from ...schemas import (
+    LoginRequest,
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    SignupRequest,
+    validate_form,
+)
 
 bp = Blueprint("auth", __name__)
 log = logging.getLogger(__name__)
@@ -46,26 +54,24 @@ def login():
 
 @bp.post("/login")
 def login_post():
-    email = request.form.get("email", "").lower().strip()
-    password = request.form.get("password", "")
-
-    if not email or not password:
-        flash("Email and password are required", "error")
+    data, err = validate_form(LoginRequest)
+    if err:
+        flash(err, "error")
         return redirect(url_for("views.auth.login"))
 
     authn = get_authn()
 
-    if authn.is_locked_out(email):
+    if authn.is_locked_out(data.email):
         flash("Too many attempts. Please try again later.", "error")
         return redirect(url_for("views.auth.login"))
 
-    creds = authn.get_credentials(email)
+    creds = authn.get_credentials(data.email)
 
     # Constant-time verification
     password_hash = (
         creds["password_hash"] if creds and creds.get("password_hash") else DUMMY_HASH
     )
-    password_valid = verify_password(password, password_hash)
+    password_valid = verify_password(data.password, password_hash)
 
     if (
         not creds
@@ -73,11 +79,13 @@ def login_post():
         or creds.get("disabled_at")
         or not password_valid
     ):
-        authn.record_login_attempt(email, success=False, ip_address=request.remote_addr)
+        authn.record_login_attempt(
+            data.email, success=False, ip_address=request.remote_addr
+        )
         flash("Invalid email or password", "error")
         return redirect(url_for("views.auth.login"))
 
-    authn.record_login_attempt(email, success=True, ip_address=request.remote_addr)
+    authn.record_login_attempt(data.email, success=True, ip_address=request.remote_addr)
 
     # Create session in database
     raw_token, token_hash = create_token()
@@ -100,31 +108,27 @@ def login_post():
 def signup():
     if get_session_user():
         return redirect(url_for("views.dashboard.index"))
-    return render_template("auth/signup.html")
+    return render_template(
+        "auth/signup.html", min_password_length=Config.MIN_PASSWORD_LENGTH
+    )
 
 
 @bp.post("/signup")
 def signup_post():
-    email = request.form.get("email", "").lower().strip()
-    password = request.form.get("password", "")
+    data, err = validate_form(SignupRequest)
+    if err:
+        flash(err, "error")
+        return redirect(url_for("views.auth.signup"))
+
     confirm = request.form.get("confirm", "")
-
-    if not email or not password:
-        flash("Email and password are required", "error")
-        return redirect(url_for("views.auth.signup"))
-
-    if len(password) < 8:
-        flash("Password must be at least 8 characters", "error")
-        return redirect(url_for("views.auth.signup"))
-
-    if password != confirm:
+    if data.password != confirm:
         flash("Passwords do not match", "error")
         return redirect(url_for("views.auth.signup"))
 
     authn = get_authn()
 
     try:
-        user_id = authn.create_user(email, hash_password(password))
+        user_id = authn.create_user(data.email, hash_password(data.password))
         log.info(f"User created via form: user_id={user_id[:8]}...")
 
         # Auto-login after signup
@@ -140,12 +144,12 @@ def signup_post():
 
         flash("Account created successfully!", "success")
         return redirect(url_for("views.dashboard.index"))
-    except Exception as e:
-        if "unique" in str(e).lower() or "duplicate" in str(e).lower():
-            flash("Email already registered", "error")
-        else:
-            log.exception("Signup failed")
-            flash("Signup failed. Please try again.", "error")
+    except UniqueViolationError:
+        flash("Email already registered", "error")
+        return redirect(url_for("views.auth.signup"))
+    except Exception:
+        log.exception("Signup failed")
+        flash("Signup failed. Please try again.", "error")
         return redirect(url_for("views.auth.signup"))
 
 
@@ -171,14 +175,13 @@ def forgot_password():
 
 @bp.post("/forgot-password")
 def forgot_password_post():
-    email = request.form.get("email", "").lower().strip()
-
-    if not email:
-        flash("Email is required", "error")
+    data, err = validate_form(PasswordResetRequest)
+    if err:
+        flash(err, "error")
         return redirect(url_for("views.auth.forgot_password"))
 
     authn = get_authn()
-    user = authn.get_user_by_email(email)
+    user = authn.get_user_by_email(data.email)
 
     # Always show success to prevent email enumeration
     if user:
@@ -201,29 +204,28 @@ def forgot_password_post():
 @bp.get("/reset-password")
 def reset_password():
     token = request.args.get("token", "")
-    return render_template("auth/reset.html", token=token)
+    return render_template(
+        "auth/reset.html", token=token, min_password_length=Config.MIN_PASSWORD_LENGTH
+    )
 
 
 @bp.post("/reset-password")
 def reset_password_post():
-    token = request.form.get("token", "")
-    password = request.form.get("password", "")
-    confirm = request.form.get("confirm", "")
-
-    if not token:
-        flash("Invalid reset link", "error")
+    data, err = validate_form(PasswordResetConfirm)
+    if err:
+        token = request.form.get("token", "")
+        flash(err, "error")
+        if token:
+            return redirect(url_for("views.auth.reset_password", token=token))
         return redirect(url_for("views.auth.forgot_password"))
 
-    if len(password) < 8:
-        flash("Password must be at least 8 characters", "error")
-        return redirect(url_for("views.auth.reset_password", token=token))
-
-    if password != confirm:
+    confirm = request.form.get("confirm", "")
+    if data.password != confirm:
         flash("Passwords do not match", "error")
-        return redirect(url_for("views.auth.reset_password", token=token))
+        return redirect(url_for("views.auth.reset_password", token=data.token))
 
     authn = get_authn()
-    token_hash = hash_token(token)
+    token_hash = hash_token(data.token)
 
     token_data = authn.consume_token(token_hash, "password_reset")
     if not token_data:
@@ -232,7 +234,7 @@ def reset_password_post():
 
     # Update password and revoke all sessions
     with get_db().transaction():
-        authn.update_password(token_data["user_id"], hash_password(password))
+        authn.update_password(token_data["user_id"], hash_password(data.password))
         authn.revoke_all_sessions(token_data["user_id"])
 
     log.info(f"Password reset completed: user_id={token_data['user_id'][:8]}...")

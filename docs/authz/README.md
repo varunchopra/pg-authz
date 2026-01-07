@@ -21,6 +21,7 @@
 | [`extend_expiration`](sdk.md#extend_expiration) | Extend an existing expiration by a given interval. |
 | [`filter_authorized`](sdk.md#filter_authorized) | Filter resource IDs to only those the user can access. |
 | [`get_audit_events`](sdk.md#get_audit_events) | Query audit events with optional filters. |
+| [`get_stats`](sdk.md#get_stats) | Get namespace statistics for monitoring. |
 | [`grant`](sdk.md#grant) | Grant a permission on a resource to a subject. |
 | [`list_expiring`](sdk.md#list_expiring) | List grants expiring within the given timeframe. |
 | [`list_resources`](sdk.md#list_resources) | List resources a user has a permission on. |
@@ -30,7 +31,6 @@
 | [`set_actor`](sdk.md#set_actor) | Set actor context for audit logging. |
 | [`set_expiration`](sdk.md#set_expiration) | Set or update expiration on an existing grant. |
 | [`set_hierarchy`](sdk.md#set_hierarchy) | Define permission hierarchy for a resource type. |
-| [`stats`](sdk.md#stats) | Get namespace statistics for monitoring. |
 | [`verify`](sdk.md#verify) | Check for data integrity issues (e.g., group membership cycles). |
 
 ## SQL Functions

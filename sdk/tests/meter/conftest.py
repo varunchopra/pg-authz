@@ -60,8 +60,8 @@ def meter(db_connection, request):
 
     Example:
         def test_allocate_consume(meter):
-            meter.allocate("user-1", "llm_call", 1000, "tokens")
-            result = meter.consume("user-1", "llm_call", 100, "tokens")
+            meter.allocate("alice", "llm_call", 1000, "tokens")
+            result = meter.consume("alice", "llm_call", 100, "tokens")
             assert result["success"] is True
     """
     namespace = _make_namespace(request)
@@ -81,7 +81,7 @@ def test_helpers(db_connection, request):
 
     Example:
         def test_ledger_entries(meter, test_helpers):
-            meter.allocate("user-1", "llm_call", 1000, "tokens")
+            meter.allocate("alice", "llm_call", 1000, "tokens")
             assert test_helpers.count_ledger_entries() == 1
     """
     namespace = _make_namespace(request)

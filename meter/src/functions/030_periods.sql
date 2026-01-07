@@ -10,7 +10,7 @@
 -- @param p_period_allocation Amount granted each period
 -- @param p_carry_over_limit Max unused to roll forward (NULL = no limit)
 -- @param p_namespace Tenant namespace
--- @example SELECT meter.set_period_config('user-123', 'llm_call', 'tokens', NULL, '2025-01-01', 100000, 10000);
+-- @example SELECT meter.set_period_config('alice', 'llm_call', 'tokens', NULL, '2025-01-01', 100000, 10000);
 CREATE FUNCTION meter.set_period_config(
     p_user_id text,
     p_event_type text,
@@ -57,7 +57,7 @@ $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = meter, pg_temp;
 -- @param p_period_end Last day of the period being closed
 -- @param p_namespace Tenant namespace
 -- @returns expired amount, carried_over amount, new_balance
--- @example SELECT * FROM meter.close_period('user-123', 'llm_call', 'tokens', NULL, '2025-01-31');
+-- @example SELECT * FROM meter.close_period('alice', 'llm_call', 'tokens', NULL, '2025-01-31');
 CREATE FUNCTION meter.close_period(
     p_user_id text,
     p_event_type text,
@@ -138,7 +138,7 @@ $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = meter, pg_temp;
 -- @param p_allocation Amount to allocate (uses period_allocation if NULL)
 -- @param p_namespace Tenant namespace
 -- @returns New balance
--- @example SELECT meter.open_period('user-123', 'llm_call', 'tokens', NULL, '2025-02-01');
+-- @example SELECT meter.open_period('alice', 'llm_call', 'tokens', NULL, '2025-02-01');
 CREATE FUNCTION meter.open_period(
     p_user_id text,
     p_event_type text,

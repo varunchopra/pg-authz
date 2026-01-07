@@ -23,18 +23,18 @@ class MeterClient(BaseClient):
         meter = MeterClient(cursor, namespace="acme")
 
         # Allocate quota
-        meter.allocate("user-123", "llm_call", 100000, "tokens", "claude-sonnet")
+        meter.allocate("alice", "llm_call", 100000, "tokens", "claude-sonnet")
 
         # Record consumption
-        meter.consume("user-123", "llm_call", 1500, "tokens", "claude-sonnet")
+        meter.consume("alice", "llm_call", 1500, "tokens", "claude-sonnet")
 
         # Reserve for streaming (uncertain consumption)
-        res = meter.reserve("user-123", "llm_call", 4000, "tokens", "claude-sonnet")
+        res = meter.reserve("alice", "llm_call", 4000, "tokens", "claude-sonnet")
         # ... streaming operation ...
         meter.commit(res["reservation_id"], actual_amount=2347)
 
         # Check balance
-        balance = meter.get_balance("user-123", "llm_call", "tokens", "claude-sonnet")
+        balance = meter.get_balance("alice", "llm_call", "tokens", "claude-sonnet")
     """
 
     _schema = "meter"

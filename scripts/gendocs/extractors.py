@@ -243,7 +243,7 @@ def extract_python_docs(client_path: Path, root: Path) -> ExtractionResult:
                     returns=docstring.returns,
                     return_type=return_type,
                     examples=docstring.examples,
-                    source_file=_relative_path(client_path, root),
+                    source_file=_relative_path(Path(inspect.getfile(method)), root),
                     line_number=lineno,
                 )
             )

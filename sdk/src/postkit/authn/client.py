@@ -265,6 +265,25 @@ class AuthnClient(BaseClient):
             (user_id, self.namespace),
         )
 
+    def revoke_other_sessions(self, user_id: str, except_session_id: str) -> int:
+        """
+        Revoke all sessions except the specified one ("sign out other devices").
+
+        Use this when a user wants to log out of all other devices while staying
+        logged in on the current device.
+
+        Args:
+            user_id: User whose sessions to revoke
+            except_session_id: Session ID to preserve (the current session)
+
+        Returns:
+            Count of sessions revoked (excludes the preserved session)
+        """
+        return self._write_scalar(
+            "SELECT authn.revoke_other_sessions(%s::uuid, %s::uuid, %s)",
+            (user_id, except_session_id, self.namespace),
+        )
+
     def list_sessions(self, user_id: str) -> list[dict]:
         """List active sessions for a user. Does not return token_hash."""
         result = self._fetchall(

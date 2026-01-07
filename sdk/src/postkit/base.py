@@ -317,3 +317,9 @@ class BaseClient(ABC):
         """
 
         return self._fetchall(sql, tuple(params))
+
+    def get_stats(self) -> dict:
+        """Get namespace statistics. Subclasses should override with module-specific stats."""
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not implement get_stats()"
+        )
