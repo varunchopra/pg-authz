@@ -112,7 +112,7 @@ class AuthzClient(BaseClient):
         subject_type, subject_id = subject
 
         if subject_relation is not None:
-            return self._write_scalar(
+            return self._fetch_val(
                 "SELECT authz.write_tuple(%s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     resource_type,
@@ -124,9 +124,10 @@ class AuthzClient(BaseClient):
                     self.namespace,
                     expires_at,
                 ),
+                write=True,
             )
         else:
-            return self._write_scalar(
+            return self._fetch_val(
                 "SELECT authz.write(%s, %s, %s, %s, %s, %s, %s)",
                 (
                     resource_type,
@@ -137,6 +138,7 @@ class AuthzClient(BaseClient):
                     self.namespace,
                     expires_at,
                 ),
+                write=True,
             )
 
     def revoke(
@@ -168,7 +170,7 @@ class AuthzClient(BaseClient):
         subject_type, subject_id = subject
 
         if subject_relation is not None:
-            result = self._write_scalar(
+            result = self._fetch_val(
                 "SELECT authz.delete_tuple(%s, %s, %s, %s, %s, %s, %s)",
                 (
                     resource_type,
@@ -179,9 +181,10 @@ class AuthzClient(BaseClient):
                     subject_relation,
                     self.namespace,
                 ),
+                write=True,
             )
         else:
-            result = self._write_scalar(
+            result = self._fetch_val(
                 "SELECT authz.delete(%s, %s, %s, %s, %s, %s)",
                 (
                     resource_type,
@@ -191,6 +194,7 @@ class AuthzClient(BaseClient):
                     subject_id,
                     self.namespace,
                 ),
+                write=True,
             )
         return bool(result)
 
@@ -213,7 +217,7 @@ class AuthzClient(BaseClient):
                 return repo_contents
         """
         resource_type, resource_id = resource
-        return self._scalar(
+        return self._fetch_val(
             "SELECT authz.check(%s, %s, %s, %s, %s)",
             (user_id, permission, resource_type, resource_id, self.namespace),
         )
@@ -234,7 +238,7 @@ class AuthzClient(BaseClient):
             True if the user has at least one of the permissions
         """
         resource_type, resource_id = resource
-        return self._scalar(
+        return self._fetch_val(
             "SELECT authz.check_any(%s, %s, %s, %s, %s)",
             (user_id, permissions, resource_type, resource_id, self.namespace),
         )
@@ -254,7 +258,7 @@ class AuthzClient(BaseClient):
             True if the user has all of the permissions
         """
         resource_type, resource_id = resource
-        return self._scalar(
+        return self._fetch_val(
             "SELECT authz.check_all(%s, %s, %s, %s, %s)",
             (user_id, permissions, resource_type, resource_id, self.namespace),
         )
@@ -292,7 +296,7 @@ class AuthzClient(BaseClient):
                 update_customer()
         """
         resource_type, resource_id = resource
-        return self._scalar(
+        return self._fetch_val(
             "SELECT authz.check_subject(%s, %s, %s, %s, %s, %s)",
             (
                 subject_type,
@@ -324,7 +328,7 @@ class AuthzClient(BaseClient):
             True if the subject has at least one of the permissions
         """
         resource_type, resource_id = resource
-        return self._scalar(
+        return self._fetch_val(
             "SELECT authz.check_subject_any(%s, %s, %s, %s, %s, %s)",
             (
                 subject_type,
@@ -356,7 +360,7 @@ class AuthzClient(BaseClient):
             True if the subject has all of the permissions
         """
         resource_type, resource_id = resource
-        return self._scalar(
+        return self._fetch_val(
             "SELECT authz.check_subject_all(%s, %s, %s, %s, %s, %s)",
             (
                 subject_type,
@@ -387,7 +391,7 @@ class AuthzClient(BaseClient):
             # ["HIERARCHY: alice is member of team:eng which has admin (admin -> read)"]
         """
         resource_type, resource_id = resource
-        rows = self._fetchall_raw(
+        rows = self._fetch_raw(
             "SELECT * FROM authz.explain_text(%s, %s, %s, %s, %s)",
             (user_id, permission, resource_type, resource_id, self.namespace),
         )
@@ -419,12 +423,12 @@ class AuthzClient(BaseClient):
         """
         resource_type, resource_id = resource
         if limit is not None:
-            rows = self._fetchall_raw(
+            rows = self._fetch_raw(
                 "SELECT * FROM authz.list_users(%s, %s, %s, %s, %s, %s)",
                 (resource_type, resource_id, permission, self.namespace, limit, cursor),
             )
         else:
-            rows = self._fetchall_raw(
+            rows = self._fetch_raw(
                 "SELECT * FROM authz.list_users(%s, %s, %s, %s)",
                 (resource_type, resource_id, permission, self.namespace),
             )
@@ -457,12 +461,12 @@ class AuthzClient(BaseClient):
             # ["api", "frontend", "docs"]
         """
         if limit is not None:
-            rows = self._fetchall_raw(
+            rows = self._fetch_raw(
                 "SELECT * FROM authz.list_resources(%s, %s, %s, %s, %s, %s)",
                 (user_id, resource_type, permission, self.namespace, limit, cursor),
             )
         else:
-            rows = self._fetchall_raw(
+            rows = self._fetch_raw(
                 "SELECT * FROM authz.list_resources(%s, %s, %s, %s)",
                 (user_id, resource_type, permission, self.namespace),
             )
@@ -472,7 +476,7 @@ class AuthzClient(BaseClient):
         self, user_id: str, resource_type: str, permission: str, resource_ids: list[str]
     ) -> list[str]:
         """Filter resource IDs to only those the user can access."""
-        result = self._scalar(
+        result = self._fetch_val(
             "SELECT authz.filter_authorized(%s, %s, %s, %s, %s)",
             (user_id, resource_type, permission, resource_ids, self.namespace),
         )
@@ -508,23 +512,26 @@ class AuthzClient(BaseClient):
             authz.add_hierarchy_rule("doc", "admin", "read")
             authz.add_hierarchy_rule("doc", "admin", "share")
         """
-        self._write_scalar(
+        self._fetch_val(
             "SELECT authz.add_hierarchy(%s, %s, %s, %s)",
             (resource_type, permission, implies, self.namespace),
+            write=True,
         )
 
     def remove_hierarchy_rule(self, resource_type: str, permission: str, implies: str):
         """Remove a single hierarchy rule."""
-        self._write_scalar(
+        self._fetch_val(
             "SELECT authz.remove_hierarchy(%s, %s, %s, %s)",
             (resource_type, permission, implies, self.namespace),
+            write=True,
         )
 
     def clear_hierarchy(self, resource_type: str) -> int:
         """Clear all hierarchy rules for a resource type."""
-        return self._write_scalar(
+        return self._fetch_val(
             "SELECT authz.clear_hierarchy(%s, %s)",
             (resource_type, self.namespace),
+            write=True,
         )
 
     # NOTE: This method uses keyword-only arguments (`*,`) unlike other clients.
@@ -600,7 +607,7 @@ class AuthzClient(BaseClient):
             LIMIT %s
         """
 
-        rows = self._fetchall_raw(sql, tuple(params))
+        rows = self._fetch_raw(sql, tuple(params))
 
         return [
             {
@@ -636,19 +643,10 @@ class AuthzClient(BaseClient):
             for issue in issues:
                 print(f"{issue['status']}: {issue['details']}")
         """
-        rows = self._fetchall_raw(
+        return self._fetch_all(
             "SELECT resource_type, resource_id, status, details FROM authz.verify_integrity(%s)",
             (self.namespace,),
         )
-        return [
-            {
-                "resource_type": r[0],
-                "resource_id": r[1],
-                "status": r[2],
-                "details": r[3],
-            }
-            for r in rows
-        ]
 
     def get_stats(self) -> dict:
         """
@@ -666,7 +664,7 @@ class AuthzClient(BaseClient):
             print(f"Tuples: {stats['tuple_count']}, Users: {stats['unique_users']}")
         """
         return (
-            self._row(
+            self._fetch_one(
                 "SELECT tuple_count, hierarchy_rule_count, unique_users, unique_resources FROM authz.get_stats(%s)",
                 (self.namespace,),
             )
@@ -685,9 +683,10 @@ class AuthzClient(BaseClient):
             authz.bulk_grant("read", resource=("doc", "1"), subject_ids=["alice", "bob", "carol"])
         """
         resource_type, resource_id = resource
-        return self._write_scalar(
+        return self._fetch_val(
             "SELECT authz.write_tuples_bulk(%s, %s, %s, 'user', %s, %s)",
             (resource_type, resource_id, permission, subject_ids, self.namespace),
+            write=True,
         )
 
     def bulk_grant_resources(
@@ -716,7 +715,7 @@ class AuthzClient(BaseClient):
             )
         """
         subject_type, subject_id = subject
-        return self._write_scalar(
+        return self._fetch_val(
             "SELECT authz.grant_to_resources_bulk(%s, %s, %s, %s, %s, %s, %s)",
             (
                 resource_type,
@@ -727,6 +726,7 @@ class AuthzClient(BaseClient):
                 subject_relation,
                 self.namespace,
             ),
+            write=True,
         )
 
     def list_expiring(self, within: timedelta = timedelta(days=7)) -> list[dict]:
@@ -744,7 +744,7 @@ class AuthzClient(BaseClient):
             for grant in expiring:
                 print(f"{grant['subject']} access to {grant['resource']} expires {grant['expires_at']}")
         """
-        rows = self._fetchall_raw(
+        rows = self._fetch_raw(
             "SELECT * FROM authz.list_expiring(%s, %s)",
             (within, self.namespace),
         )
@@ -773,9 +773,10 @@ class AuthzClient(BaseClient):
             result = authz.cleanup_expired()
             print(f"Removed {result['tuples_deleted']} expired grants")
         """
-        result = self._scalar(
+        result = self._fetch_val(
             "SELECT authz.cleanup_expired(%s)",
             (self.namespace,),
+            write=True,
         )
         return {"tuples_deleted": result}
 
@@ -805,7 +806,7 @@ class AuthzClient(BaseClient):
         """
         resource_type, resource_id = resource
         subject_type, subject_id = subject
-        return self._write_scalar(
+        return self._fetch_val(
             "SELECT authz.set_expiration(%s, %s, %s, %s, %s, %s, %s)",
             (
                 resource_type,
@@ -816,6 +817,7 @@ class AuthzClient(BaseClient):
                 expires_at,
                 self.namespace,
             ),
+            write=True,
         )
 
     def clear_expiration(
@@ -841,7 +843,7 @@ class AuthzClient(BaseClient):
         """
         resource_type, resource_id = resource
         subject_type, subject_id = subject
-        return self._write_scalar(
+        return self._fetch_val(
             "SELECT authz.clear_expiration(%s, %s, %s, %s, %s, %s)",
             (
                 resource_type,
@@ -851,6 +853,7 @@ class AuthzClient(BaseClient):
                 subject_id,
                 self.namespace,
             ),
+            write=True,
         )
 
     def extend_expiration(
@@ -880,7 +883,7 @@ class AuthzClient(BaseClient):
         """
         resource_type, resource_id = resource
         subject_type, subject_id = subject
-        return self._write_scalar(
+        return self._fetch_val(
             "SELECT authz.extend_expiration(%s, %s, %s, %s, %s, %s, %s)",
             (
                 resource_type,
@@ -891,4 +894,5 @@ class AuthzClient(BaseClient):
                 extension,
                 self.namespace,
             ),
+            write=True,
         )

@@ -76,9 +76,10 @@ class ConfigClient(BaseClient):
         Returns:
             New version number
         """
-        return self._write_scalar(
+        return self._fetch_val(
             "SELECT config.set(%s, %s::jsonb, %s)",
             (key, json.dumps(value), self.namespace),
+            write=True,
         )
 
     def get(self, key: str, version: int | None = None) -> dict | None:
@@ -91,7 +92,7 @@ class ConfigClient(BaseClient):
         Returns:
             Dict with 'value', 'version', 'created_at' or None if not found
         """
-        return self._row(
+        return self._fetch_one(
             "SELECT value, version, created_at FROM config.get(%s, %s, %s)",
             (key, version, self.namespace),
         )
@@ -120,7 +121,7 @@ class ConfigClient(BaseClient):
         Returns:
             List of dicts with 'key', 'value', 'version', 'created_at'
         """
-        return self._fetchall(
+        return self._fetch_all(
             "SELECT key, value, version, created_at FROM config.get_batch(%s, %s)",
             (keys, self.namespace),
         )
@@ -140,7 +141,7 @@ class ConfigClient(BaseClient):
             config.get_path("flags/checkout", "rollout")
             config.get_path("settings/model", "params", "temperature")
         """
-        return self._scalar(
+        return self._fetch_val(
             "SELECT config.get_path(%s, %s, %s)",
             (key, list(path), self.namespace),
         )
@@ -162,9 +163,10 @@ class ConfigClient(BaseClient):
             config.merge("flags/checkout", {"rollout": 0.75})
             config.merge("prompts/bot", {"temperature": 0.8, "max_tokens": 2000})
         """
-        return self._write_scalar(
+        return self._fetch_val(
             "SELECT config.merge(%s, %s::jsonb, %s)",
             (key, json.dumps(changes), self.namespace),
+            write=True,
         )
 
     def search(
@@ -184,7 +186,7 @@ class ConfigClient(BaseClient):
             config.search({"enabled": True})  # All enabled flags
             config.search({"model": "claude-sonnet-4-20250514"}, prefix="prompts/")
         """
-        return self._fetchall(
+        return self._fetch_all(
             "SELECT key, value, version, created_at FROM config.search(%s::jsonb, %s, %s, %s)",
             (json.dumps(contains), prefix, self.namespace, limit),
         )
@@ -199,8 +201,10 @@ class ConfigClient(BaseClient):
         Returns:
             True if version was found and activated
         """
-        return self._write_scalar(
-            "SELECT config.activate(%s, %s, %s)", (key, version, self.namespace)
+        return self._fetch_val(
+            "SELECT config.activate(%s, %s, %s)",
+            (key, version, self.namespace),
+            write=True,
         )
 
     def rollback(self, key: str) -> int | None:
@@ -212,8 +216,10 @@ class ConfigClient(BaseClient):
         Returns:
             New active version number, or None if no previous version
         """
-        return self._write_scalar(
-            "SELECT config.rollback(%s, %s)", (key, self.namespace)
+        return self._fetch_val(
+            "SELECT config.rollback(%s, %s)",
+            (key, self.namespace),
+            write=True,
         )
 
     def list(
@@ -232,7 +238,7 @@ class ConfigClient(BaseClient):
         Returns:
             List of dicts with 'key', 'value', 'version', 'created_at'
         """
-        return self._fetchall(
+        return self._fetch_all(
             "SELECT key, value, version, created_at FROM config.list(%s, %s, %s, %s)",
             (prefix, self.namespace, limit, cursor),
         )
@@ -247,7 +253,7 @@ class ConfigClient(BaseClient):
         Returns:
             List of dicts with 'version', 'value', 'is_active', 'created_at', 'created_by'
         """
-        return self._fetchall(
+        return self._fetch_all(
             "SELECT version, value, is_active, created_at, created_by FROM config.history(%s, %s, %s)",
             (key, self.namespace, limit),
         )
@@ -261,7 +267,9 @@ class ConfigClient(BaseClient):
         Returns:
             Count of versions deleted
         """
-        return self._write_scalar("SELECT config.delete(%s, %s)", (key, self.namespace))
+        return self._fetch_val(
+            "SELECT config.delete(%s, %s)", (key, self.namespace), write=True
+        )
 
     def delete_version(self, key: str, version: int) -> bool:
         """Delete a specific version (cannot delete active version).
@@ -273,9 +281,10 @@ class ConfigClient(BaseClient):
         Returns:
             True if deleted
         """
-        return self._write_scalar(
+        return self._fetch_val(
             "SELECT config.delete_version(%s, %s, %s)",
             (key, version, self.namespace),
+            write=True,
         )
 
     def exists(self, key: str) -> bool:
@@ -287,7 +296,7 @@ class ConfigClient(BaseClient):
         Returns:
             True if key exists and has an active version
         """
-        return self._scalar("SELECT config.exists(%s, %s)", (key, self.namespace))
+        return self._fetch_val("SELECT config.exists(%s, %s)", (key, self.namespace))
 
     def get_stats(self) -> dict:
         """Get namespace statistics.
@@ -295,7 +304,7 @@ class ConfigClient(BaseClient):
         Returns:
             Dict with 'total_keys', 'total_versions', 'keys_by_prefix'
         """
-        row = self._row(
+        row = self._fetch_one(
             "SELECT total_keys, total_versions, keys_by_prefix FROM config.get_stats(%s)",
             (self.namespace,),
         )
@@ -313,9 +322,10 @@ class ConfigClient(BaseClient):
         Returns:
             Count of versions deleted
         """
-        return self._write_scalar(
+        return self._fetch_val(
             "SELECT config.cleanup_old_versions(%s, %s)",
             (keep_versions, self.namespace),
+            write=True,
         )
 
     def get_audit_events(

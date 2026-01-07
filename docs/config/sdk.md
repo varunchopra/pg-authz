@@ -16,7 +16,7 @@ Activate a specific version.
 
 **Returns:** True if version was found and activated
 
-*Source: sdk/src/postkit/config/client.py:192*
+*Source: sdk/src/postkit/config/client.py:194*
 
 ---
 
@@ -33,7 +33,7 @@ Delete old inactive versions, keeping N most recent per key.
 
 **Returns:** Count of versions deleted
 
-*Source: sdk/src/postkit/config/client.py:307*
+*Source: sdk/src/postkit/config/client.py:316*
 
 ---
 
@@ -45,7 +45,7 @@ clear_actor() -> None
 
 Clear actor context.
 
-*Source: sdk/src/postkit/base.py:273*
+*Source: sdk/src/postkit/base.py:315*
 
 ---
 
@@ -62,7 +62,7 @@ Delete all versions of a config entry.
 
 **Returns:** Count of versions deleted
 
-*Source: sdk/src/postkit/config/client.py:255*
+*Source: sdk/src/postkit/config/client.py:261*
 
 ---
 
@@ -80,7 +80,7 @@ Delete a specific version (cannot delete active version).
 
 **Returns:** True if deleted
 
-*Source: sdk/src/postkit/config/client.py:266*
+*Source: sdk/src/postkit/config/client.py:274*
 
 ---
 
@@ -97,7 +97,7 @@ Check if a config key exists.
 
 **Returns:** True if key exists and has an active version
 
-*Source: sdk/src/postkit/config/client.py:281*
+*Source: sdk/src/postkit/config/client.py:290*
 
 ---
 
@@ -115,7 +115,7 @@ Get config entry.
 
 **Returns:** Dict with 'value', 'version', 'created_at' or None if not found
 
-*Source: sdk/src/postkit/config/client.py:84*
+*Source: sdk/src/postkit/config/client.py:85*
 
 ---
 
@@ -134,7 +134,7 @@ Query audit events.
 
 **Returns:** List of audit event dictionaries
 
-*Source: sdk/src/postkit/config/client.py:321*
+*Source: sdk/src/postkit/config/client.py:331*
 
 ---
 
@@ -151,7 +151,7 @@ Get multiple config entries in one query.
 
 **Returns:** List of dicts with 'key', 'value', 'version', 'created_at'
 
-*Source: sdk/src/postkit/config/client.py:114*
+*Source: sdk/src/postkit/config/client.py:115*
 
 ---
 
@@ -175,7 +175,7 @@ config.get_path("flags/checkout", "rollout")
 config.get_path("settings/model", "params", "temperature")
 ```
 
-*Source: sdk/src/postkit/config/client.py:128*
+*Source: sdk/src/postkit/config/client.py:129*
 
 ---
 
@@ -189,7 +189,7 @@ Get namespace statistics.
 
 **Returns:** Dict with 'total_keys', 'total_versions', 'keys_by_prefix'
 
-*Source: sdk/src/postkit/config/client.py:292*
+*Source: sdk/src/postkit/config/client.py:301*
 
 ---
 
@@ -207,7 +207,7 @@ Get just the value (convenience method).
 
 **Returns:** The config value, or default if not found
 
-*Source: sdk/src/postkit/config/client.py:99*
+*Source: sdk/src/postkit/config/client.py:100*
 
 ---
 
@@ -225,7 +225,7 @@ Get version history for a key.
 
 **Returns:** List of dicts with 'version', 'value', 'is_active', 'created_at', 'created_by'
 
-*Source: sdk/src/postkit/config/client.py:240*
+*Source: sdk/src/postkit/config/client.py:246*
 
 ---
 
@@ -244,7 +244,7 @@ List active config entries.
 
 **Returns:** List of dicts with 'key', 'value', 'version', 'created_at'
 
-*Source: sdk/src/postkit/config/client.py:219*
+*Source: sdk/src/postkit/config/client.py:225*
 
 ---
 
@@ -268,7 +268,7 @@ config.merge("flags/checkout", {"rollout": 0.75})
 config.merge("prompts/bot", {"temperature": 0.8, "max_tokens": 2000})
 ```
 
-*Source: sdk/src/postkit/config/client.py:148*
+*Source: sdk/src/postkit/config/client.py:149*
 
 ---
 
@@ -285,7 +285,7 @@ Rollback to previous version.
 
 **Returns:** New active version number, or None if no previous version
 
-*Source: sdk/src/postkit/config/client.py:206*
+*Source: sdk/src/postkit/config/client.py:210*
 
 ---
 
@@ -310,7 +310,7 @@ config.search({"enabled": True})  # All enabled flags
 config.search({"model": "claude-sonnet-4-20250514"}, prefix="prompts/")
 ```
 
-*Source: sdk/src/postkit/config/client.py:170*
+*Source: sdk/src/postkit/config/client.py:172*
 
 ---
 
@@ -346,6 +346,6 @@ Set actor context for audit logging.
 - `on_behalf_of`: Optional principal being represented (e.g., 'user:customer-alice')
 - `reason`: Optional reason for the action (e.g., 'deployment:v1.2.3')
 
-*Source: sdk/src/postkit/base.py:250*
+*Source: sdk/src/postkit/base.py:292*
 
 ---

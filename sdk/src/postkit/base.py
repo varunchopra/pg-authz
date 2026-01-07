@@ -1,14 +1,11 @@
-"""Base client for postkit modules.
-
-Provides shared database operations, error handling, tenant context,
-and actor context management used by AuthnClient, AuthzClient, and ConfigClient.
-"""
+"""Base client for postkit modules."""
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from decimal import Decimal
 from typing import Any, Callable, TypeVar
+from uuid import UUID
 
 import psycopg
 from psycopg.rows import dict_row, kwargs_row
@@ -65,7 +62,7 @@ class BaseClient(ABC):
     """Abstract base class for postkit clients.
 
     Provides shared functionality:
-    - Database helper methods (_scalar, _fetchall, _write_scalar)
+    - Database helper methods (fetch_val, fetch_one, fetch_all)
     - Error handling with SQLSTATE preservation
     - Tenant context (RLS)
     - Actor context for audit logging
@@ -90,11 +87,11 @@ class BaseClient(ABC):
         Raises:
             ValueError: If cursor has a dict-returning row factory, or schema is invalid.
         """
-        # S16: Validate schema name is a safe identifier
+        # Validate schema name is a safe identifier
         if not self._schema.isidentifier():
             raise ValueError(f"Invalid schema name: {self._schema}")
 
-        # S13: Check against known dict-returning factories by identity
+        # Check against known dict-returning factories by identity
         if (
             hasattr(cursor, "row_factory")
             and cursor.row_factory in _DICT_LIKE_FACTORIES
@@ -130,65 +127,18 @@ class BaseClient(ABC):
 
         raise exc_class(message, sqlstate) from e
 
-    def _scalar(self, sql: str, params: tuple[Any, ...]) -> Any:
-        """Execute SQL and return single scalar value."""
-        try:
-            self.cursor.execute(sql, params)
-            result = self.cursor.fetchone()
-            return result[0] if result else None
-        except psycopg.Error as e:
-            self._handle_error(e)
-
     def _normalize_value(self, value: Any) -> Any:
         """Normalize database values to Python types.
 
-        Converts Decimal to float for consistent numeric handling.
+        Converts:
+        - Decimal to float for JSON serialization
+        - UUID to str for JSON serialization and API consistency
         """
         if isinstance(value, Decimal):
             return float(value)
+        if isinstance(value, UUID):
+            return str(value)
         return value
-
-    def _fetchall(self, sql: str, params: tuple[Any, ...]) -> list[dict[str, Any]]:
-        """Execute SQL and return all rows as list of dicts."""
-        try:
-            self.cursor.execute(sql, params)
-            columns = [desc[0] for desc in self.cursor.description]
-            rows = self.cursor.fetchall()
-
-            # S13: Defensive runtime check for dict-like rows
-            if rows and isinstance(rows[0], dict):
-                raise self._error_class(
-                    "Cursor returned dict rows. postkit requires tuple row factory. "
-                    "The SDK builds dicts internally from tuple rows.",
-                    sqlstate=None,
-                )
-
-            return [
-                {col: self._normalize_value(val) for col, val in zip(columns, row)}
-                for row in rows
-            ]
-        except psycopg.Error as e:
-            self._handle_error(e)
-
-    def _fetchall_raw(self, sql: str, params: tuple[Any, ...]) -> list[tuple[Any, ...]]:
-        """Execute SQL and return all rows as raw tuples."""
-        try:
-            self.cursor.execute(sql, params)
-            return self.cursor.fetchall()
-        except psycopg.Error as e:
-            self._handle_error(e)
-
-    def _row(self, sql: str, params: tuple[Any, ...]) -> dict[str, Any] | None:
-        """Execute SQL and return single row as dict, or None if not found."""
-        try:
-            self.cursor.execute(sql, params)
-            row = self.cursor.fetchone()
-            if row is None:
-                return None
-            columns = [desc[0] for desc in self.cursor.description]
-            return {col: self._normalize_value(val) for col, val in zip(columns, row)}
-        except psycopg.Error as e:
-            self._handle_error(e)
 
     @abstractmethod
     def _apply_actor_context(self) -> None:
@@ -199,8 +149,8 @@ class BaseClient(ABC):
         """
         ...
 
-    def _write_with_actor(self, executor: Callable[[], T]) -> T:
-        """Execute a write operation with actor context for audit logging.
+    def _with_actor(self, executor: Callable[[], T]) -> T:
+        """Execute operation with actor context for audit logging.
 
         Actor context uses PostgreSQL's transaction-local settings (SET LOCAL).
         This requires a transaction to persist between setting context and executing.
@@ -225,27 +175,119 @@ class BaseClient(ABC):
             self._apply_actor_context()
             return executor()
         else:
-            # S15: Use psycopg's transaction manager for proper cleanup
+            # Use psycopg's transaction manager for proper cleanup
             with conn.transaction():
                 self._apply_actor_context()
                 return executor()
 
-    def _write_scalar(self, sql: str, params: tuple[Any, ...]) -> Any:
-        """Execute a write operation with actor context, returning single scalar value."""
-        return self._write_with_actor(lambda: self._scalar(sql, params))
+    def _fetch_val(
+        self, sql: str, params: tuple[Any, ...], *, write: bool = False
+    ) -> Any | None:
+        """Execute SQL and return single value from first row.
 
-    def _write_row(self, sql: str, params: tuple[Any, ...]) -> tuple[Any, ...] | None:
-        """Execute a write operation with actor context, returning single row.
+        Args:
+            sql: SQL query to execute
+            params: Query parameters
+            write: If True, applies actor context for audit logging
 
-        Like _write_scalar but returns full row for multi-column results.
-        Used by operations that return composite types (balance + entry_id, etc.)
+        Returns:
+            First column of first row, or None if no rows
         """
 
-        def execute() -> tuple[Any, ...] | None:
-            self.cursor.execute(sql, params)
-            return self.cursor.fetchone()
+        def execute() -> Any | None:
+            try:
+                self.cursor.execute(sql, params)
+                row = self.cursor.fetchone()
+                return self._normalize_value(row[0]) if row else None
+            except psycopg.Error as e:
+                self._handle_error(e)
 
-        return self._write_with_actor(execute)
+        return self._with_actor(execute) if write else execute()
+
+    def _fetch_one(
+        self, sql: str, params: tuple[Any, ...], *, write: bool = False
+    ) -> dict[str, Any] | None:
+        """Execute SQL and return single row as dict.
+
+        Args:
+            sql: SQL query to execute
+            params: Query parameters
+            write: If True, applies actor context for audit logging
+
+        Returns:
+            Row as dict with column names as keys, or None if no rows
+        """
+
+        def execute() -> dict[str, Any] | None:
+            try:
+                self.cursor.execute(sql, params)
+                row = self.cursor.fetchone()
+                if row is None:
+                    return None
+                columns = [desc[0] for desc in self.cursor.description]
+                return {
+                    col: self._normalize_value(val) for col, val in zip(columns, row)
+                }
+            except psycopg.Error as e:
+                self._handle_error(e)
+
+        return self._with_actor(execute) if write else execute()
+
+    def _fetch_all(
+        self, sql: str, params: tuple[Any, ...], *, write: bool = False
+    ) -> list[dict[str, Any]]:
+        """Execute SQL and return all rows as list of dicts.
+
+        Args:
+            sql: SQL query to execute
+            params: Query parameters
+            write: If True, applies actor context for audit logging
+
+        Returns:
+            List of rows, each as dict with column names as keys
+        """
+
+        def execute() -> list[dict[str, Any]]:
+            try:
+                self.cursor.execute(sql, params)
+                columns = [desc[0] for desc in self.cursor.description]
+                rows = self.cursor.fetchall()
+
+                # Defensive runtime check for dict-like rows
+                if rows and isinstance(rows[0], dict):
+                    raise self._error_class(
+                        "Cursor returned dict rows. postkit requires tuple row factory. "
+                        "The SDK builds dicts internally from tuple rows.",
+                        sqlstate=None,
+                    )
+
+                return [
+                    {col: self._normalize_value(val) for col, val in zip(columns, row)}
+                    for row in rows
+                ]
+            except psycopg.Error as e:
+                self._handle_error(e)
+
+        return self._with_actor(execute) if write else execute()
+
+    def _fetch_raw(self, sql: str, params: tuple[Any, ...]) -> list[tuple[Any, ...]]:
+        """Execute SQL and return all rows as raw tuples.
+
+        Use this for special cases where you need raw tuple access
+        (e.g., single-column results as list[str], or combining columns into tuples).
+
+        Args:
+            sql: SQL query to execute
+            params: Query parameters
+
+        Returns:
+            List of rows as tuples
+        """
+        try:
+            self.cursor.execute(sql, params)
+            return self.cursor.fetchall()
+        except psycopg.Error as e:
+            self._handle_error(e)
 
     def set_actor(
         self,
@@ -316,7 +358,7 @@ class BaseClient(ABC):
             LIMIT %s
         """
 
-        return self._fetchall(sql, tuple(params))
+        return self._fetch_all(sql, tuple(params))
 
     def get_stats(self) -> dict:
         """Get namespace statistics. Subclasses should override with module-specific stats."""
