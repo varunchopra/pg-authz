@@ -17,23 +17,30 @@
     </div>
     <div class="stat">
         <div class="stat-value">{{ shared_count }}</div>
-        <div class="stat-label">Shared With Me</div>
+        <div class="stat-label">Shared in Org</div>
     </div>
+    {% if shared_with_me %}
+    <div class="stat">
+        <div class="stat-value">{{ shared_with_me|length }}</div>
+        <div class="stat-label">From Other Orgs</div>
+    </div>
+    {% endif %}
 </div>
 
 <div class="section">
+    <h2>Organization Notes</h2>
     {% if notes %}
-    <div class="notes-list">
+    <div class="card-list">
         {% for note in notes %}
-        <a href="{{ url_for('views.notes.view', note_id=note.note_id) }}" class="note-card">
-            <div class="note-header">
-                <h3 class="note-title">{{ note.title }}</h3>
+        <a href="{{ url_for('views.notes.view', note_id=note.note_id) }}" class="card-link">
+            <div class="card-header">
+                <h3 class="card-title">{{ note.title }}</h3>
                 <span class="permission-badge permission-{{ note.my_permission }}">
                     {% if note.my_permission == 'owner' %}Owner{% elif note.my_permission == 'edit' %}Can edit{% else %}View only{% endif %}
                 </span>
             </div>
-            <p class="note-preview">{{ note.body[:100] }}{% if note.body|length > 100 %}...{% endif %}</p>
-            <div class="note-meta">
+            <p class="card-body">{{ note.body[:100] }}{% if note.body|length > 100 %}...{% endif %}</p>
+            <div class="card-meta">
                 {% if note.my_permission != 'owner' %}
                 <span>Shared by {{ note.owner_email }}</span>
                 <span class="separator">|</span>
@@ -46,76 +53,35 @@
     {% else %}
     <div class="empty-message">
         <p>No notes yet</p>
-        <a href="{{ url_for('views.notes.new') }}" class="btn btn-primary" style="margin-top: 16px;">Create your first note</a>
+        <a href="{{ url_for('views.notes.new') }}" class="btn btn-primary mt-2">Create your first note</a>
     </div>
     {% endif %}
 </div>
 
-<style>
-.notes-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-.note-card {
-    display: block;
-    padding: 16px;
-    border: 1px solid var(--border);
-    background: var(--bg);
-    text-decoration: none;
-    color: var(--text);
-    transition: border-color 0.2s;
-}
-.note-card:hover {
-    border-color: var(--primary);
-    text-decoration: none;
-}
-.note-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 8px;
-}
-.note-title {
-    font-size: 16px;
-    font-weight: 600;
-    margin: 0;
-}
-.note-preview {
-    color: var(--text-secondary);
-    font-size: 14px;
-    margin: 0 0 8px 0;
-    line-height: 1.4;
-}
-.note-meta {
-    font-size: 12px;
-    color: var(--text-secondary);
-}
-.note-meta .separator {
-    margin: 0 8px;
-    color: var(--border);
-}
-.permission-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    font-size: 11px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border-radius: 3px;
-    flex-shrink: 0;
-}
-.permission-owner {
-    background: #e6f0ff;
-    color: var(--primary);
-}
-.permission-edit {
-    background: #e6ffe6;
-    color: var(--success);
-}
-.permission-view {
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
-}
-</style>
+{% if shared_with_me %}
+<div class="section" style="margin-top: 2rem;">
+    <h2>Shared From Other Organizations</h2>
+    <div class="card-list">
+        {% for note in shared_with_me %}
+        <a href="{{ url_for('views.notes.view_shared', note_id=note.note_id) }}" class="card-link">
+            <div class="card-header">
+                <h3 class="card-title">{{ note.title }}</h3>
+                <span class="permission-badge permission-{{ note.my_permission }}">
+                    {% if note.my_permission == 'owner' %}Owner{% elif note.my_permission == 'edit' %}Can edit{% else %}View only{% endif %}
+                </span>
+            </div>
+            <div class="card-meta">
+                <span class="org-badge">{{ note.org_name }}</span>
+                <span class="separator">|</span>
+                <span>Shared by {{ note.owner_email }}</span>
+                {% if note.expires_at %}
+                <span class="separator">|</span>
+                <span>Expires {{ note.expires_at.strftime('%Y-%m-%d') }}</span>
+                {% endif %}
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
 {% endblock %}

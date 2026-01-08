@@ -5,10 +5,10 @@
     <div class="section-header">
         <h2>Filters</h2>
     </div>
-    <form method="get" class="inline-form" style="margin-bottom: 24px;">
+    <form method="get" class="inline-form mb-3">
         <div class="form-group">
             <label for="event_type">Event Type</label>
-            <select name="event_type" id="event_type" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border);">
+            <select name="event_type" id="event_type">
                 <option value="">All Events</option>
                 <option value="grant" {% if filter_event_type == 'grant' %}selected{% endif %}>Grant</option>
                 <option value="revoke" {% if filter_event_type == 'revoke' %}selected{% endif %}>Revoke</option>
@@ -40,7 +40,7 @@
         <tbody>
             {% for event in events %}
             <tr>
-                <td class="meta" style="white-space: nowrap;">{{ event.event_time.strftime('%Y-%m-%d %H:%M') if event.event_time else 'N/A' }}</td>
+                <td class="meta text-nowrap">{{ event.event_time.strftime('%Y-%m-%d %H:%M') if event.event_time else 'N/A' }}</td>
                 <td>
                     {% if event.event_type == 'tuple_created' %}
                     <span class="event-badge event-grant">GRANT</span>
@@ -80,27 +80,4 @@
     <div class="empty-message">No audit events found for the selected filters</div>
     {% endif %}
 </div>
-
-<style>
-.tuple-display {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-.tuple-entity {
-    cursor: help;
-    padding: 2px 6px;
-    background: var(--bg-secondary);
-    border-radius: 3px;
-    font-size: 13px;
-}
-.tuple-entity:hover {
-    background: var(--border);
-}
-.tuple-arrow {
-    color: var(--text-secondary);
-    font-size: 13px;
-    white-space: nowrap;
-}
-</style>
 {% endblock %}

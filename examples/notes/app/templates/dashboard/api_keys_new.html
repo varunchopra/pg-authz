@@ -45,7 +45,7 @@
                     <input type="radio" name="notes_access" value="none" checked onchange="toggleNotesLevel()">
                     <div class="option-content">
                         <strong>No access</strong>
-                        <span class="option-description">Cannot access notes via API</span>
+                        <span class="option-desc">Cannot access notes via API</span>
                     </div>
                 </label>
 
@@ -53,7 +53,7 @@
                     <input type="radio" name="notes_access" value="all" onchange="toggleNotesLevel()">
                     <div class="option-content">
                         <strong>All notes</strong>
-                        <span class="option-description">Access all notes you have permission to view</span>
+                        <span class="option-desc">Access all notes you have permission to view</span>
                     </div>
                 </label>
 
@@ -62,13 +62,13 @@
                     <input type="radio" name="notes_access" value="selected" onchange="toggleNotesLevel()">
                     <div class="option-content">
                         <strong>Only select notes</strong>
-                        <span class="option-description">Choose specific notes to grant access to</span>
+                        <span class="option-desc">Choose specific notes to grant access to</span>
                     </div>
                 </label>
                 {% endif %}
             </div>
 
-            <div id="notes-level-section" class="access-level-section" style="display: none;">
+            <div id="notes-level-section" class="access-level-section d-none">
                 <label for="notes_level">Access level:</label>
                 <select id="notes_level" name="notes_level">
                     <option value="read">Read-only</option>
@@ -78,7 +78,7 @@
             </div>
 
             {% if notes %}
-            <div id="notes-selection" class="resource-selection" style="display: none;">
+            <div id="notes-selection" class="resource-selection d-none">
                 <label>Select notes:</label>
                 <div class="checkbox-list">
                     {% for note in notes %}
@@ -98,99 +98,6 @@
     </div>
 </form>
 
-<style>
-.section-description {
-    color: var(--text-secondary);
-    margin-bottom: 16px;
-}
-.permission-section {
-    margin-bottom: 24px;
-}
-.permission-section h3 {
-    font-size: 14px;
-    font-weight: 600;
-    margin-bottom: 12px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--border);
-}
-.permission-options {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-.permission-option {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 12px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background 0.15s;
-}
-.permission-option:hover {
-    background: var(--bg-secondary);
-}
-.permission-option input[type="radio"] {
-    margin-top: 2px;
-}
-.option-content {
-    display: flex;
-    flex-direction: column;
-}
-.option-content strong {
-    font-size: 14px;
-}
-.option-description {
-    font-size: 12px;
-    color: var(--text-secondary);
-}
-.access-level-section {
-    margin-top: 16px;
-    padding: 12px;
-    background: var(--bg-secondary);
-    border-radius: 6px;
-}
-.access-level-section label {
-    font-weight: 500;
-    margin-right: 8px;
-}
-.resource-selection {
-    margin-top: 16px;
-    padding: 12px;
-    background: var(--bg-secondary);
-    border-radius: 6px;
-}
-.resource-selection > label {
-    display: block;
-    font-weight: 500;
-    margin-bottom: 8px;
-}
-.checkbox-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-height: 200px;
-    overflow-y: auto;
-}
-.checkbox-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-}
-.form-actions {
-    margin-top: 24px;
-    padding-top: 16px;
-    border-top: 1px solid var(--border);
-}
-.form-help {
-    font-size: 12px;
-    color: var(--text-secondary);
-    margin-top: 4px;
-}
-</style>
-
 <script>
 function toggleNotesLevel() {
     const selected = document.querySelector('input[name="notes_access"]:checked').value;
@@ -198,14 +105,14 @@ function toggleNotesLevel() {
     const selectionSection = document.getElementById('notes-selection');
 
     if (selected === 'none') {
-        levelSection.style.display = 'none';
-        if (selectionSection) selectionSection.style.display = 'none';
+        levelSection.classList.add('d-none');
+        if (selectionSection) selectionSection.classList.add('d-none');
     } else if (selected === 'all') {
-        levelSection.style.display = 'block';
-        if (selectionSection) selectionSection.style.display = 'none';
+        levelSection.classList.remove('d-none');
+        if (selectionSection) selectionSection.classList.add('d-none');
     } else if (selected === 'selected') {
-        levelSection.style.display = 'block';
-        if (selectionSection) selectionSection.style.display = 'block';
+        levelSection.classList.remove('d-none');
+        if (selectionSection) selectionSection.classList.remove('d-none');
     }
 }
 </script>

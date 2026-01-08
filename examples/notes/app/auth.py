@@ -322,15 +322,6 @@ def authenticated(f=None, *, org: bool = False, admin: bool = False):
             if not user_id:
                 return _auth_failure_response()
 
-            # Set actor on authn
-            actor_id = f"api_key:{api_key_id}" if api_key_id else f"user:{user_id}"
-            on_behalf_of = f"user:{user_id}" if api_key_id else None
-            authn = get_authn()
-            if on_behalf_of:
-                authn.set_actor(actor_id=actor_id, on_behalf_of=on_behalf_of)
-            else:
-                authn.set_actor(actor_id=actor_id)
-
             if require_org:
                 # Get org from various sources
                 org_id = _get_org_from_request(kwargs)
@@ -346,16 +337,8 @@ def authenticated(f=None, *, org: bool = False, admin: bool = False):
                 if admin and not is_org_admin(user_id, org_id):
                     return _forbidden_response("admin required")
 
-                # Set actor on authz
-                authz = get_authz(org_id)
-                if on_behalf_of:
-                    authz.set_actor(actor_id=actor_id, on_behalf_of=on_behalf_of)
-                else:
-                    authz.set_actor(actor_id=actor_id)
-
-                # Also set on g for compatibility with helpers
-                g.current_user_id = user_id
-                g.current_org_id = org_id
+                # Set user context and actor for audit trails (single source of truth)
+                _set_user_context(user_id, session_id, api_key_id, org_id)
 
                 ctx = OrgContext(
                     user_id=user_id,
@@ -364,7 +347,9 @@ def authenticated(f=None, *, org: bool = False, admin: bool = False):
                     org_id=org_id,
                 )
             else:
-                g.current_user_id = user_id
+                # Set user context without org
+                _set_user_context(user_id, session_id, api_key_id)
+
                 ctx = UserContext(
                     user_id=user_id,
                     session_id=session_id,
@@ -547,20 +532,8 @@ def revoke_all_api_key_grants(key_id: str, org_id: str) -> int:
     Returns:
         Number of grants revoked
     """
-    namespace = f"org:{org_id}"
-    with get_db().cursor(row_factory=dict_row) as cur:
-        cur.execute("SET LOCAL authz.tenant_id = %s", (namespace,))
-        cur.execute(
-            """
-            DELETE FROM authz.tuples
-            WHERE subject_type = 'api_key'
-            AND subject_id = %s
-            AND namespace = %s
-            RETURNING 1
-            """,
-            (key_id, namespace),
-        )
-        return cur.rowcount
+    authz = get_authz(org_id)
+    return authz.revoke_subject_grants("api_key", key_id)
 
 
 def get_api_key_scopes(key_id: str, org_id: str) -> dict:
@@ -578,21 +551,9 @@ def get_api_key_scopes(key_id: str, org_id: str) -> dict:
     if authz.check_subject("api_key", key_id, "view", ("notes", "*")):
         return {"notes": "read"}
 
-    # Check for specific note grants
-    namespace = f"org:{org_id}"
-    with get_db().cursor(row_factory=dict_row) as cur:
-        cur.execute("SET LOCAL authz.tenant_id = %s", (namespace,))
-        cur.execute(
-            """
-            SELECT DISTINCT relation FROM authz.tuples
-            WHERE subject_type = 'api_key'
-            AND subject_id = %s
-            AND resource_type = 'note'
-            AND namespace = %s
-            """,
-            (key_id, namespace),
-        )
-        relations = {row["relation"] for row in cur.fetchall()}
+    # Check for specific note grants using SDK
+    grants = authz.list_subject_grants("api_key", key_id, resource_type="note")
+    relations = {g["relation"] for g in grants}
 
     if "delete" in relations or "share" in relations:
         return {"notes": "selected:admin"}

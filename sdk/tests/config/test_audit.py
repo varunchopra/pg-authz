@@ -4,7 +4,7 @@ import pytest
 
 
 class TestSetActor:
-    """Tests for config.set_actor()"""
+    """Actor context is captured in audit events when set."""
 
     def test_captures_actor_in_audit(self, config, test_helpers):
         """Actor context is captured in audit events."""
@@ -53,7 +53,7 @@ class TestSetActor:
 
 
 class TestClearActor:
-    """Tests for config.clear_actor()"""
+    """Clearing actor context stops capture in subsequent events."""
 
     def test_clears_actor_context(self, config, test_helpers):
         """clear_actor() removes actor context."""
@@ -223,7 +223,7 @@ class TestAuditPartitions:
 
 
 class TestGetStats:
-    """Tests for config.get_stats()"""
+    """Namespace statistics are accurately reported."""
 
     def test_returns_key_counts(self, config):
         """get_stats() returns key and version counts."""
@@ -250,7 +250,7 @@ class TestGetStats:
 
 
 class TestCleanupOldVersions:
-    """Tests for config.cleanup_old_versions()"""
+    """Old inactive versions are removed while preserving recent history."""
 
     def test_removes_old_inactive_versions(self, config, test_helpers):
         """cleanup_old_versions() removes old inactive versions."""

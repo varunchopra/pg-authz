@@ -23,16 +23,16 @@
 
 <div class="section">
     {% if teams %}
-    <div class="teams-list">
+    <div class="card-list">
         {% for team in teams %}
-        <a href="{{ url_for('views.teams.view', team_id=team.team_id) }}" class="team-card">
-            <div class="team-header">
-                <h3 class="team-name">{{ team.name }}</h3>
+        <a href="{{ url_for('views.teams.view', team_id=team.team_id) }}" class="card-link">
+            <div class="card-header">
+                <h3 class="card-title">{{ team.name }}</h3>
                 <span class="role-badge role-{{ team.my_role }}">
                     {% if team.my_role == 'owner' %}Owner{% elif team.my_role == 'admin' %}Admin{% else %}Member{% endif %}
                 </span>
             </div>
-            <div class="team-meta">
+            <div class="card-meta">
                 <span>{{ team.member_count }} member{% if team.member_count != 1 %}s{% endif %}</span>
                 <span class="separator">|</span>
                 <span>Created {{ team.created_at.strftime('%Y-%m-%d') if team.created_at else 'N/A' }}</span>
@@ -43,69 +43,8 @@
     {% else %}
     <div class="empty-message">
         <p>You're not a member of any teams yet</p>
-        <a href="{{ url_for('views.teams.new') }}" class="btn btn-primary" style="margin-top: 16px;">Create a team</a>
+        <a href="{{ url_for('views.teams.new') }}" class="btn btn-primary mt-2">Create a team</a>
     </div>
     {% endif %}
 </div>
-
-<style>
-.teams-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-.team-card {
-    display: block;
-    padding: 16px;
-    border: 1px solid var(--border);
-    background: var(--bg);
-    text-decoration: none;
-    color: var(--text);
-    transition: border-color 0.2s;
-}
-.team-card:hover {
-    border-color: var(--primary);
-    text-decoration: none;
-}
-.team-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-}
-.team-name {
-    font-size: 16px;
-    font-weight: 600;
-    margin: 0;
-}
-.team-meta {
-    font-size: 12px;
-    color: var(--text-secondary);
-}
-.team-meta .separator {
-    margin: 0 8px;
-    color: var(--border);
-}
-.role-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    font-size: 11px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border-radius: 3px;
-}
-.role-owner {
-    background: #e6f0ff;
-    color: var(--primary);
-}
-.role-admin {
-    background: #fff0e6;
-    color: #cc6600;
-}
-.role-member {
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
-}
-</style>
 {% endblock %}

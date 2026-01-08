@@ -29,6 +29,7 @@ from ...schemas import (
     SignupRequest,
     validate_form,
 )
+from .notes import convert_pending_shares
 
 bp = Blueprint("auth", __name__)
 log = logging.getLogger(__name__)
@@ -158,6 +159,15 @@ def signup_post():
     try:
         user_id = authn.create_user(data.email, hash_password(data.password))
         log.info(f"User created via form: user_id={user_id[:8]}...")
+
+        # Convert pending shares for this email
+        # SECURITY NOTE: In production, this should happen AFTER email verification,
+        # not on signup. Otherwise an attacker could register someone else's email
+        # and gain access to their pending shares. This demo app doesn't have email
+        # verification, so we convert on signup for demonstration purposes.
+        converted = convert_pending_shares(user_id, data.email)
+        if converted > 0:
+            log.info(f"Converted {converted} pending shares for user {user_id[:8]}...")
 
         # Auto-login after signup
         raw_token, token_hash = create_token()
@@ -376,11 +386,13 @@ def google_callback():
     authn = get_authn()
 
     # Find or create user
+    is_new_user = False
     with get_db().transaction():
         user = authn.get_user_by_email(email)
         if not user:
             user_id = authn.create_user(email, password_hash=None)
             log.info(f"SSO user created: user_id={user_id[:8]}...")
+            is_new_user = True
         else:
             user_id = user["user_id"]
             if user.get("disabled_at"):
@@ -395,6 +407,15 @@ def google_callback():
             ip_address=request.remote_addr,
             user_agent=request.headers.get("User-Agent", "")[:1024],
         )
+
+    # Convert pending shares for new SSO users
+    # SECURITY NOTE: Google SSO verifies email ownership, so this is safe.
+    if is_new_user:
+        converted = convert_pending_shares(user_id, email)
+        if converted > 0:
+            log.info(
+                f"Converted {converted} pending shares for SSO user {user_id[:8]}..."
+            )
 
     # Store in Flask session
     login_user(user_id)

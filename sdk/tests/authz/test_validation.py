@@ -318,7 +318,7 @@ class TestDeleteValidation:
 
 
 class TestNamespaceValidation:
-    """Tests for authz._validate_namespace()"""
+    """Namespace must be 1-1024 chars, no control chars or leading/trailing whitespace."""
 
     def test_valid_namespaces(self, make_authz):
         """Valid namespace formats should be accepted."""

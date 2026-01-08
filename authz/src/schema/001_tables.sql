@@ -61,6 +61,20 @@ CREATE POLICY tuples_tenant_isolation ON authz.tuples
     USING (namespace = current_setting('authz.tenant_id', TRUE))
     WITH CHECK (namespace = current_setting('authz.tenant_id', TRUE));
 
+-- Cross-namespace visibility: Users can see grants where they are the subject.
+-- This enables "Shared with me" functionality across organizations.
+-- Read-only: users cannot modify grants in other namespaces.
+CREATE POLICY tuples_recipient_visibility ON authz.tuples
+    FOR SELECT
+    USING (
+        subject_type = 'user'
+        AND subject_id = current_setting('authz.user_id', TRUE)
+    );
+
+-- Index for efficient cross-namespace recipient queries
+CREATE INDEX IF NOT EXISTS idx_tuples_subject
+    ON authz.tuples(subject_id, subject_type);
+
 CREATE POLICY hierarchy_tenant_isolation ON authz.permission_hierarchy
     USING (namespace = current_setting('authz.tenant_id', TRUE))
     WITH CHECK (namespace = current_setting('authz.tenant_id', TRUE));

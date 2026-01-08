@@ -62,7 +62,7 @@
                 </td>
                 <td>{{ key.last_used_at.strftime('%Y-%m-%d %H:%M') if key.last_used_at else 'Never' }}</td>
                 <td class="actions">
-                    <form method="POST" action="{{ url_for('views.dashboard.revoke_api_key', key_id=key.key_id) }}" style="display: inline;">
+                    <form method="POST" action="{{ url_for('views.dashboard.revoke_api_key', key_id=key.key_id) }}" class="d-inline">
                         <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this API key? This cannot be undone.')">Delete</button>
                     </form>
                 </td>
@@ -74,21 +74,4 @@
     <div class="empty-message">No API keys yet. <a href="{{ url_for('views.dashboard.new_api_key') }}">Generate a new token</a> to get started.</div>
     {% endif %}
 </div>
-
-<style>
-.scope-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    font-size: 11px;
-    font-weight: 500;
-    border-radius: 3px;
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
-}
-.scope-none { background: var(--bg-secondary); color: var(--text-secondary); }
-.scope-read { background: #e6f7ff; color: #0066cc; }
-.scope-write { background: #fff7e6; color: #996600; }
-.scope-admin { background: #ffe6e6; color: #cc0000; }
-.text-danger { color: var(--danger); }
-</style>
 {% endblock %}

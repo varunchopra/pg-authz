@@ -5,7 +5,7 @@ from postkit.meter import MeterError
 
 
 class TestNamespaceValidation:
-    """Tests for meter._validate_namespace()"""
+    """Tests for namespace validation - must be 1-1024 chars, no control chars."""
 
     def test_valid_namespaces(self, make_meter):
         """Valid namespace formats should be accepted."""
@@ -41,3 +41,19 @@ class TestNamespaceValidation:
     def test_rejects_over_max_length(self, make_meter):
         with pytest.raises(MeterError):
             make_meter("a" * 1025)
+
+
+class TestFieldLimits:
+    """Length limits enforced on event_type and unit."""
+
+    def test_rejects_overly_long_event_type(self, meter):
+        """event_type has a length limit."""
+        meter.allocate("user", "a" * 256, 100, "unit")  # at limit
+        with pytest.raises(MeterError, match="exceeds maximum"):
+            meter.allocate("user", "a" * 257, 100, "unit")
+
+    def test_rejects_overly_long_unit(self, meter):
+        """unit has a length limit."""
+        meter.allocate("user", "event", 100, "a" * 64)  # at limit
+        with pytest.raises(MeterError, match="exceeds maximum"):
+            meter.allocate("user", "event", 100, "a" * 65)

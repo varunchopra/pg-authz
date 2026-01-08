@@ -26,10 +26,22 @@ from ...auth import (
     get_user_orgs,
     is_org_member,
 )
-from ...db import get_authn, get_authz, get_authz_for_org, get_db
+from ...db import (
+    get_authn,
+    get_authz,
+    get_authz_for_org,
+    get_db,
+    get_meter,
+    get_org_config,
+    get_system_config,
+)
 
 bp = Blueprint("orgs", __name__, url_prefix="/orgs")
 log = logging.getLogger(__name__)
+
+# Sentinel user_id for org-level pooled resources (seats)
+# Per-user resources (storage) use actual user_id for breakdown
+ORG_POOL_USER = "__org__"
 
 
 def slugify(name: str) -> str:
@@ -72,14 +84,10 @@ def initialize_org_authz(org_id: str, owner_id: str) -> None:
     """
     authz = get_authz_for_org(org_id)
 
-    # Set up permission hierarchies (highest to lowest)
-    # Note: owner -> edit -> view
+    # Define permission inheritance: granting "owner" automatically grants "edit" and "view".
+    # This eliminates the need to grant all three permissions separately.
     authz.set_hierarchy("note", "owner", "edit", "view")
-
-    # Team: owner -> admin -> member
     authz.set_hierarchy("team", "owner", "admin", "member")
-
-    # Org: owner -> admin -> member
     authz.set_hierarchy("org", "owner", "admin", "member")
 
     # Grant owner permission on org
@@ -185,6 +193,25 @@ def create(ctx: UserContext):
 
     # Initialize authz namespace
     initialize_org_authz(org_id, user_id)
+
+    # Initialize org config with plan and default settings
+    org_config = get_org_config(org_id)
+    org_config.set("plan", "free")
+    org_config.set(
+        "settings",
+        {"allow_public_notes": False, "default_share_permission": "view"},
+    )
+
+    # Get seat allocation from plan definition
+    system_config = get_system_config()
+    plan = system_config.get_value("plans/free", default={"seats": 3})
+    seat_allocation = plan.get("seats", 3)
+
+    # Allocate seats and consume 1 for owner (org-level pool)
+    meter = get_meter(org_id)
+    if seat_allocation > 0:  # -1 means unlimited
+        meter.allocate(ORG_POOL_USER, "seats", seat_allocation, "members")
+        meter.consume(ORG_POOL_USER, "seats", 1, "members")  # owner takes 1
 
     # Set as current org
     session["current_org_id"] = org_id
@@ -437,6 +464,24 @@ def accept_invite(ctx: UserContext, code: str):
         flash("You're already a member of this organization", "info")
         return redirect(url_for("views.dashboard.index"))
 
+    # Check and consume seat from org pool (skip if unlimited plan)
+    meter = get_meter(invite["org_id"])
+    balance = meter.get_balance(ORG_POOL_USER, "seats", "members")
+
+    # If allocation exists (not unlimited), enforce seat limit
+    if (
+        balance
+        and balance.get("balance") is not None
+        and balance.get("balance", 0) >= 0
+    ):
+        result = meter.consume(ORG_POOL_USER, "seats", 1, "members", check_balance=True)
+        if not result.get("success", False):
+            flash(
+                "Organization has no available seats. Contact admin to upgrade.",
+                "error",
+            )
+            return redirect(url_for(".select"))
+
     # Create membership
     create_org_membership(invite["org_id"], user_id, role=invite["role"])
 
@@ -506,6 +551,10 @@ def remove_member(ctx: OrgContext, org_id: str, member_id: str):
     for role in ("owner", "admin", "member"):
         authz.revoke(role, resource=("org", org_id), subject=("user", member_id))
 
+    # Credit back the seat to org pool
+    meter = get_meter(org_id)
+    meter.adjust(ORG_POOL_USER, "seats", 1, "members")
+
     log.info(f"Member removed: user_id={member_id[:8]}... org_id={org_id[:8]}...")
     flash("Member removed", "success")
     return redirect(url_for(".settings_members", org_id=org_id))
@@ -545,6 +594,10 @@ def leave(ctx: UserContext, org_id: str):
     authz = get_authz_for_org(org_id)
     for role in ("owner", "admin", "member"):
         authz.revoke(role, resource=("org", org_id), subject=("user", user_id))
+
+    # Credit back the seat to org pool
+    meter = get_meter(org_id)
+    meter.adjust(ORG_POOL_USER, "seats", 1, "members")
 
     # Clear current org if it was this one
     if session.get("current_org_id") == org_id:
@@ -726,3 +779,69 @@ def revoke_user_session(ctx: OrgContext, org_id: str, user_id: str, session_id: 
         flash("Session not found", "error")
 
     return redirect(url_for(".user_sessions", org_id=org_id, user_id=user_id))
+
+
+# =============================================================================
+# USAGE
+# =============================================================================
+
+
+@bp.get("/<org_id>/settings/usage")
+@authenticated(org=True, admin=True)
+def settings_usage(ctx: OrgContext, org_id: str):
+    """Organization settings - Usage tab with per-user breakdown."""
+    org, error = _verify_settings_access(org_id)
+    if error:
+        return error
+
+    meter = get_meter(org_id)
+    org_config = get_org_config(org_id)
+    system_config = get_system_config()
+
+    # Get org's plan
+    plan_key = org_config.get_value("plan", default="free")
+    plan = system_config.get_value(
+        f"plans/{plan_key}", default={"seats": 3, "name": "Free"}
+    )
+
+    # Get pricing (org override for enterprise, else plan defaults)
+    org_pricing = org_config.get_value("pricing", default={})
+    seat_price = (
+        org_pricing.get("seat_price")
+        if org_pricing.get("seat_price") is not None
+        else plan.get("seat_price", 0)
+    )
+    storage_rate = (
+        org_pricing.get("storage_rate")
+        if org_pricing.get("storage_rate") is not None
+        else plan.get("storage_rate", 0)
+    )
+
+    # Seat info from org pool
+    members = get_org_members(org_id)
+    is_unlimited = plan.get("seats", 0) < 0
+
+    # Per-user storage breakdown
+    user_storage = {}
+    for member in members:
+        user_balance = meter.get_balance(member["user_id"], "storage", "characters")
+        user_storage[member["user_id"]] = abs(user_balance.get("balance", 0) or 0)
+
+    total_storage = sum(user_storage.values())
+
+    return render_template(
+        "orgs/settings/usage.html",
+        org=org,
+        plan=plan,
+        plan_key=plan_key,
+        seats_allocated=plan.get("seats") if not is_unlimited else None,
+        seats_used=len(members),
+        is_unlimited=is_unlimited,
+        storage_used=total_storage,
+        user_storage=user_storage,
+        members=members,
+        seat_price=seat_price or 0,
+        storage_rate=storage_rate or 0,
+        storage_cost=total_storage * (storage_rate or 0),
+        active_tab="usage",
+    )

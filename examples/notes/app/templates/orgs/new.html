@@ -7,11 +7,11 @@
     <h1>Create Organization</h1>
 </div>
 
-<p style="color: var(--text-secondary); margin-bottom: 24px;">
+<p class="text-secondary mb-3">
     Create a new organization to get started. You'll be the owner and can invite others later.
 </p>
 
-<form action="{{ url_for('views.orgs.create') }}" method="post" style="max-width: 400px;">
+<form action="{{ url_for('views.orgs.create') }}" method="post" class="max-w-sm">
     <div class="form-group">
         <label for="name">Organization Name</label>
         <input type="text" id="name" name="name" required minlength="2" maxlength="100"
@@ -23,10 +23,4 @@
         <button type="submit" class="btn btn-primary">Create Organization</button>
     </div>
 </form>
-
-<style>
-.form-actions {
-    margin-top: 24px;
-}
-</style>
 {% endblock %}

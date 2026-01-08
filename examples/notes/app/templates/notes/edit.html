@@ -23,29 +23,4 @@
         <button type="submit" class="btn btn-primary">{% if note %}Save Changes{% else %}Create Note{% endif %}</button>
     </div>
 </form>
-
-<style>
-.note-form {
-    max-width: 800px;
-}
-.note-form textarea {
-    width: 100%;
-    padding: 12px;
-    font-size: 14px;
-    font-family: inherit;
-    line-height: 1.6;
-    border: 1px solid var(--border);
-    resize: vertical;
-}
-.note-form textarea:focus {
-    outline: none;
-    border-color: var(--primary);
-}
-.form-actions {
-    display: flex;
-    gap: 12px;
-    justify-content: flex-end;
-    margin-top: 24px;
-}
-</style>
 {% endblock %}

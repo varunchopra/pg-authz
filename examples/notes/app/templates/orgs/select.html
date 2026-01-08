@@ -10,7 +10,7 @@
     </div>
 </div>
 
-<p style="color: var(--text-secondary); margin-bottom: 24px;">
+<p class="text-secondary mb-3">
     Choose an organization to continue:
 </p>
 
@@ -25,31 +25,4 @@
     </form>
     {% endfor %}
 </div>
-
-<style>
-.org-list {
-    margin: 1rem 0;
-}
-.org-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    margin-bottom: 0.5rem;
-}
-.org-item:hover {
-    background-color: var(--bg-secondary);
-}
-.org-info {
-    display: flex;
-    flex-direction: column;
-}
-.org-role {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    text-transform: capitalize;
-}
-</style>
 {% endblock %}

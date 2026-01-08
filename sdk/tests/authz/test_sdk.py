@@ -174,3 +174,71 @@ class TestAudit:
 
         assert "1" in docs
         assert "2" in docs
+
+
+class TestSubjectGrants:
+    """Subject grant listing and revocation (e.g., for API keys)."""
+
+    def test_list_subject_grants_returns_grants(self, authz):
+        """list_subject_grants returns all grants for a subject."""
+        authz.grant("view", resource=("note", "1"), subject=("api_key", "key-123"))
+        authz.grant("edit", resource=("note", "2"), subject=("api_key", "key-123"))
+
+        grants = authz.list_subject_grants("api_key", "key-123")
+
+        assert len(grants) == 2
+        resources = [g["resource"] for g in grants]
+        assert ("note", "1") in resources
+        assert ("note", "2") in resources
+
+    def test_list_subject_grants_filters_by_resource_type(self, authz):
+        """list_subject_grants can filter by resource type."""
+        authz.grant("view", resource=("note", "1"), subject=("api_key", "key-123"))
+        authz.grant("view", resource=("doc", "2"), subject=("api_key", "key-123"))
+
+        grants = authz.list_subject_grants("api_key", "key-123", resource_type="note")
+
+        assert len(grants) == 1
+        assert grants[0]["resource"] == ("note", "1")
+
+    def test_list_subject_grants_returns_empty_for_no_grants(self, authz):
+        """list_subject_grants returns empty list when no grants exist."""
+        grants = authz.list_subject_grants("api_key", "nonexistent")
+        assert grants == []
+
+    def test_revoke_subject_grants_removes_all(self, authz):
+        """revoke_subject_grants removes all grants for a subject."""
+        authz.grant("view", resource=("note", "1"), subject=("api_key", "key-123"))
+        authz.grant("edit", resource=("note", "2"), subject=("api_key", "key-123"))
+
+        count = authz.revoke_subject_grants("api_key", "key-123")
+
+        assert count == 2
+        assert authz.list_subject_grants("api_key", "key-123") == []
+
+    def test_revoke_subject_grants_filters_by_resource_type(self, authz):
+        """revoke_subject_grants can filter by resource type."""
+        authz.grant("view", resource=("note", "1"), subject=("api_key", "key-123"))
+        authz.grant("view", resource=("doc", "2"), subject=("api_key", "key-123"))
+
+        count = authz.revoke_subject_grants("api_key", "key-123", resource_type="note")
+
+        assert count == 1
+        grants = authz.list_subject_grants("api_key", "key-123")
+        assert len(grants) == 1
+        assert grants[0]["resource"] == ("doc", "2")
+
+    def test_revoke_subject_grants_returns_zero_for_no_grants(self, authz):
+        """revoke_subject_grants returns 0 when no grants exist."""
+        count = authz.revoke_subject_grants("api_key", "nonexistent")
+        assert count == 0
+
+    def test_revoke_subject_grants_doesnt_affect_other_subjects(self, authz):
+        """revoke_subject_grants only affects the specified subject."""
+        authz.grant("view", resource=("note", "1"), subject=("api_key", "key-123"))
+        authz.grant("view", resource=("note", "1"), subject=("api_key", "key-456"))
+
+        authz.revoke_subject_grants("api_key", "key-123")
+
+        # key-456 should still have access
+        assert authz.check_subject("api_key", "key-456", "view", ("note", "1"))

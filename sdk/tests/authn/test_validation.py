@@ -5,7 +5,7 @@ from postkit.authn import AuthnError
 
 
 class TestEmailValidation:
-    """Tests for authn._validate_email()"""
+    """Email must be valid format, normalized to lowercase."""
 
     def test_valid_emails(self, authn):
         valid_emails = [
@@ -50,7 +50,7 @@ class TestEmailValidation:
 
 
 class TestHashValidation:
-    """Tests for authn._validate_hash()"""
+    """Password hash must be non-empty string or null (for SSO users)."""
 
     def test_allows_valid_hash(self, authn):
         user_id = authn.create_user("alice@example.com", "$argon2id$v=19$...")
@@ -76,7 +76,7 @@ class TestHashValidation:
 
 
 class TestTokenTypeValidation:
-    """Tests for authn._validate_token_type()"""
+    """Token type must be password_reset, email_verify, or magic_link."""
 
     def test_valid_types(self, authn):
         user_id = authn.create_user("alice@example.com", "hash")
@@ -93,7 +93,7 @@ class TestTokenTypeValidation:
 
 
 class TestMfaTypeValidation:
-    """Tests for authn._validate_mfa_type()"""
+    """MFA type must be totp, webauthn, or recovery_codes."""
 
     def test_valid_types(self, authn):
         user_id = authn.create_user("alice@example.com", "hash")
@@ -110,7 +110,7 @@ class TestMfaTypeValidation:
 
 
 class TestNamespaceValidation:
-    """Tests for authn._validate_namespace()"""
+    """Namespace must be 1-1024 chars, no control chars or leading/trailing whitespace."""
 
     def test_valid_namespaces(self, make_authn):
         """Valid namespace formats should be accepted."""

@@ -64,6 +64,38 @@ class AuthzClient(BaseClient):
 
     def __init__(self, cursor, namespace: str):
         super().__init__(cursor, namespace)
+        self._user_id: str | None = None
+
+    def set_user_context(self, user_id: str) -> None:
+        """
+        Set the current user context for cross-namespace queries.
+
+        This enables the recipient_visibility RLS policy, allowing users
+        to see grants where they are the subject across ALL namespaces.
+        Required for "Shared with me" functionality.
+
+        Args:
+            user_id: The user ID to set as context
+
+        Example:
+            authz.set_user_context("alice")
+            # Now queries can see grants TO alice across all namespaces
+            shared = authz.list_resources_shared_with_me("alice", "note", "view")
+        """
+        self._user_id = user_id
+        # Use set_config() function since SET doesn't support parameters
+        self.cursor.execute("SELECT set_config('authz.user_id', %s, true)", (user_id,))
+
+    def clear_user_context(self) -> None:
+        """
+        Clear the current user context.
+
+        Should be called at end of request to prevent context leakage
+        between requests in connection pools.
+        """
+        self._user_id = None
+        # Use set_config with empty string to reset
+        self.cursor.execute("SELECT set_config('authz.user_id', '', true)")
 
     def _apply_actor_context(self) -> None:
         """Apply actor context via authz.set_actor()."""
@@ -471,6 +503,160 @@ class AuthzClient(BaseClient):
                 (user_id, resource_type, permission, self.namespace),
             )
         return [row[0] for row in rows]
+
+    def list_resources_shared_with_me(
+        self,
+        user_id: str,
+        resource_type: str,
+        permission: str,
+    ) -> list[dict]:
+        """
+        List resources shared with a user across ALL namespaces.
+
+        Uses the recipient_visibility RLS policy to see cross-org grants.
+        This powers the "Shared with me" section in applications.
+
+        IMPORTANT: Requires set_user_context() to be called first with the
+        same user_id, otherwise the RLS policy won't allow cross-namespace
+        visibility.
+
+        Args:
+            user_id: The user ID to query for
+            resource_type: The resource type to list (e.g., "note")
+            permission: The minimum permission level (e.g., "view")
+
+        Returns:
+            List of dicts with namespace, resource_id, relation, expires_at
+
+        Example:
+            authz.set_user_context("alice")
+            shared = authz.list_resources_shared_with_me("alice", "note", "view")
+            for item in shared:
+                print(f"Note {item['resource_id']} in {item['namespace']}")
+        """
+        # Ensure user context is set for RLS
+        if self._user_id != user_id:
+            self.set_user_context(user_id)
+
+        rows = self._fetch_raw(
+            """
+            SELECT t.namespace, t.resource_id, t.relation, t.created_at, t.expires_at
+            FROM authz.tuples t
+            WHERE t.subject_type = 'user'
+            AND t.subject_id = %s
+            AND t.resource_type = %s
+            AND (
+                t.relation = %s
+                OR EXISTS (
+                    SELECT 1 FROM authz.permission_hierarchy h
+                    WHERE h.namespace = t.namespace
+                    AND h.resource_type = %s
+                    AND h.permission = t.relation
+                    AND h.implies = %s
+                )
+            )
+            AND t.namespace != %s  -- Exclude current namespace
+            AND (t.expires_at IS NULL OR t.expires_at > now())
+            ORDER BY t.created_at DESC
+            """,
+            (
+                user_id,
+                resource_type,
+                permission,
+                resource_type,
+                permission,
+                self.namespace,
+            ),
+        )
+        return [
+            {
+                "namespace": row[0],
+                "resource_id": row[1],
+                "relation": row[2],
+                "created_at": row[3],
+                "expires_at": row[4],
+            }
+            for row in rows
+        ]
+
+    def list_subject_grants(
+        self,
+        subject_type: str,
+        subject_id: str,
+        *,
+        resource_type: str | None = None,
+    ) -> list[dict]:
+        """
+        List all grants for a subject (e.g., an API key or service).
+
+        Useful for inspecting what permissions a non-user entity has,
+        such as viewing API key scopes or auditing service access.
+
+        Args:
+            subject_type: The subject type (e.g., "api_key", "service")
+            subject_id: The subject ID
+            resource_type: Optional filter by resource type
+
+        Returns:
+            List of grant dictionaries with resource, relation, and expires_at
+
+        Example:
+            # Get all grants for an API key
+            grants = authz.list_subject_grants("api_key", key_id)
+            for grant in grants:
+                print(f"{grant['relation']} on {grant['resource']}")
+
+            # Get only note-related grants
+            note_grants = authz.list_subject_grants("api_key", key_id, resource_type="note")
+        """
+        rows = self._fetch_raw(
+            "SELECT * FROM authz.list_subject_grants(%s, %s, %s, %s)",
+            (subject_type, subject_id, self.namespace, resource_type),
+        )
+        return [
+            {
+                "resource": (row[0], row[1]),
+                "relation": row[2],
+                "subject_relation": row[3],
+                "expires_at": row[4],
+            }
+            for row in rows
+        ]
+
+    def revoke_subject_grants(
+        self,
+        subject_type: str,
+        subject_id: str,
+        *,
+        resource_type: str | None = None,
+    ) -> int:
+        """
+        Revoke all grants for a subject (e.g., when deleting an API key).
+
+        This is useful for cleanup when removing an entity that may have
+        accumulated many permissions across different resources.
+
+        Args:
+            subject_type: The subject type (e.g., "api_key", "service")
+            subject_id: The subject ID
+            resource_type: Optional filter to only revoke grants on specific resource type
+
+        Returns:
+            Number of grants revoked
+
+        Example:
+            # Revoke all grants for an API key before deletion
+            count = authz.revoke_subject_grants("api_key", key_id)
+            print(f"Revoked {count} grants")
+
+            # Revoke only note-related grants
+            count = authz.revoke_subject_grants("api_key", key_id, resource_type="note")
+        """
+        return self._fetch_val(
+            "SELECT authz.revoke_subject_grants(%s, %s, %s, %s)",
+            (subject_type, subject_id, self.namespace, resource_type),
+            write=True,
+        )
 
     def filter_authorized(
         self, user_id: str, resource_type: str, permission: str, resource_ids: list[str]

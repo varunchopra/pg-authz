@@ -3,7 +3,7 @@
 {% block title %}Join {{ invite.org_name }}{% endblock %}
 
 {% block content %}
-<div class="page-header" style="text-align: center;">
+<div class="page-header text-center">
     <h1>Join {{ invite.org_name }}</h1>
 </div>
 
@@ -32,36 +32,4 @@
     </div>
     {% endif %}
 </div>
-
-<style>
-.invite-card {
-    max-width: 500px;
-    margin: 0 auto;
-    text-align: center;
-}
-.invite-details {
-    margin: 24px 0;
-    padding: 16px;
-    background: var(--bg-secondary);
-    border-radius: 4px;
-}
-.invite-note {
-    color: var(--text-secondary);
-    font-size: 14px;
-}
-.invite-expires {
-    color: var(--text-secondary);
-    font-size: 13px;
-    margin-top: 8px;
-}
-.invite-actions {
-    margin-top: 24px;
-}
-.btn-group {
-    display: flex;
-    gap: 1rem;
-    justify-content: center;
-    margin-top: 1rem;
-}
-</style>
 {% endblock %}

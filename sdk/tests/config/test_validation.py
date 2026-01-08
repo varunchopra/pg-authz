@@ -5,7 +5,7 @@ from postkit.config.client import ConfigError
 
 
 class TestNamespaceValidation:
-    """Tests for config._validate_namespace()"""
+    """Namespace must be 1-1024 chars, no control chars or leading/trailing whitespace."""
 
     def test_valid_namespaces(self, make_config):
         """Valid namespace formats should be accepted."""

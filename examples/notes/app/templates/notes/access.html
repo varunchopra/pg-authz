@@ -30,7 +30,7 @@
                         {% if entry.permission == 'owner' %}Owner{% elif entry.permission == 'edit' %}Can edit{% else %}Can view{% endif %}
                     </span>
                     {% if not entry.is_current_user and entry.permission != 'owner' %}
-                    <form method="post" action="{{ url_for('views.notes.revoke_access', note_id=note.note_id) }}" style="display: inline; margin-left: 8px;">
+                    <form method="post" action="{{ url_for('views.notes.revoke_access', note_id=note.note_id) }}" class="d-inline ml-1">
                         <input type="hidden" name="subject_type" value="{{ entry.subject_type }}">
                         <input type="hidden" name="subject_id" value="{{ entry.subject_id }}">
                         <input type="hidden" name="permission" value="{{ entry.permission }}">
@@ -58,98 +58,12 @@
     {% else %}
     <div class="empty-message">
         <p>Only you have access to this note</p>
-        <a href="{{ url_for('views.notes.share', note_id=note.note_id) }}" class="btn btn-primary" style="margin-top: 16px;">Share with someone</a>
+        <a href="{{ url_for('views.notes.share', note_id=note.note_id) }}" class="btn btn-primary mt-2">Share with someone</a>
     </div>
     {% endif %}
 </div>
 
-<div style="margin-top: 24px;">
+<div class="mt-3">
     <a href="{{ url_for('views.notes.view', note_id=note.note_id) }}">&larr; Back to Note</a>
 </div>
-
-<style>
-.page-description {
-    color: var(--text-secondary);
-    margin-bottom: 24px;
-}
-.access-list {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-.access-card {
-    border: 1px solid var(--border);
-    padding: 16px;
-    background: var(--bg);
-}
-.access-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-}
-.access-user {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.access-right {
-    display: flex;
-    align-items: center;
-}
-.access-explanation {
-    background: var(--bg-secondary);
-    padding: 12px;
-    border-left: 3px solid var(--primary);
-}
-.explanation-title {
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-secondary);
-    margin-bottom: 8px;
-}
-.explanation-item {
-    padding: 4px 0;
-    font-size: 13px;
-}
-.explanation-item code {
-    background: var(--bg);
-    padding: 4px 8px;
-    display: block;
-}
-.badge {
-    display: inline-block;
-    padding: 2px 8px;
-    font-size: 11px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border-radius: 3px;
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
-}
-.permission-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    font-size: 11px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border-radius: 3px;
-}
-.permission-owner {
-    background: #e6f0ff;
-    color: var(--primary);
-}
-.permission-edit {
-    background: #e6ffe6;
-    color: var(--success);
-}
-.permission-view {
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
-}
-</style>
 {% endblock %}

@@ -1,5 +1,6 @@
 -- App-specific tables for the authz demo
 -- Multi-tenant architecture: orgs contain notes and teams
+-- Note: postkit modules (config, meter) are loaded via docker-compose volumes
 
 -- =============================================================================
 -- ORGANIZATIONS
@@ -83,6 +84,90 @@ CREATE INDEX IF NOT EXISTS idx_teams_owner ON teams(owner_id);
 CREATE INDEX IF NOT EXISTS idx_teams_org ON teams(org_id);
 
 -- =============================================================================
+-- EXTERNAL SHARING TABLES
+-- =============================================================================
+
+-- Pending shares for users who don't exist yet
+-- Converted to real grants ONLY after email verification
+CREATE TABLE IF NOT EXISTS pending_shares (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    -- Who is this for?
+    recipient_email TEXT NOT NULL,
+
+    -- What are we sharing?
+    org_id TEXT NOT NULL REFERENCES orgs(org_id) ON DELETE CASCADE,
+    resource_type TEXT NOT NULL,
+    resource_id TEXT NOT NULL,
+    permission TEXT NOT NULL,
+
+    -- Who shared it?
+    invited_by TEXT NOT NULL,  -- user_id
+    invited_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    -- Limits
+    expires_at TIMESTAMPTZ,
+
+    -- Status
+    converted_at TIMESTAMPTZ,  -- When converted to real grant
+    converted_to_user_id TEXT, -- Which user got the grant
+
+    -- Prevent duplicate pending shares
+    CONSTRAINT pending_shares_unique UNIQUE (recipient_email, org_id, resource_type, resource_id, permission)
+);
+
+-- Index for lookup by email (most common query)
+CREATE INDEX IF NOT EXISTS idx_pending_shares_email
+    ON pending_shares(recipient_email)
+    WHERE converted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_pending_shares_org
+    ON pending_shares(org_id);
+
+-- Share links for secure URL-based sharing
+-- Note: token is generated in Python (secrets.token_urlsafe), not PostgreSQL
+CREATE TABLE IF NOT EXISTS share_links (
+    link_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    token TEXT UNIQUE NOT NULL,  -- Generated in Python, NOT in PostgreSQL
+
+    -- What are we sharing?
+    org_id TEXT NOT NULL REFERENCES orgs(org_id) ON DELETE CASCADE,
+    resource_type TEXT NOT NULL,
+    resource_id TEXT NOT NULL,
+    permission TEXT NOT NULL,
+
+    -- Access restrictions (key security features)
+    allowed_email TEXT,           -- NULL = anyone, SET = only this email
+    allowed_domain TEXT,          -- NULL = any domain, SET = must end with this
+    require_account BOOLEAN NOT NULL DEFAULT true,
+
+    -- Usage limits
+    expires_at TIMESTAMPTZ,
+    max_uses INT,                 -- NULL = unlimited
+    use_count INT NOT NULL DEFAULT 0,
+
+    -- Audit
+    created_by TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    revoked_at TIMESTAMPTZ,
+
+    -- Metadata for admin UX (e.g., "Sent to Mike via Slack")
+    label TEXT,
+    metadata JSONB DEFAULT '{}'
+);
+
+-- Index for token lookups (most common operation)
+CREATE INDEX IF NOT EXISTS idx_share_links_token
+    ON share_links(token)
+    WHERE revoked_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_share_links_org
+    ON share_links(org_id);
+
+CREATE INDEX IF NOT EXISTS idx_share_links_resource
+    ON share_links(resource_type, resource_id);
+
+-- =============================================================================
 -- PERMISSION HIERARCHIES (set up per-org when org is created)
 -- =============================================================================
 -- Note: These are set up dynamically when creating an org via:
@@ -100,3 +185,9 @@ SELECT authz.add_hierarchy('note', 'owner', 'edit', 'default');
 SELECT authz.add_hierarchy('note', 'edit', 'view', 'default');
 SELECT authz.add_hierarchy('team', 'owner', 'admin', 'default');
 SELECT authz.add_hierarchy('team', 'admin', 'member', 'default');
+
+-- =============================================================================
+-- PLAN DEFINITIONS (stored in config)
+-- =============================================================================
+-- Plans are seeded on first application request via Python code
+-- See app/__init__.py seed_plans()
