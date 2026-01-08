@@ -10,8 +10,8 @@ CREATE OR REPLACE FUNCTION authz.set_tenant (p_tenant_id text)
     RETURNS VOID
     AS $$
 BEGIN
-    PERFORM
-        set_config('authz.tenant_id', p_tenant_id, FALSE);
+    PERFORM authz._validate_namespace(p_tenant_id);
+    PERFORM set_config('authz.tenant_id', p_tenant_id, FALSE);
 END;
 $$
 LANGUAGE plpgsql SECURITY INVOKER

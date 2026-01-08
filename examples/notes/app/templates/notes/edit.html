@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}{% if note %}Edit Note{% else %}New Note{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{% if note %}Edit Note{% else %}New Note{% endif %}</h1>
+</div>
+
+<form method="post" action="{% if note %}{{ url_for('views.notes.update', note_id=note.note_id) }}{% else %}{{ url_for('views.notes.create') }}{% endif %}" class="note-form">
+    <div class="form-group">
+        <label for="title">Title</label>
+        <input type="text" id="title" name="title" value="{{ note.title if note else '' }}" placeholder="Enter a title..." autofocus>
+    </div>
+
+    <div class="form-group">
+        <label for="body">Content</label>
+        <textarea id="body" name="body" rows="15" placeholder="Write your note here...">{{ note.body if note else '' }}</textarea>
+    </div>
+
+    <div class="form-actions">
+        <a href="{% if note %}{{ url_for('views.notes.view', note_id=note.note_id) }}{% else %}{{ url_for('views.notes.index') }}{% endif %}" class="btn">Cancel</a>
+        <button type="submit" class="btn btn-primary">{% if note %}Save Changes{% else %}Create Note{% endif %}</button>
+    </div>
+</form>
+
+<style>
+.note-form {
+    max-width: 800px;
+}
+.note-form textarea {
+    width: 100%;
+    padding: 12px;
+    font-size: 14px;
+    font-family: inherit;
+    line-height: 1.6;
+    border: 1px solid var(--border);
+    resize: vertical;
+}
+.note-form textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+.form-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 24px;
+}
+</style>
+{% endblock %}

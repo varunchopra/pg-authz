@@ -1,0 +1,55 @@
+{% extends "orgs/settings_base.html" %}
+
+{% block settings_content %}
+<div class="section">
+    <div class="section-header">
+        <h2>Organization Info</h2>
+    </div>
+    <div class="info-grid">
+        <div class="info-item">
+            <span class="info-label">Name</span>
+            <span class="info-value">{{ org.name }}</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Created</span>
+            <span class="info-value">{{ org.created_at.strftime('%Y-%m-%d') if org.created_at else '-' }}</span>
+        </div>
+    </div>
+</div>
+
+<div class="section">
+    <div class="section-header">
+        <h2>Leave Organization</h2>
+    </div>
+    {% if is_owner %}
+    <p class="text-muted">As the owner, you cannot leave. Transfer ownership first.</p>
+    {% else %}
+    <p class="text-muted" style="margin-bottom: 16px;">Once you leave, you'll need an invite to rejoin.</p>
+    <form action="{{ url_for('views.orgs.leave', org_id=org.org_id) }}" method="post">
+        <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to leave this organization?')">
+            Leave Organization
+        </button>
+    </form>
+    {% endif %}
+</div>
+
+<style>
+.info-grid {
+    display: grid;
+    gap: 16px;
+    max-width: 400px;
+}
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+}
+.info-label {
+    font-weight: 500;
+}
+.info-value {
+    color: var(--text-secondary);
+}
+</style>
+{% endblock %}

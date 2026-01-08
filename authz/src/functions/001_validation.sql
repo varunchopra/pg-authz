@@ -125,7 +125,7 @@ $$ LANGUAGE plpgsql STABLE PARALLEL SAFE SECURITY INVOKER SET search_path = auth
 -- @function authz._validate_namespace
 -- @brief Validates namespace format
 -- @param p_value The namespace to validate
--- More flexible than identifiers: allows UUIDs, numeric tenant IDs (alphanumeric with underscores/hyphens).
+-- Flexible: allows any string except control characters and leading/trailing whitespace.
 CREATE OR REPLACE FUNCTION authz._validate_namespace(p_value text)
 RETURNS void AS $$
 BEGIN
@@ -144,10 +144,15 @@ BEGIN
             USING ERRCODE = 'string_data_right_truncation';
     END IF;
 
-    -- Alphanumeric (can start with number), underscores, hyphens
-    -- Allows: "default", "tenant_123", "550e8400-e29b-41d4-a716-446655440000"
-    IF p_value !~ '^[a-z0-9][a-z0-9_-]*$' THEN
-        RAISE EXCEPTION 'namespace must be alphanumeric with underscores/hyphens (got: %)', p_value
+    -- Reject control characters (0x00-0x1F, 0x7F)
+    IF p_value ~ '[\x00-\x1F\x7F]' THEN
+        RAISE EXCEPTION 'namespace contains invalid control characters'
+            USING ERRCODE = 'invalid_parameter_value';
+    END IF;
+
+    -- Reject leading/trailing whitespace (causes subtle matching bugs)
+    IF p_value != trim(p_value) THEN
+        RAISE EXCEPTION 'namespace cannot have leading or trailing whitespace'
             USING ERRCODE = 'invalid_parameter_value';
     END IF;
 END;

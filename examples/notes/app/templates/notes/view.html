@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}{{ note.title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ note.title }}</h1>
+    <div class="actions">
+        {% if can_edit %}
+        <a href="{{ url_for('views.notes.edit', note_id=note.note_id) }}" class="btn">Edit</a>
+        {% endif %}
+        {% if can_share %}
+        <a href="{{ url_for('views.notes.share', note_id=note.note_id) }}" class="btn btn-primary">Share</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="note-view">
+    <div class="note-content">
+        <div class="note-body">{{ note.body or '(Empty note)' }}</div>
+    </div>
+
+    <div class="note-sidebar">
+        <div class="sidebar-section">
+            <h3>Details</h3>
+            <div class="detail-item">
+                <span class="detail-label">Owner</span>
+                <span class="detail-value">{{ note.owner_email }}</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Created</span>
+                <span class="detail-value">{{ note.created_at.strftime('%Y-%m-%d %H:%M') if note.created_at else 'N/A' }}</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Updated</span>
+                <span class="detail-value">{{ note.updated_at.strftime('%Y-%m-%d %H:%M') if note.updated_at else 'N/A' }}</span>
+            </div>
+        </div>
+
+        {% if can_share %}
+        <div class="sidebar-section">
+            <h3>Sharing</h3>
+            <a href="{{ url_for('views.notes.access', note_id=note.note_id) }}" class="btn btn-sm" style="width: 100%;">Who has access?</a>
+            <a href="{{ url_for('views.notes.share', note_id=note.note_id) }}" class="btn btn-sm btn-primary" style="width: 100%; margin-top: 8px;">Share note</a>
+        </div>
+        {% endif %}
+
+        {% if can_share %}
+        <div class="sidebar-section danger-zone">
+            <h3>Danger Zone</h3>
+            <form method="post" action="{{ url_for('views.notes.delete', note_id=note.note_id) }}">
+                <button type="submit" class="btn btn-sm btn-danger" style="width: 100%;" onclick="return confirm('Are you sure you want to delete this note? This cannot be undone.')">Delete Note</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div style="margin-top: 24px;">
+    <a href="{{ url_for('views.notes.index') }}">&larr; Back to Notes</a>
+</div>
+
+<style>
+.note-view {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 32px;
+}
+.note-content {
+    min-height: 300px;
+}
+.note-body {
+    white-space: pre-wrap;
+    line-height: 1.6;
+    font-size: 15px;
+}
+.note-sidebar {
+    border-left: 1px solid var(--border);
+    padding-left: 32px;
+}
+.sidebar-section {
+    margin-bottom: 24px;
+}
+.sidebar-section h3 {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+}
+.detail-item:last-child {
+    border-bottom: none;
+}
+.detail-label {
+    color: var(--text-secondary);
+}
+.danger-zone {
+    border-top: 1px solid var(--danger);
+    padding-top: 24px;
+    margin-top: 24px;
+}
+.danger-zone h3 {
+    color: var(--danger);
+}
+@media (max-width: 768px) {
+    .note-view {
+        grid-template-columns: 1fr;
+    }
+    .note-sidebar {
+        border-left: none;
+        border-top: 1px solid var(--border);
+        padding-left: 0;
+        padding-top: 24px;
+    }
+}
+</style>
+{% endblock %}

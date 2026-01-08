@@ -3,7 +3,7 @@
 -- @function meter._validate_namespace
 -- @brief Validate namespace format
 -- @param p_value Namespace to validate
--- Must be lowercase alphanumeric with underscores/hyphens.
+-- Flexible: allows any string except control characters and leading/trailing whitespace.
 CREATE FUNCTION meter._validate_namespace(p_value text)
 RETURNS void AS $$
 BEGIN
@@ -22,8 +22,15 @@ BEGIN
             USING ERRCODE = 'string_data_right_truncation';
     END IF;
 
-    IF p_value !~ '^[a-z0-9][a-z0-9_-]*$' THEN
-        RAISE EXCEPTION 'namespace must be lowercase alphanumeric with underscores/hyphens (got: %)', p_value
+    -- Reject control characters (0x00-0x1F, 0x7F)
+    IF p_value ~ '[\x00-\x1F\x7F]' THEN
+        RAISE EXCEPTION 'namespace contains invalid control characters'
+            USING ERRCODE = 'invalid_parameter_value';
+    END IF;
+
+    -- Reject leading/trailing whitespace (causes subtle matching bugs)
+    IF p_value != trim(p_value) THEN
+        RAISE EXCEPTION 'namespace cannot have leading or trailing whitespace'
             USING ERRCODE = 'invalid_parameter_value';
     END IF;
 END;

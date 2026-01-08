@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}API Keys{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>API Keys</h1>
+    <a href="{{ url_for('views.dashboard.index') }}" class="btn">Back to Dashboard</a>
+</div>
+
+{% if new_key %}
+<div class="new-key-banner">
+    <strong>New API Key Created</strong>
+    <div class="warning">Copy this key now. You won't be able to see it again.</div>
+    <div class="key-value">
+        <code id="new-key">{{ new_key }}</code>
+        <button type="button" class="btn btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('new-key').textContent).then(() => alert('Copied!'))">Copy</button>
+    </div>
+</div>
+{% endif %}
+
+<div class="section">
+    <div class="section-header">
+        <h2>Your API Keys</h2>
+        <a href="{{ url_for('views.dashboard.new_api_key') }}" class="btn btn-primary">Generate new token</a>
+    </div>
+
+    {% if keys %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Scopes</th>
+                <th>Expires</th>
+                <th>Last Used</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for key in keys %}
+            <tr>
+                <td>
+                    <strong>{{ key.name or 'Unnamed' }}</strong>
+                    <div class="meta"><code>{{ key.key_id[:12] }}...</code></div>
+                </td>
+                <td>
+                    <span class="scope-badge {% if key.scopes.notes == 'No access' %}scope-none{% elif 'Admin' in key.scopes.notes %}scope-admin{% elif 'write' in key.scopes.notes %}scope-write{% else %}scope-read{% endif %}">
+                        Notes: {{ key.scopes.notes }}
+                    </span>
+                </td>
+                <td>
+                    {% if key.expires_at %}
+                        {% set now = key.created_at.__class__.now(key.created_at.tzinfo) if key.created_at.tzinfo else key.created_at.__class__.now() %}
+                        {% if key.expires_at < now %}
+                        <span class="text-danger">Expired</span>
+                        {% else %}
+                        {{ key.expires_at.strftime('%Y-%m-%d') }}
+                        {% endif %}
+                    {% else %}
+                    Never
+                    {% endif %}
+                </td>
+                <td>{{ key.last_used_at.strftime('%Y-%m-%d %H:%M') if key.last_used_at else 'Never' }}</td>
+                <td class="actions">
+                    <form method="POST" action="{{ url_for('views.dashboard.revoke_api_key', key_id=key.key_id) }}" style="display: inline;">
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this API key? This cannot be undone.')">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-message">No API keys yet. <a href="{{ url_for('views.dashboard.new_api_key') }}">Generate a new token</a> to get started.</div>
+    {% endif %}
+</div>
+
+<style>
+.scope-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 3px;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+}
+.scope-none { background: var(--bg-secondary); color: var(--text-secondary); }
+.scope-read { background: #e6f7ff; color: #0066cc; }
+.scope-write { background: #fff7e6; color: #996600; }
+.scope-admin { background: #ffe6e6; color: #cc0000; }
+.text-danger { color: var(--danger); }
+</style>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Sign Up{% endblock %}
+
+{% block body %}
+<div class="auth-page">
+    <div class="auth-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <h1>Create Account</h1>
+
+        <form method="POST" action="{{ url_for('views.auth.signup_post') }}" class="auth-form">
+            {% if next_url %}
+            <input type="hidden" name="next" value="{{ next_url }}">
+            {% endif %}
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required autofocus>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required minlength="{{ min_password_length }}">
+                <small>At least {{ min_password_length }} characters</small>
+            </div>
+
+            <div class="form-group">
+                <label for="confirm">Confirm Password</label>
+                <input type="password" id="confirm" name="confirm" required minlength="{{ min_password_length }}">
+            </div>
+
+            <button type="submit" class="btn btn-primary">Sign Up</button>
+        </form>
+
+        <div class="auth-links">
+            Already have an account? <a href="{{ url_for('views.auth.login') }}{% if next_url %}?next={{ next_url | urlencode }}{% endif %}">Login</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

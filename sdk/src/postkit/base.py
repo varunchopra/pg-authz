@@ -111,7 +111,10 @@ class BaseClient(ABC):
         self._on_behalf_of: str | None = None
         self._reason: str | None = None
         # Set tenant context for RLS
-        self.cursor.execute(f"SELECT {self._schema}.set_tenant(%s)", (namespace,))
+        try:
+            self.cursor.execute(f"SELECT {self._schema}.set_tenant(%s)", (namespace,))
+        except psycopg.Error as e:
+            self._handle_error(e)
 
     def _handle_error(self, e: psycopg.Error) -> None:
         """Convert psycopg errors to SDK exceptions, preserving SQLSTATE.

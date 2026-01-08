@@ -1,0 +1,47 @@
+{% extends "orgs/settings_base.html" %}
+
+{% block title %}Sessions for {{ target_user.email }}{% endblock %}
+
+{% block settings_content %}
+<div class="section">
+    <div class="section-header">
+        <h2>Sessions for {{ target_user.email }}</h2>
+        <a href="{{ url_for('views.orgs.settings_members', org_id=org.org_id) }}" class="btn">Back to Members</a>
+    </div>
+
+    {% if sessions %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Session ID</th>
+                <th>IP Address</th>
+                <th>User Agent</th>
+                <th>Created</th>
+                <th>Expires</th>
+                <th class="actions">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sess in sessions %}
+            <tr>
+                <td><code>{{ sess.session_id[:8] }}...</code></td>
+                <td>{{ sess.ip_address or 'Unknown' }}</td>
+                <td class="meta" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    {{ sess.user_agent[:50] if sess.user_agent else 'Unknown' }}...
+                </td>
+                <td class="meta">{{ sess.created_at.strftime('%Y-%m-%d %H:%M') if sess.created_at else 'N/A' }}</td>
+                <td class="meta">{{ sess.expires_at.strftime('%Y-%m-%d %H:%M') if sess.expires_at else 'N/A' }}</td>
+                <td class="actions">
+                    <form method="post" action="{{ url_for('views.orgs.revoke_user_session', org_id=org.org_id, user_id=target_user.user_id, session_id=sess.session_id) }}" style="display:inline">
+                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Revoke this session?')">Revoke</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-message">No active sessions</div>
+    {% endif %}
+</div>
+{% endblock %}

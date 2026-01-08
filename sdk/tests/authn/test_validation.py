@@ -113,16 +113,48 @@ class TestNamespaceValidation:
     """Tests for authn._validate_namespace()"""
 
     def test_valid_namespaces(self, make_authn):
-        valid_namespaces = [
+        """Valid namespace formats should be accepted."""
+        valid = [
             "default",
             "tenant_123",
             "acme-corp",
-            "550e8400-e29b-41d4-a716-446655440000",  # UUID
+            "550e8400-e29b-41d4-a716-446655440000",
+            "org:my-org-123",  # colon format
+            "MyOrganization",  # uppercase
+            "a" * 1024,  # max length
         ]
-        for ns in valid_namespaces:
+        for ns in valid:
             client = make_authn(ns)
             user_id = client.create_user("test@example.com", "hash")
             assert user_id is not None
+
+    def test_rejects_null(self, make_authn):
+        with pytest.raises(AuthnError):
+            make_authn(None)
+
+    def test_rejects_empty(self, make_authn):
+        with pytest.raises(AuthnError):
+            make_authn("")
+
+    def test_rejects_whitespace_only(self, make_authn):
+        with pytest.raises(AuthnError):
+            make_authn("   ")
+
+    def test_rejects_leading_whitespace(self, make_authn):
+        with pytest.raises(AuthnError):
+            make_authn(" leading")
+
+    def test_rejects_trailing_whitespace(self, make_authn):
+        with pytest.raises(AuthnError):
+            make_authn("trailing ")
+
+    def test_rejects_control_characters(self, make_authn):
+        with pytest.raises(AuthnError):
+            make_authn("has\ttab")
+
+    def test_rejects_over_max_length(self, make_authn):
+        with pytest.raises(AuthnError):
+            make_authn("a" * 1025)
 
 
 class TestEmailEdgeCases:

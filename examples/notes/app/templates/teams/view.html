@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}{{ team.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ team.name }}</h1>
+    <div class="actions">
+        {% if is_owner %}
+        <form method="post" action="{{ url_for('views.teams.delete', team_id=team.team_id) }}" style="display: inline;">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this team? This cannot be undone.')">Delete Team</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="team-view">
+    <div class="team-content">
+        <div class="section">
+            <div class="section-header">
+                <h2>Members ({{ members|length }})</h2>
+                {% if is_admin %}
+                <button class="btn btn-sm btn-primary" onclick="document.getElementById('add-member-form').style.display = document.getElementById('add-member-form').style.display === 'none' ? 'block' : 'none'">+ Add Member</button>
+                {% endif %}
+            </div>
+
+            {% if is_admin %}
+            <div id="add-member-form" style="display: none; margin-bottom: 24px;">
+                <form method="post" action="{{ url_for('views.teams.add_member', team_id=team.team_id) }}" class="inline-form">
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" placeholder="user@example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="role">Role</label>
+                        <select id="role" name="role" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border);">
+                            <option value="member">Member</option>
+                            {% if is_owner %}<option value="admin">Admin</option>{% endif %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add</button>
+                </form>
+            </div>
+            {% endif %}
+
+            {% if members %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th class="actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for member in members %}
+                    <tr>
+                        <td>
+                            {{ member.email }}
+                            {% if member.is_current_user %}<span class="badge">You</span>{% endif %}
+                        </td>
+                        <td>
+                            <span class="role-badge role-{{ member.role }}">
+                                {% if member.role == 'owner' %}Owner{% elif member.role == 'admin' %}Admin{% else %}Member{% endif %}
+                            </span>
+                        </td>
+                        <td class="actions">
+                            {% if not member.is_current_user and member.role != 'owner' %}
+                                {% if is_owner %}
+                                    {% if member.role == 'member' %}
+                                    <form method="post" action="{{ url_for('views.teams.promote_member', team_id=team.team_id, member_id=member.user_id) }}" style="display: inline;">
+                                        <button type="submit" class="btn btn-sm">Promote</button>
+                                    </form>
+                                    {% elif member.role == 'admin' %}
+                                    <form method="post" action="{{ url_for('views.teams.demote_member', team_id=team.team_id, member_id=member.user_id) }}" style="display: inline;">
+                                        <button type="submit" class="btn btn-sm">Demote</button>
+                                    </form>
+                                    {% endif %}
+                                {% endif %}
+
+                                {% if is_admin %}
+                                <form method="post" action="{{ url_for('views.teams.remove_member', team_id=team.team_id, member_id=member.user_id) }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Remove {{ member.email }} from team?')">Remove</button>
+                                </form>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-message">No members yet</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="team-sidebar">
+        <div class="sidebar-section">
+            <h3>About</h3>
+            <p style="font-size: 13px; color: var(--text-secondary);">
+                Teams allow you to share notes with multiple people at once.
+                When you share a note with a team, all members get access.
+            </p>
+        </div>
+
+        <div class="sidebar-section">
+            <h3>Roles</h3>
+            <div class="role-info">
+                <div class="role-item">
+                    <span class="role-badge role-owner">Owner</span>
+                    <span>Full control, can delete team</span>
+                </div>
+                <div class="role-item">
+                    <span class="role-badge role-admin">Admin</span>
+                    <span>Can add/remove members</span>
+                </div>
+                <div class="role-item">
+                    <span class="role-badge role-member">Member</span>
+                    <span>Access team-shared resources</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar-section">
+            <h3>Details</h3>
+            <div class="detail-item">
+                <span class="detail-label">Created</span>
+                <span class="detail-value">{{ team.created_at.strftime('%Y-%m-%d') if team.created_at else 'N/A' }}</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Team ID</span>
+                <span class="detail-value"><code>{{ team.team_id[:8] }}...</code></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div style="margin-top: 24px;">
+    <a href="{{ url_for('views.teams.index') }}">&larr; Back to Teams</a>
+</div>
+
+<style>
+.team-view {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 32px;
+}
+.team-sidebar {
+    border-left: 1px solid var(--border);
+    padding-left: 32px;
+}
+.sidebar-section {
+    margin-bottom: 24px;
+}
+.sidebar-section h3 {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+.role-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.role-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+}
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+}
+.detail-item:last-child {
+    border-bottom: none;
+}
+.detail-label {
+    color: var(--text-secondary);
+}
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-radius: 3px;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    margin-left: 8px;
+}
+.role-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-radius: 3px;
+}
+.role-owner {
+    background: #e6f0ff;
+    color: var(--primary);
+}
+.role-admin {
+    background: #fff0e6;
+    color: #cc6600;
+}
+.role-member {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+}
+@media (max-width: 768px) {
+    .team-view {
+        grid-template-columns: 1fr;
+    }
+    .team-sidebar {
+        border-left: none;
+        border-top: 1px solid var(--border);
+        padding-left: 0;
+        padding-top: 24px;
+    }
+}
+</style>
+{% endblock %}

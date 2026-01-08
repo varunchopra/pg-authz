@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}New API Key{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>New API Key</h1>
+    <a href="{{ url_for('views.dashboard.api_keys') }}" class="btn">Cancel</a>
+</div>
+
+<form method="POST" action="{{ url_for('views.dashboard.create_api_key') }}">
+    <div class="section">
+        <div class="section-header">
+            <h2>Token Details</h2>
+        </div>
+
+        <div class="form-group">
+            <label for="name">What's this token for?</label>
+            <input type="text" id="name" name="name" placeholder="e.g., CI/CD Pipeline, Mobile App" maxlength="64" required>
+            <div class="form-help">A short description to identify this token</div>
+        </div>
+
+        <div class="form-group">
+            <label for="expires_in_days">Expiration</label>
+            <select id="expires_in_days" name="expires_in_days">
+                <option value="7">7 days</option>
+                <option value="30" selected>30 days</option>
+                <option value="60">60 days</option>
+                <option value="90">90 days</option>
+                <option value="365">1 year</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-header">
+            <h2>Permissions</h2>
+        </div>
+        <p class="section-description">Select the access level for this token. The token can only access resources you have permission to access.</p>
+
+        <div class="permission-section">
+            <h3>Notes</h3>
+            <div class="permission-options">
+                <label class="permission-option">
+                    <input type="radio" name="notes_access" value="none" checked onchange="toggleNotesLevel()">
+                    <div class="option-content">
+                        <strong>No access</strong>
+                        <span class="option-description">Cannot access notes via API</span>
+                    </div>
+                </label>
+
+                <label class="permission-option">
+                    <input type="radio" name="notes_access" value="all" onchange="toggleNotesLevel()">
+                    <div class="option-content">
+                        <strong>All notes</strong>
+                        <span class="option-description">Access all notes you have permission to view</span>
+                    </div>
+                </label>
+
+                {% if notes %}
+                <label class="permission-option">
+                    <input type="radio" name="notes_access" value="selected" onchange="toggleNotesLevel()">
+                    <div class="option-content">
+                        <strong>Only select notes</strong>
+                        <span class="option-description">Choose specific notes to grant access to</span>
+                    </div>
+                </label>
+                {% endif %}
+            </div>
+
+            <div id="notes-level-section" class="access-level-section" style="display: none;">
+                <label for="notes_level">Access level:</label>
+                <select id="notes_level" name="notes_level">
+                    <option value="read">Read-only</option>
+                    <option value="write">Read and write</option>
+                    <option value="admin">Admin (full control)</option>
+                </select>
+            </div>
+
+            {% if notes %}
+            <div id="notes-selection" class="resource-selection" style="display: none;">
+                <label>Select notes:</label>
+                <div class="checkbox-list">
+                    {% for note in notes %}
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="selected_notes" value="{{ note.note_id }}">
+                        <span>{{ note.title or 'Untitled' }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Generate token</button>
+    </div>
+</form>
+
+<style>
+.section-description {
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+}
+.permission-section {
+    margin-bottom: 24px;
+}
+.permission-section h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+}
+.permission-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.permission-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.permission-option:hover {
+    background: var(--bg-secondary);
+}
+.permission-option input[type="radio"] {
+    margin-top: 2px;
+}
+.option-content {
+    display: flex;
+    flex-direction: column;
+}
+.option-content strong {
+    font-size: 14px;
+}
+.option-description {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+.access-level-section {
+    margin-top: 16px;
+    padding: 12px;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+}
+.access-level-section label {
+    font-weight: 500;
+    margin-right: 8px;
+}
+.resource-selection {
+    margin-top: 16px;
+    padding: 12px;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+}
+.resource-selection > label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+.checkbox-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+.form-actions {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+.form-help {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+</style>
+
+<script>
+function toggleNotesLevel() {
+    const selected = document.querySelector('input[name="notes_access"]:checked').value;
+    const levelSection = document.getElementById('notes-level-section');
+    const selectionSection = document.getElementById('notes-selection');
+
+    if (selected === 'none') {
+        levelSection.style.display = 'none';
+        if (selectionSection) selectionSection.style.display = 'none';
+    } else if (selected === 'all') {
+        levelSection.style.display = 'block';
+        if (selectionSection) selectionSection.style.display = 'none';
+    } else if (selected === 'selected') {
+        levelSection.style.display = 'block';
+        if (selectionSection) selectionSection.style.display = 'block';
+    }
+}
+</script>
+{% endblock %}

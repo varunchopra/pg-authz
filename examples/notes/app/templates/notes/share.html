@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Share: {{ note.title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Share "{{ note.title }}"</h1>
+</div>
+
+<div class="share-container">
+    <form method="post" action="{{ url_for('views.notes.grant_access', note_id=note.note_id) }}" class="share-form">
+        <div class="form-group">
+            <label>Share with</label>
+            <div class="radio-group">
+                <label class="radio-option">
+                    <input type="radio" name="share_type" value="user" checked onchange="toggleShareType()">
+                    <span>User (by email)</span>
+                </label>
+                <label class="radio-option">
+                    <input type="radio" name="share_type" value="team" onchange="toggleShareType()" {% if not teams %}disabled{% endif %}>
+                    <span>Team</span>
+                    {% if not teams %}<span class="radio-hint">(No teams available)</span>{% endif %}
+                </label>
+            </div>
+        </div>
+
+        <div class="form-group" id="user-input">
+            <label for="email">Email address</label>
+            <input type="email" id="email" name="email" placeholder="user@example.com">
+        </div>
+
+        <div class="form-group" id="team-input" style="display: none;">
+            <label for="team_id">Select team</label>
+            <select id="team_id" name="team_id" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border);">
+                <option value="">Choose a team...</option>
+                {% for team in teams %}
+                <option value="{{ team.team_id }}">{{ team.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="permission">Permission level</label>
+            <select id="permission" name="permission" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border);">
+                <option value="view">Can view</option>
+                <option value="edit">Can edit</option>
+            </select>
+            <small>Note: "Can edit" includes view access</small>
+        </div>
+
+        <div class="form-group">
+            <label for="expires_days">Access expires</label>
+            <select id="expires_days" name="expires_days" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border);">
+                <option value="never">Never</option>
+                <option value="1">In 1 day</option>
+                <option value="7">In 7 days</option>
+                <option value="30">In 30 days</option>
+                <option value="90">In 90 days</option>
+            </select>
+        </div>
+
+        <div class="form-actions">
+            <a href="{{ url_for('views.notes.view', note_id=note.note_id) }}" class="btn">Cancel</a>
+            <button type="submit" class="btn btn-primary">Share</button>
+        </div>
+    </form>
+
+    <div class="share-info">
+        <h3>About sharing</h3>
+        <ul>
+            <li><strong>Can view</strong> - User can read the note but not modify it</li>
+            <li><strong>Can edit</strong> - User can read and modify the note (includes view access)</li>
+        </ul>
+        <p>Only you (the owner) can delete or share this note.</p>
+
+        <div style="margin-top: 24px;">
+            <a href="{{ url_for('views.notes.access', note_id=note.note_id) }}">View who has access &rarr;</a>
+        </div>
+    </div>
+</div>
+
+<div style="margin-top: 24px;">
+    <a href="{{ url_for('views.notes.view', note_id=note.note_id) }}">&larr; Back to Note</a>
+</div>
+
+<script>
+function toggleShareType() {
+    const shareType = document.querySelector('input[name="share_type"]:checked').value;
+    document.getElementById('user-input').style.display = shareType === 'user' ? 'block' : 'none';
+    document.getElementById('team-input').style.display = shareType === 'team' ? 'block' : 'none';
+}
+</script>
+
+<style>
+.share-container {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 48px;
+}
+.share-form {
+    max-width: 400px;
+}
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+.radio-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+.radio-option input[type="radio"] {
+    margin: 0;
+}
+.radio-hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-left: 4px;
+}
+.form-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 24px;
+}
+.share-info {
+    padding: 24px;
+    background: var(--bg-secondary);
+    border-left: 3px solid var(--primary);
+    height: fit-content;
+}
+.share-info h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+.share-info ul {
+    padding-left: 20px;
+    margin: 0;
+}
+.share-info li {
+    margin-bottom: 8px;
+    font-size: 13px;
+}
+.share-info p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 16px;
+}
+@media (max-width: 768px) {
+    .share-container {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}New Team{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Create Team</h1>
+</div>
+
+<form method="post" action="{{ url_for('views.teams.create') }}" class="team-form">
+    <div class="form-group">
+        <label for="name">Team name</label>
+        <input type="text" id="name" name="name" placeholder="e.g., Engineering, Design, Marketing..." autofocus required>
+        <small>Choose a descriptive name for your team</small>
+    </div>
+
+    <div class="form-actions">
+        <a href="{{ url_for('views.teams.index') }}" class="btn">Cancel</a>
+        <button type="submit" class="btn btn-primary">Create Team</button>
+    </div>
+</form>
+
+<style>
+.team-form {
+    max-width: 400px;
+}
+.form-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 24px;
+}
+</style>
+{% endblock %}

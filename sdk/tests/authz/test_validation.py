@@ -315,3 +315,43 @@ class TestDeleteValidation:
         # Should not raise, just return False
         result = authz.revoke("read", resource=("doc", "1"), subject=("user", "alice"))
         assert result is False
+
+
+class TestNamespaceValidation:
+    """Tests for authz._validate_namespace()"""
+
+    def test_valid_namespaces(self, make_authz):
+        """Valid namespace formats should be accepted."""
+        valid = ["default", "tenant_123", "org:my-org", "MyOrg", "a" * 1024]
+        for ns in valid:
+            client = make_authz(ns)
+            client.grant("read", resource=("doc", "1"), subject=("user", "alice"))
+            assert client.check("alice", "read", ("doc", "1"))
+
+    def test_rejects_null(self, make_authz):
+        with pytest.raises(AuthzError):
+            make_authz(None)
+
+    def test_rejects_empty(self, make_authz):
+        with pytest.raises(AuthzError):
+            make_authz("")
+
+    def test_rejects_whitespace_only(self, make_authz):
+        with pytest.raises(AuthzError):
+            make_authz("   ")
+
+    def test_rejects_leading_whitespace(self, make_authz):
+        with pytest.raises(AuthzError):
+            make_authz(" leading")
+
+    def test_rejects_trailing_whitespace(self, make_authz):
+        with pytest.raises(AuthzError):
+            make_authz("trailing ")
+
+    def test_rejects_control_characters(self, make_authz):
+        with pytest.raises(AuthzError):
+            make_authz("has\ttab")
+
+    def test_rejects_over_max_length(self, make_authz):
+        with pytest.raises(AuthzError):
+            make_authz("a" * 1025)

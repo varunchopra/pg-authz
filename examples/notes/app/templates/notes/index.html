@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Notes{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Notes</h1>
+    <div class="actions">
+        <a href="{{ url_for('views.notes.new') }}" class="btn btn-primary">+ New Note</a>
+    </div>
+</div>
+
+<div class="stats">
+    <div class="stat">
+        <div class="stat-value">{{ owned_count }}</div>
+        <div class="stat-label">My Notes</div>
+    </div>
+    <div class="stat">
+        <div class="stat-value">{{ shared_count }}</div>
+        <div class="stat-label">Shared With Me</div>
+    </div>
+</div>
+
+<div class="section">
+    {% if notes %}
+    <div class="notes-list">
+        {% for note in notes %}
+        <a href="{{ url_for('views.notes.view', note_id=note.note_id) }}" class="note-card">
+            <div class="note-header">
+                <h3 class="note-title">{{ note.title }}</h3>
+                <span class="permission-badge permission-{{ note.my_permission }}">
+                    {% if note.my_permission == 'owner' %}Owner{% elif note.my_permission == 'edit' %}Can edit{% else %}View only{% endif %}
+                </span>
+            </div>
+            <p class="note-preview">{{ note.body[:100] }}{% if note.body|length > 100 %}...{% endif %}</p>
+            <div class="note-meta">
+                {% if note.my_permission != 'owner' %}
+                <span>Shared by {{ note.owner_email }}</span>
+                <span class="separator">|</span>
+                {% endif %}
+                <span>Updated {{ note.updated_at.strftime('%Y-%m-%d') if note.updated_at else 'N/A' }}</span>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-message">
+        <p>No notes yet</p>
+        <a href="{{ url_for('views.notes.new') }}" class="btn btn-primary" style="margin-top: 16px;">Create your first note</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.notes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.note-card {
+    display: block;
+    padding: 16px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    text-decoration: none;
+    color: var(--text);
+    transition: border-color 0.2s;
+}
+.note-card:hover {
+    border-color: var(--primary);
+    text-decoration: none;
+}
+.note-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+.note-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+}
+.note-preview {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin: 0 0 8px 0;
+    line-height: 1.4;
+}
+.note-meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+.note-meta .separator {
+    margin: 0 8px;
+    color: var(--border);
+}
+.permission-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+.permission-owner {
+    background: #e6f0ff;
+    color: var(--primary);
+}
+.permission-edit {
+    background: #e6ffe6;
+    color: var(--success);
+}
+.permission-view {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+}
+</style>
+{% endblock %}

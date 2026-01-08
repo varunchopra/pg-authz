@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Create Organization{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Create Organization</h1>
+</div>
+
+<p style="color: var(--text-secondary); margin-bottom: 24px;">
+    Create a new organization to get started. You'll be the owner and can invite others later.
+</p>
+
+<form action="{{ url_for('views.orgs.create') }}" method="post" style="max-width: 400px;">
+    <div class="form-group">
+        <label for="name">Organization Name</label>
+        <input type="text" id="name" name="name" required minlength="2" maxlength="100"
+               placeholder="e.g., Acme Corp" autofocus>
+        <small>This will be visible to all members.</small>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Create Organization</button>
+    </div>
+</form>
+
+<style>
+.form-actions {
+    margin-top: 24px;
+}
+</style>
+{% endblock %}

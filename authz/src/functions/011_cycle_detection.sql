@@ -17,8 +17,8 @@ CREATE OR REPLACE FUNCTION authz._acquire_dual_lock(
     p_id2 text
 ) RETURNS void AS $$
 DECLARE
-    v_key1 text := p_namespace || ':' || p_type1 || ':' || p_id1;
-    v_key2 text := p_namespace || ':' || p_type2 || ':' || p_id2;
+    v_key1 text := p_namespace || E'\x1F' || p_type1 || E'\x1F' || p_id1;
+    v_key2 text := p_namespace || E'\x1F' || p_type2 || E'\x1F' || p_id2;
 BEGIN
     IF v_key1 < v_key2 THEN
         PERFORM pg_advisory_xact_lock(hashtext(v_key1));
@@ -106,7 +106,7 @@ RETURNS TABLE(cycle_path text[]) AS $$
             parent_id,
             child_type,
             child_id,
-            ARRAY[parent_type || ':' || parent_id, child_type || ':' || child_id] AS path,
+            ARRAY[parent_type || E'\x1F' || parent_id, child_type || E'\x1F' || child_id] AS path,
             (parent_type = child_type AND parent_id = child_id) AS is_cycle
         FROM group_edges
 
@@ -117,8 +117,8 @@ RETURNS TABLE(cycle_path text[]) AS $$
             p.parent_id,
             e.child_type,
             e.child_id,
-            p.path || (e.child_type || ':' || e.child_id),
-            (e.child_type || ':' || e.child_id) = ANY(p.path)
+            p.path || (e.child_type || E'\x1F' || e.child_id),
+            (e.child_type || E'\x1F' || e.child_id) = ANY(p.path)
         FROM paths p
         JOIN group_edges e
           ON e.parent_type = p.child_type
@@ -207,7 +207,7 @@ RETURNS TABLE(cycle_path text[]) AS $$
             child_id,
             parent_type,
             parent_id,
-            ARRAY[child_type || ':' || child_id, parent_type || ':' || parent_id] AS path,
+            ARRAY[child_type || E'\x1F' || child_id, parent_type || E'\x1F' || parent_id] AS path,
             (child_type = parent_type AND child_id = parent_id) AS is_cycle
         FROM parent_edges
 
@@ -218,8 +218,8 @@ RETURNS TABLE(cycle_path text[]) AS $$
             p.child_id,
             e.parent_type,
             e.parent_id,
-            p.path || (e.parent_type || ':' || e.parent_id),
-            (e.parent_type || ':' || e.parent_id) = ANY(p.path)
+            p.path || (e.parent_type || E'\x1F' || e.parent_id),
+            (e.parent_type || E'\x1F' || e.parent_id) = ANY(p.path)
         FROM paths p
         JOIN parent_edges e
           ON e.child_type = p.parent_type

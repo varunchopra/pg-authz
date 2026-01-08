@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Select Organization{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Select Organization</h1>
+    <div class="actions">
+        <a href="{{ url_for('views.orgs.new') }}" class="btn btn-primary">+ New Organization</a>
+    </div>
+</div>
+
+<p style="color: var(--text-secondary); margin-bottom: 24px;">
+    Choose an organization to continue:
+</p>
+
+<div class="org-list">
+    {% for org in orgs %}
+    <form action="{{ url_for('views.orgs.switch', org_id=org.org_id) }}" method="post" class="org-item">
+        <div class="org-info">
+            <strong>{{ org.name }}</strong>
+            <span class="org-role">{{ org.role }}</span>
+        </div>
+        <button type="submit" class="btn btn-primary">Select</button>
+    </form>
+    {% endfor %}
+</div>
+
+<style>
+.org-list {
+    margin: 1rem 0;
+}
+.org-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+}
+.org-item:hover {
+    background-color: var(--bg-secondary);
+}
+.org-info {
+    display: flex;
+    flex-direction: column;
+}
+.org-role {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-transform: capitalize;
+}
+</style>
+{% endblock %}

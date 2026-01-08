@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}Access: {{ note.title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Who has access to "{{ note.title }}"</h1>
+    <div class="actions">
+        <a href="{{ url_for('views.notes.share', note_id=note.note_id) }}" class="btn btn-primary">+ Share</a>
+    </div>
+</div>
+
+<p class="page-description">
+    This shows everyone who can access this note and explains why they have access.
+    The explanations come from <code>authz.explain()</code> which traces the permission path.
+</p>
+
+<div class="section">
+    {% if access_list %}
+    <div class="access-list">
+        {% for entry in access_list %}
+        <div class="access-card">
+            <div class="access-header">
+                <div class="access-user">
+                    <strong>{{ entry.display_name }}</strong>
+                    {% if entry.is_current_user %}<span class="badge">You</span>{% endif %}
+                </div>
+                <div class="access-right">
+                    <span class="permission-badge permission-{{ entry.permission }}">
+                        {% if entry.permission == 'owner' %}Owner{% elif entry.permission == 'edit' %}Can edit{% else %}Can view{% endif %}
+                    </span>
+                    {% if not entry.is_current_user and entry.permission != 'owner' %}
+                    <form method="post" action="{{ url_for('views.notes.revoke_access', note_id=note.note_id) }}" style="display: inline; margin-left: 8px;">
+                        <input type="hidden" name="subject_type" value="{{ entry.subject_type }}">
+                        <input type="hidden" name="subject_id" value="{{ entry.subject_id }}">
+                        <input type="hidden" name="permission" value="{{ entry.permission }}">
+                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Revoke access for {{ entry.display_name }}?')">Remove</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="access-explanation">
+                <div class="explanation-title">Why do they have access?</div>
+                {% for explanation in entry.explanations %}
+                <div class="explanation-item">
+                    <code>{{ explanation }}</code>
+                </div>
+                {% else %}
+                <div class="explanation-item">
+                    <code>Direct grant</code>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-message">
+        <p>Only you have access to this note</p>
+        <a href="{{ url_for('views.notes.share', note_id=note.note_id) }}" class="btn btn-primary" style="margin-top: 16px;">Share with someone</a>
+    </div>
+    {% endif %}
+</div>
+
+<div style="margin-top: 24px;">
+    <a href="{{ url_for('views.notes.view', note_id=note.note_id) }}">&larr; Back to Note</a>
+</div>
+
+<style>
+.page-description {
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+}
+.access-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.access-card {
+    border: 1px solid var(--border);
+    padding: 16px;
+    background: var(--bg);
+}
+.access-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.access-user {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.access-right {
+    display: flex;
+    align-items: center;
+}
+.access-explanation {
+    background: var(--bg-secondary);
+    padding: 12px;
+    border-left: 3px solid var(--primary);
+}
+.explanation-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+.explanation-item {
+    padding: 4px 0;
+    font-size: 13px;
+}
+.explanation-item code {
+    background: var(--bg);
+    padding: 4px 8px;
+    display: block;
+}
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-radius: 3px;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+}
+.permission-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-radius: 3px;
+}
+.permission-owner {
+    background: #e6f0ff;
+    color: var(--primary);
+}
+.permission-edit {
+    background: #e6ffe6;
+    color: var(--success);
+}
+.permission-view {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+}
+</style>
+{% endblock %}
