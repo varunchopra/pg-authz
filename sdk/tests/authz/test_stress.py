@@ -36,7 +36,7 @@ class TestLargeGroups:
 
         # All users should have access
         for i in range(0, num_users, 100):  # Sample every 100th user
-            assert authz.check(f"user-{i}", "read", ("doc", "shared"))
+            assert authz.check(("user", f"user-{i}"), "read", ("doc", "shared"))
 
         # Check stats
         stats = authz.get_stats()
@@ -63,10 +63,10 @@ class TestLargeGroups:
 
         # User should have access to all resources
         for i in range(num_teams):
-            assert authz.check("alice", "read", ("doc", f"doc-{i}"))
+            assert authz.check(("user", "alice"), "read", ("doc", f"doc-{i}"))
 
         # List operations should work
-        resources = authz.list_resources("alice", "doc", "read")
+        resources = authz.list_resources(("user", "alice"), "doc", "read")
         assert len(resources) == num_teams
 
 
@@ -81,14 +81,14 @@ class TestManyResources:
             authz.grant("read", resource=("doc", f"doc-{i}"), subject=("user", "alice"))
 
         # Spot check permissions
-        assert authz.check("alice", "read", ("doc", "doc-0"))
-        assert authz.check("alice", "read", ("doc", "doc-999"))
-        assert not authz.check("alice", "read", ("doc", "doc-1000"))
+        assert authz.check(("user", "alice"), "read", ("doc", "doc-0"))
+        assert authz.check(("user", "alice"), "read", ("doc", "doc-999"))
+        assert not authz.check(("user", "alice"), "read", ("doc", "doc-1000"))
 
         # Filter should work efficiently
         start = time.time()
         all_ids = [f"doc-{i}" for i in range(num_resources)]
-        result = authz.filter_authorized("alice", "doc", "read", all_ids)
+        result = authz.filter_authorized(("user", "alice"), "doc", "read", all_ids)
         filter_time = time.time() - start
 
         assert len(result) == num_resources
@@ -115,7 +115,7 @@ class TestDeepHierarchy:
         # User should have all implied permissions
         start = time.time()
         for level in levels:
-            assert authz.check("alice", level, ("doc", "1"))
+            assert authz.check(("user", "alice"), level, ("doc", "1"))
         check_time = time.time() - start
 
         # Checks should be fast (O(1) each)
@@ -155,11 +155,13 @@ class TestAmplification:
         assert stats["tuple_count"] == 110
 
         # Verify permissions work correctly via lazy evaluation
-        assert authz.check("user-0", "admin", ("doc", "doc-0"))
-        assert authz.check("user-0", "write", ("doc", "doc-0"))
-        assert authz.check("user-0", "read", ("doc", "doc-0"))
-        assert authz.check("user-99", "admin", ("doc", "doc-9"))
-        assert not authz.check("user-0", "admin", ("doc", "doc-999"))  # Non-existent
+        assert authz.check(("user", "user-0"), "admin", ("doc", "doc-0"))
+        assert authz.check(("user", "user-0"), "write", ("doc", "doc-0"))
+        assert authz.check(("user", "user-0"), "read", ("doc", "doc-0"))
+        assert authz.check(("user", "user-99"), "admin", ("doc", "doc-9"))
+        assert not authz.check(
+            ("user", "user-0"), "admin", ("doc", "doc-999")
+        )  # Non-existent
 
 
 class TestEdgeCases:
@@ -178,7 +180,7 @@ class TestEdgeCases:
         authz.grant(levels[0], resource=("doc", "1"), subject=("user", "alice"))
 
         # Should complete without hitting iteration limit
-        assert authz.check("alice", levels[depth - 1], ("doc", "1"))
+        assert authz.check(("user", "alice"), levels[depth - 1], ("doc", "1"))
 
     def test_many_permissions_same_resource(self, authz):
         """Many users with different permissions on same resource."""
@@ -194,9 +196,11 @@ class TestEdgeCases:
         # Verify correct permissions
         for i in range(0, num_users, 50):
             expected_perm = permissions[i % len(permissions)]
-            assert authz.check(f"user-{i}", expected_perm, ("doc", "contested"))
+            assert authz.check(
+                ("user", f"user-{i}"), expected_perm, ("doc", "contested")
+            )
 
-        # list_users should work
-        users = authz.list_users("read", ("doc", "contested"))
-        expected_read_users = num_users // len(permissions)
-        assert len(users) == expected_read_users
+        # list_subjects should work
+        subjects = authz.list_subjects("read", ("doc", "contested"))
+        expected_read_subjects = num_users // len(permissions)
+        assert len(subjects) == expected_read_subjects

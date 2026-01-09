@@ -7,7 +7,7 @@
     <h1>{% if note %}Edit Note{% else %}New Note{% endif %}</h1>
 </div>
 
-<form method="post" action="{% if note %}{{ url_for('views.notes.update', note_id=note.note_id) }}{% else %}{{ url_for('views.notes.create') }}{% endif %}" class="note-form">
+<form method="post" action="{{ action_url }}" class="note-form">
     <div class="form-group">
         <label for="title">Title</label>
         <input type="text" id="title" name="title" value="{{ note.title if note else '' }}" placeholder="Enter a title..." autofocus>
@@ -19,7 +19,7 @@
     </div>
 
     <div class="form-actions">
-        <a href="{% if note %}{{ url_for('views.notes.view', note_id=note.note_id) }}{% else %}{{ url_for('views.notes.index') }}{% endif %}" class="btn">Cancel</a>
+        <a href="{{ cancel_url }}" class="btn">Cancel</a>
         <button type="submit" class="btn btn-primary">{% if note %}Save Changes{% else %}Create Note{% endif %}</button>
     </div>
 </form>

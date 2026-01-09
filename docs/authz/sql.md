@@ -116,16 +116,21 @@ SELECT authz.write('repo', 'api', 'admin', 'team', 'eng');
 ### authz.explain
 
 ```sql
-authz.explain(p_user_id: text, p_permission: text, p_resource_type: text, p_resource_id: text, p_namespace: text, p_max_depth: int4) -> setof authz.permission_path
+authz.explain(p_subject_type: text, p_subject_id: text, p_permission: text, p_resource_type: text, p_resource_id: text, p_namespace: text, p_max_depth: int4) -> setof authz.permission_path
 ```
 
-Debug why a user has (or doesn't have) a permission
+Debug why a subject has (or doesn't have) a permission
+
+**Parameters:**
+- `p_subject_type`: The subject type (e.g., 'user', 'api_key', 'service')
+- `p_subject_id`: The subject ID
 
 **Returns:** Structured paths showing how access was granted (via direct grant, team membership, permission hierarchy, or folder inheritance)
 
 **Example:**
 ```sql
-SELECT * FROM authz.explain('alice', 'read', 'doc', 'spec');
+SELECT * FROM authz.explain('user', 'alice', 'read', 'doc', 'spec');
+SELECT * FROM authz.explain('api_key', 'key-123', 'read', 'repo', 'api');
 ```
 
 *Source: authz/src/functions/024_explain.sql:1*
@@ -135,19 +140,24 @@ SELECT * FROM authz.explain('alice', 'read', 'doc', 'spec');
 ### authz.explain_text
 
 ```sql
-authz.explain_text(p_user_id: text, p_permission: text, p_resource_type: text, p_resource_id: text, p_namespace: text) -> setof text
+authz.explain_text(p_subject_type: text, p_subject_id: text, p_permission: text, p_resource_type: text, p_resource_id: text, p_namespace: text) -> setof text
 ```
 
-Human-readable explanation of why a user has access
+Human-readable explanation of why a subject has access
 
-**Returns:** One line per path, e.g., "GROUP: alice is member of team:eng which has read"
+**Parameters:**
+- `p_subject_type`: The subject type (e.g., 'user', 'api_key', 'service')
+- `p_subject_id`: The subject ID
+
+**Returns:** One line per path, e.g., "GROUP: user:alice is member of team:eng which has read"
 
 **Example:**
 ```sql
-SELECT * FROM authz.explain_text('alice', 'read', 'doc', 'spec');
+SELECT * FROM authz.explain_text('user', 'alice', 'read', 'doc', 'spec');
+SELECT * FROM authz.explain_text('api_key', 'key-123', 'read', 'repo', 'api');
 ```
 
-*Source: authz/src/functions/024_explain.sql:198*
+*Source: authz/src/functions/024_explain.sql:202*
 
 ---
 
@@ -341,7 +351,7 @@ Remove all hierarchy rules for a resource type (start fresh)
 SELECT authz.clear_hierarchy('repo', 'default');
 ```
 
-*Source: authz/src/functions/030_hierarchy.sql:101*
+*Source: authz/src/functions/030_hierarchy.sql:131*
 
 ---
 
@@ -358,7 +368,7 @@ Remove a permission implication rule
 SELECT authz.remove_hierarchy('repo', 'admin', 'write', 'default');
 ```
 
-*Source: authz/src/functions/030_hierarchy.sql:74*
+*Source: authz/src/functions/030_hierarchy.sql:104*
 
 ---
 
@@ -367,71 +377,81 @@ SELECT authz.remove_hierarchy('repo', 'admin', 'write', 'default');
 ### authz.filter_authorized
 
 ```sql
-authz.filter_authorized(p_user_id: text, p_resource_type: text, p_permission: text, p_resource_ids: text[], p_namespace: text) -> text[]
+authz.filter_authorized(p_subject_type: text, p_subject_id: text, p_resource_type: text, p_permission: text, p_resource_ids: text[], p_namespace: text) -> text[]
 ```
 
-Filter a list to only resources the user can access (batch check)
+Filter a list to only resources the subject can access (batch check)
 
 **Parameters:**
+- `p_subject_type`: The subject type (e.g., 'user', 'api_key', 'service')
+- `p_subject_id`: The subject ID
 - `p_resource_ids`: Candidate resources to check (e.g., from a search query)
 
-**Returns:** Subset of p_resource_ids the user has permission on
+**Returns:** Subset of p_resource_ids the subject has permission on
 
 **Example:**
 ```sql
 -- User searches for "api", filter to only repos they can see
-SELECT authz.filter_authorized('alice', 'repo', 'read',
+SELECT authz.filter_authorized('user', 'alice', 'repo', 'read',
 ARRAY['payments-api', 'internal-api', 'public-api'], 'default');
 -- Returns: ['payments-api', 'public-api'] (if alice can't see internal-api)
 ```
 
-*Source: authz/src/functions/023_list.sql:180*
+*Source: authz/src/functions/023_list.sql:200*
 
 ---
 
 ### authz.list_resources
 
 ```sql
-authz.list_resources(p_user_id: text, p_resource_type: text, p_permission: text, p_namespace: text, p_limit: int4, p_cursor: text) -> table(resource_id: text)
+authz.list_resources(p_subject_type: text, p_subject_id: text, p_resource_type: text, p_permission: text, p_namespace: text, p_limit: int4, p_cursor: text) -> table(resource_id: text)
 ```
 
-List all resources a user can access ("What can Alice read?")
+List all resources a subject can access ("What can Alice read?")
 
 **Parameters:**
+- `p_subject_type`: The subject type (e.g., 'user', 'api_key', 'service')
+- `p_subject_id`: The subject ID
 - `p_limit`: Pagination limit. For >1000 resources, use filter_authorized() instead.
 - `p_cursor`: Pass last resource_id from previous page to get next page
 
-**Returns:** Resource IDs the user can access (via direct grant, team membership, or folder inheritance)
+**Returns:** Resource IDs the subject can access (via direct grant, team membership, or folder inheritance)
 
 **Example:**
 ```sql
 -- Show alice all docs she can read
-SELECT * FROM authz.list_resources('alice', 'doc', 'read', 'default');
--- Paginate through results
-SELECT * FROM authz.list_resources('alice', 'doc', 'read', 'default', 50, 'last-doc-id');
+SELECT * FROM authz.list_resources('user', 'alice', 'doc', 'read', 'default');
+-- Show API key all repos it can access
+SELECT * FROM authz.list_resources('api_key', 'key-123', 'repo', 'read', 'default');
 ```
 
 *Source: authz/src/functions/023_list.sql:1*
 
 ---
 
-### authz.list_users
+### authz.list_subjects
 
 ```sql
-authz.list_users(p_resource_type: text, p_resource_id: text, p_permission: text, p_namespace: text, p_limit: int4, p_cursor: text) -> table(user_id: text)
+authz.list_subjects(p_resource_type: text, p_resource_id: text, p_permission: text, p_namespace: text, p_limit: int4, p_cursor_type: text, p_cursor_id: text) -> table(subject_type: text, subject_id: text)
 ```
 
-List all users who can access a resource ("Who can read this doc?")
+List all subjects who can access a resource ("Who can read this doc?")
 
-**Returns:** User IDs with access (expands team memberships to individual users)
+**Parameters:**
+- `p_cursor_type`: Subject type from last result for pagination (NULL for first page)
+- `p_cursor_id`: Subject ID from last result for pagination (NULL for first page)
+
+**Returns:** Subject (type, id) pairs with access (expands team memberships to leaf subjects)
 
 **Example:**
 ```sql
--- Find everyone who can admin the payments repo
-SELECT * FROM authz.list_users('repo', 'payments', 'admin', 'default');
+-- First page
+SELECT * FROM authz.list_subjects('repo', 'payments', 'admin', 'default');
+-- Next page using cursor from last result
+SELECT * FROM authz.list_subjects('repo', 'payments', 'admin', 'default', 100, 'user', 'alice');
 ```
 
-*Source: authz/src/functions/023_list.sql:94*
+*Source: authz/src/functions/023_list.sql:97*
 
 ---
 
@@ -476,7 +496,7 @@ SELECT authz.grant_to_resources_bulk('doc', ARRAY['doc1', 'doc2', ...],
 'read', 'user', 'alice', NULL, 'default');
 ```
 
-*Source: authz/src/functions/032_maintenance.sql:59*
+*Source: authz/src/functions/032_maintenance.sql:60*
 
 ---
 
@@ -641,7 +661,7 @@ SELECT authz.check_subject('api_key', 'key-123', 'read', 'repo', 'api');
 SELECT authz.check_subject('service', 'billing', 'write', 'customer', 'cust-1');
 ```
 
-*Source: authz/src/functions/024_check_subject.sql:132*
+*Source: authz/src/functions/024_check_subject.sql:85*
 
 ---
 
@@ -667,7 +687,7 @@ Check if a subject has all of the specified permissions
 SELECT authz.check_subject_all('api_key', 'key-123', ARRAY['read', 'write'], 'repo', 'api');
 ```
 
-*Source: authz/src/functions/024_check_subject.sql:191*
+*Source: authz/src/functions/024_check_subject.sql:144*
 
 ---
 
@@ -693,7 +713,65 @@ Check if a subject has any of the specified permissions
 SELECT authz.check_subject_any('api_key', 'key-123', ARRAY['read', 'write'], 'repo', 'api');
 ```
 
-*Source: authz/src/functions/024_check_subject.sql:162*
+*Source: authz/src/functions/024_check_subject.sql:115*
+
+---
+
+## Subject Grants
+
+### authz.list_subject_grants
+
+```sql
+authz.list_subject_grants(p_subject_type: text, p_subject_id: text, p_namespace: text, p_resource_type: text) -> table(resource_type: text, resource_id: text, relation: text, subject_relation: text, expires_at: timestamptz)
+```
+
+List all grants for a subject ("What can this API key access?")
+
+**Parameters:**
+- `p_subject_type`: Subject type (e.g., 'api_key', 'service')
+- `p_subject_id`: Subject identifier
+- `p_namespace`: Namespace to search in
+- `p_resource_type`: Optional filter by resource type
+
+**Returns:** All active (non-expired) grants for this subject
+
+**Example:**
+```sql
+-- Get all grants for an API key
+SELECT * FROM authz.list_subject_grants('api_key', 'key-123', 'default');
+-- Get only note-related grants
+SELECT * FROM authz.list_subject_grants('api_key', 'key-123', 'default', 'note');
+```
+
+*Source: authz/src/functions/035_subject_grants.sql:1*
+
+---
+
+### authz.revoke_subject_grants
+
+```sql
+authz.revoke_subject_grants(p_subject_type: text, p_subject_id: text, p_namespace: text, p_resource_type: text) -> int4
+```
+
+Revoke all grants for a subject (cleanup on deletion)
+
+**Parameters:**
+- `p_subject_type`: Subject type (e.g., 'api_key', 'service')
+- `p_subject_id`: Subject identifier
+- `p_namespace`: Namespace to search in
+- `p_resource_type`: Optional filter to only revoke grants on specific resource type
+
+**Returns:** Count of grants revoked
+
+**Example:**
+```sql
+-- Revoke all grants for an API key before deletion
+SELECT authz.revoke_subject_grants('api_key', 'key-123', 'default');
+-- Revoke only note-related grants
+SELECT authz.revoke_subject_grants('api_key', 'key-123', 'default', 'note');
+```
+
+*Source: authz/src/functions/035_subject_grants.sql:36*
 
 ---
 

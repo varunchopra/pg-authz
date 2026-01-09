@@ -9,6 +9,7 @@ from psycopg.rows import dict_row
 
 from ...auth import OrgContext, UserContext, authenticated
 from ...db import get_authn, get_authz, get_db, get_meter, get_note_org_id
+from .teams import get_team
 
 bp = Blueprint("notes", __name__, url_prefix="/notes")
 log = logging.getLogger(__name__)
@@ -94,9 +95,9 @@ def index(ctx: OrgContext):
 
     # Permission-aware resource listing: returns only notes this user can access.
     # Handles direct grants, team membership, and hierarchy (owner→edit→view).
-    viewable_ids = authz.list_resources(user_id, "note", "view")
-    editable_ids = authz.list_resources(user_id, "note", "edit")
-    owned_ids = authz.list_resources(user_id, "note", "owner")
+    viewable_ids = authz.list_resources(("user", user_id), "note", "view")
+    editable_ids = authz.list_resources(("user", user_id), "note", "edit")
+    owned_ids = authz.list_resources(("user", user_id), "note", "owner")
 
     # Fetch note details (filtered by org)
     notes = get_notes_by_ids(viewable_ids, org_id)
@@ -130,7 +131,12 @@ def index(ctx: OrgContext):
 @authenticated(org=True)
 def new(ctx: OrgContext):
     """Show create note form."""
-    return render_template("notes/edit.html", note=None)
+    return render_template(
+        "notes/edit.html",
+        note=None,
+        action_url=url_for(".create"),
+        cancel_url=url_for(".index"),
+    )
 
 
 @bp.post("")
@@ -173,7 +179,7 @@ def view(ctx: OrgContext, note_id: str):
     authn = get_authn()
 
     # Check access in org's authz namespace
-    if not authz.check(user_id, "view", ("note", note_id)):
+    if not authz.check(("user", user_id), "view", ("note", note_id)):
         flash("You don't have access to this note", "error")
         return redirect(url_for(".index"))
 
@@ -183,8 +189,8 @@ def view(ctx: OrgContext, note_id: str):
         return redirect(url_for(".index"))
 
     # Check permissions for UI
-    can_edit = authz.check(user_id, "edit", ("note", note_id))
-    can_share = authz.check(user_id, "owner", ("note", note_id))
+    can_edit = authz.check(("user", user_id), "edit", ("note", note_id))
+    can_share = authz.check(("user", user_id), "owner", ("note", note_id))
 
     # Get owner info
     owner = authn.get_user(note["owner_id"])
@@ -195,7 +201,86 @@ def view(ctx: OrgContext, note_id: str):
         note=note,
         can_edit=can_edit,
         can_share=can_share,
+        edit_url=url_for(".edit", note_id=note_id) if can_edit else None,
     )
+
+
+@bp.get("/shared/<note_id>/edit")
+@authenticated(org=False)
+def edit_shared(ctx: UserContext, note_id: str):
+    """Edit a note shared from another organization."""
+    user_id = ctx.user_id
+
+    # Find which org this note belongs to
+    note_org_id = get_note_org_id(note_id)
+    if not note_org_id:
+        flash("Note not found", "error")
+        return redirect(url_for("views.dashboard.index"))
+
+    # Check edit permission in the note's org namespace
+    authz = get_authz(note_org_id)
+    if not authz.check(("user", user_id), "edit", ("note", note_id)):
+        flash("You don't have permission to edit this note", "error")
+        return redirect(url_for(".view_shared", note_id=note_id))
+
+    note = get_note(note_id, note_org_id)
+    if not note:
+        flash("Note not found", "error")
+        return redirect(url_for("views.dashboard.index"))
+
+    return render_template(
+        "notes/edit.html",
+        note=note,
+        action_url=url_for(".update_shared", note_id=note_id),
+        cancel_url=url_for(".view_shared", note_id=note_id),
+    )
+
+
+@bp.post("/shared/<note_id>")
+@authenticated(org=False)
+def update_shared(ctx: UserContext, note_id: str):
+    """Update a note shared from another organization."""
+    user_id = ctx.user_id
+
+    # Find which org this note belongs to
+    note_org_id = get_note_org_id(note_id)
+    if not note_org_id:
+        flash("Note not found", "error")
+        return redirect(url_for("views.dashboard.index"))
+
+    # Check edit permission in the note's org namespace
+    authz = get_authz(note_org_id)
+    if not authz.check(("user", user_id), "edit", ("note", note_id)):
+        flash("You don't have permission to edit this note", "error")
+        return redirect(url_for(".view_shared", note_id=note_id))
+
+    note = get_note(note_id, note_org_id)
+    if not note:
+        flash("Note not found", "error")
+        return redirect(url_for("views.dashboard.index"))
+
+    old_len = len(note["title"]) + len(note["body"])
+
+    title = request.form.get("title", "").strip() or "Untitled"
+    body = request.form.get("body", "").strip()
+    new_len = len(title) + len(body)
+
+    update_note(note_id, title, body, note_org_id)
+
+    # Record storage change (charged to note owner)
+    delta = new_len - old_len
+    if delta != 0:
+        meter = get_meter(note_org_id)
+        if delta > 0:
+            meter.consume(note["owner_id"], "storage", delta, "characters")
+        else:
+            meter.adjust(note["owner_id"], "storage", abs(delta), "characters")
+
+    log.info(
+        f"Shared note updated: note_id={note_id[:8]}... by external user_id={user_id[:8]}..."
+    )
+    flash("Note updated", "success")
+    return redirect(url_for(".view_shared", note_id=note_id))
 
 
 @bp.get("/shared/<note_id>")
@@ -220,7 +305,7 @@ def view_shared(ctx: UserContext, note_id: str):
     # 2. Check access in the note's org namespace (context switch)
     authz = get_authz(note_org_id)
 
-    if not authz.check(user_id, "view", ("note", note_id)):
+    if not authz.check(("user", user_id), "view", ("note", note_id)):
         flash("You don't have access to this note", "error")
         return redirect(url_for("views.dashboard.index"))
 
@@ -231,7 +316,7 @@ def view_shared(ctx: UserContext, note_id: str):
         return redirect(url_for("views.dashboard.index"))
 
     # Check permissions for UI
-    can_edit = authz.check(user_id, "edit", ("note", note_id))
+    can_edit = authz.check(("user", user_id), "edit", ("note", note_id))
     can_share = False  # External users can't share
 
     # Get owner info
@@ -249,6 +334,7 @@ def view_shared(ctx: UserContext, note_id: str):
         note=note,
         can_edit=can_edit,
         can_share=can_share,
+        edit_url=url_for(".edit_shared", note_id=note_id) if can_edit else None,
         is_external_share=True,
         source_org_name=org_name,
     )
@@ -263,7 +349,7 @@ def edit(ctx: OrgContext, note_id: str):
     authz = get_authz(org_id)
 
     # Check edit permission
-    if not authz.check(user_id, "edit", ("note", note_id)):
+    if not authz.check(("user", user_id), "edit", ("note", note_id)):
         flash("You don't have permission to edit this note", "error")
         return redirect(url_for(".view", note_id=note_id))
 
@@ -272,7 +358,12 @@ def edit(ctx: OrgContext, note_id: str):
         flash("Note not found", "error")
         return redirect(url_for(".index"))
 
-    return render_template("notes/edit.html", note=note)
+    return render_template(
+        "notes/edit.html",
+        note=note,
+        action_url=url_for(".update", note_id=note_id),
+        cancel_url=url_for(".view", note_id=note_id),
+    )
 
 
 @bp.post("/<note_id>")
@@ -284,7 +375,7 @@ def update(ctx: OrgContext, note_id: str):
     authz = get_authz(org_id)
 
     # Check edit permission
-    if not authz.check(user_id, "edit", ("note", note_id)):
+    if not authz.check(("user", user_id), "edit", ("note", note_id)):
         flash("You don't have permission to edit this note", "error")
         return redirect(url_for(".view", note_id=note_id))
 
@@ -325,7 +416,7 @@ def delete(ctx: OrgContext, note_id: str):
     authz = get_authz(org_id)
 
     # Check owner permission
-    if not authz.check(user_id, "owner", ("note", note_id)):
+    if not authz.check(("user", user_id), "owner", ("note", note_id)):
         flash("You don't have permission to delete this note", "error")
         return redirect(url_for(".view", note_id=note_id))
 
@@ -339,7 +430,11 @@ def delete(ctx: OrgContext, note_id: str):
 
     # Revoke all permissions first
     for permission in ["owner", "edit", "view"]:
-        users = authz.list_users(permission, ("note", note_id))
+        users = [
+            s[1]
+            for s in authz.list_subjects(permission, ("note", note_id))
+            if s[0] == "user"
+        ]
         for uid in users:
             authz.revoke(permission, resource=("note", note_id), subject=("user", uid))
 
@@ -367,7 +462,7 @@ def share(ctx: OrgContext, note_id: str):
     authz = get_authz(org_id)
 
     # Check owner permission
-    if not authz.check(user_id, "owner", ("note", note_id)):
+    if not authz.check(("user", user_id), "owner", ("note", note_id)):
         flash("You don't have permission to share this note", "error")
         return redirect(url_for(".view", note_id=note_id))
 
@@ -392,7 +487,7 @@ def grant_access(ctx: OrgContext, note_id: str):
     authn = get_authn()
 
     # Check owner permission
-    if not authz.check(user_id, "owner", ("note", note_id)):
+    if not authz.check(("user", user_id), "owner", ("note", note_id)):
         flash("You don't have permission to share this note", "error")
         return redirect(url_for(".view", note_id=note_id))
 
@@ -472,7 +567,7 @@ def revoke_access(ctx: OrgContext, note_id: str):
     authz = get_authz(org_id)
 
     # Check owner permission
-    if not authz.check(user_id, "owner", ("note", note_id)):
+    if not authz.check(("user", user_id), "owner", ("note", note_id)):
         flash("You don't have permission to manage sharing", "error")
         return redirect(url_for(".view", note_id=note_id))
 
@@ -504,7 +599,7 @@ def access(ctx: OrgContext, note_id: str):
     authn = get_authn()
 
     # Check owner permission
-    if not authz.check(user_id, "owner", ("note", note_id)):
+    if not authz.check(("user", user_id), "owner", ("note", note_id)):
         flash("You don't have permission to view access details", "error")
         return redirect(url_for(".view", note_id=note_id))
 
@@ -513,66 +608,54 @@ def access(ctx: OrgContext, note_id: str):
         flash("Note not found", "error")
         return redirect(url_for(".index"))
 
-    # Get all users with each permission level
-    owners = authz.list_users("owner", ("note", note_id))
-    editors = authz.list_users("edit", ("note", note_id))
-    viewers = authz.list_users("view", ("note", note_id))
+    # Get all subjects (users and teams) with each permission level
+    owner_subjects = authz.list_subjects("owner", ("note", note_id))
+    editor_subjects = authz.list_subjects("edit", ("note", note_id))
+    viewer_subjects = authz.list_subjects("view", ("note", note_id))
 
     # Build access list with explanations
     access_list = []
-    seen_users = set()
+    seen_subjects = set()
 
-    for uid in owners:
-        if uid in seen_users:
-            continue
-        seen_users.add(uid)
-        user_info = authn.get_user(uid)
-        # Explain why this user has access (direct grant, team membership, or hierarchy)
-        explanations = authz.explain(uid, "owner", ("note", note_id))
+    def add_subject(subject_type, subject_id, permission):
+        key = (subject_type, subject_id)
+        if key in seen_subjects:
+            return
+        seen_subjects.add(key)
+
+        if subject_type == "user":
+            user_info = authn.get_user(subject_id)
+            display_name = user_info["email"] if user_info else subject_id
+            is_current_user = subject_id == user_id
+        else:  # team
+            team = get_team(subject_id, org_id)
+            display_name = (
+                f"Team: {team['name']}" if team else f"Team: {subject_id[:8]}..."
+            )
+            is_current_user = False
+
+        explanations = authz.explain(
+            (subject_type, subject_id), permission, ("note", note_id)
+        )
         access_list.append(
             {
-                "subject_type": "user",
-                "subject_id": uid,
-                "display_name": user_info["email"] if user_info else uid,
-                "permission": "owner",
+                "subject_type": subject_type,
+                "subject_id": subject_id,
+                "display_name": display_name,
+                "permission": permission,
                 "explanations": explanations,
-                "is_current_user": uid == user_id,
+                "is_current_user": is_current_user,
             }
         )
 
-    for uid in editors:
-        if uid in seen_users:
-            continue
-        seen_users.add(uid)
-        user_info = authn.get_user(uid)
-        explanations = authz.explain(uid, "edit", ("note", note_id))
-        access_list.append(
-            {
-                "subject_type": "user",
-                "subject_id": uid,
-                "display_name": user_info["email"] if user_info else uid,
-                "permission": "edit",
-                "explanations": explanations,
-                "is_current_user": uid == user_id,
-            }
-        )
+    for subject_type, subject_id in owner_subjects:
+        add_subject(subject_type, subject_id, "owner")
 
-    for uid in viewers:
-        if uid in seen_users:
-            continue
-        seen_users.add(uid)
-        user_info = authn.get_user(uid)
-        explanations = authz.explain(uid, "view", ("note", note_id))
-        access_list.append(
-            {
-                "subject_type": "user",
-                "subject_id": uid,
-                "display_name": user_info["email"] if user_info else uid,
-                "permission": "view",
-                "explanations": explanations,
-                "is_current_user": uid == user_id,
-            }
-        )
+    for subject_type, subject_id in editor_subjects:
+        add_subject(subject_type, subject_id, "edit")
+
+    for subject_type, subject_id in viewer_subjects:
+        add_subject(subject_type, subject_id, "view")
 
     return render_template(
         "notes/access.html",
@@ -589,7 +672,7 @@ def get_user_teams(user_id: str, org_id: str) -> list[dict]:
     authz = get_authz(org_id)
 
     # Get teams where user has admin permission
-    team_ids = authz.list_resources(user_id, "team", "admin")
+    team_ids = authz.list_resources(("user", user_id), "team", "admin")
 
     if not team_ids:
         return []
@@ -729,10 +812,10 @@ def get_shared_with_me(user_id: str, resource_type: str = "note") -> list[dict]:
     # Query cross-org grants using authz client
     # We need to use any org's authz client and set user context
     authz = get_authz(user_org_ids[0])
-    authz.set_user_context(user_id)
+    authz.set_viewer(("user", user_id))
 
-    shared_resources = authz.list_resources_shared_with_me(
-        user_id, resource_type, "view"
+    shared_resources = authz.list_external_resources(
+        ("user", user_id), resource_type, "view"
     )
 
     if not shared_resources:

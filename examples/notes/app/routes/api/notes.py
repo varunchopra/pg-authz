@@ -32,21 +32,19 @@ def list_notes(ctx: OrgContext):
     authz = get_authz(ctx.org_id)
 
     # Get all notes this user can view (in current org's authz namespace)
-    viewable_ids = authz.list_resources(ctx.user_id, "note", "view")
+    viewable_ids = authz.list_resources(("user", ctx.user_id), "note", "view")
 
     # Filter by API key scope if using API key auth
     if ctx.api_key_id:
         # Check if API key has wildcard access
-        has_wildcard = authz.check_subject(
-            "api_key", ctx.api_key_id, "view", ("notes", "*")
-        )
+        has_wildcard = authz.check(("api_key", ctx.api_key_id), "view", ("notes", "*"))
 
         if not has_wildcard:
             # Filter to only notes the API key has specific access to
             viewable_ids = [
                 nid
                 for nid in viewable_ids
-                if authz.check_subject("api_key", ctx.api_key_id, "view", ("note", nid))
+                if authz.check(("api_key", ctx.api_key_id), "view", ("note", nid))
             ]
 
     # Fetch note details (filtered by org)
@@ -155,7 +153,7 @@ def delete_note(ctx: OrgContext, note_id: str):
         return jsonify({"error": "no delete access to this note"}), 403
 
     # Also need owner permission on the user side
-    if not authz.check(ctx.user_id, "owner", ("note", note_id)):
+    if not authz.check(("user", ctx.user_id), "owner", ("note", note_id)):
         return jsonify({"error": "only owner can delete"}), 403
 
     note = get_note_by_id(note_id, ctx.org_id)
@@ -164,7 +162,11 @@ def delete_note(ctx: OrgContext, note_id: str):
 
     # Revoke all permissions
     for permission in ["owner", "edit", "view"]:
-        users = authz.list_users(permission, ("note", note_id))
+        users = [
+            s[1]
+            for s in authz.list_subjects(permission, ("note", note_id))
+            if s[0] == "user"
+        ]
         for uid in users:
             authz.revoke(permission, resource=("note", note_id), subject=("user", uid))
 

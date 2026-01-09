@@ -134,7 +134,7 @@ def new_api_key(ctx: OrgContext):
     authz = get_authz(ctx.org_id)
 
     # Get user's notes in current org for specific resource selection
-    note_ids = authz.list_resources(ctx.user_id, "note", "view")
+    note_ids = authz.list_resources(("user", ctx.user_id), "note", "view")
 
     # Fetch note details (filtered by org)
     notes = []
@@ -188,7 +188,6 @@ def create_api_key(ctx: OrgContext):
     log.info(
         f"API key created: key_id={key_id[:8]}... org_id={ctx.org_id[:8]}... notes_access={notes_access}"
     )
-    flash("API key created. Copy it now - you won't see it again!", "success")
     return redirect(url_for("views.dashboard.api_keys"))
 
 

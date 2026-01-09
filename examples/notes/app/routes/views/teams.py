@@ -75,9 +75,9 @@ def index(ctx: OrgContext):
     authz = get_authz(ctx.org_id)
 
     # Get all teams where user has at least member permission
-    member_team_ids = authz.list_resources(ctx.user_id, "team", "member")
-    admin_team_ids = authz.list_resources(ctx.user_id, "team", "admin")
-    owner_team_ids = authz.list_resources(ctx.user_id, "team", "owner")
+    member_team_ids = authz.list_resources(("user", ctx.user_id), "team", "member")
+    admin_team_ids = authz.list_resources(("user", ctx.user_id), "team", "admin")
+    owner_team_ids = authz.list_resources(("user", ctx.user_id), "team", "owner")
 
     # Fetch team details (filtered by org)
     teams = get_teams_by_ids(member_team_ids, ctx.org_id)
@@ -91,8 +91,12 @@ def index(ctx: OrgContext):
         else:
             team["my_role"] = "member"
 
-        # Count members
-        members = authz.list_users("member", ("team", team["team_id"]))
+        # Count members (filter for users only)
+        members = [
+            s
+            for s in authz.list_subjects("member", ("team", team["team_id"]))
+            if s[0] == "user"
+        ]
         team["member_count"] = len(members)
 
     return render_template(
@@ -143,7 +147,7 @@ def view(ctx: OrgContext, team_id: str):
     authn = get_authn()
 
     # Check access
-    if not authz.check(ctx.user_id, "member", ("team", team_id)):
+    if not authz.check(("user", ctx.user_id), "member", ("team", team_id)):
         flash("You don't have access to this team", "error")
         return redirect(url_for(".index"))
 
@@ -153,13 +157,19 @@ def view(ctx: OrgContext, team_id: str):
         return redirect(url_for(".index"))
 
     # Check permissions
-    is_admin = authz.check(ctx.user_id, "admin", ("team", team_id))
-    is_owner = authz.check(ctx.user_id, "owner", ("team", team_id))
+    is_admin = authz.check(("user", ctx.user_id), "admin", ("team", team_id))
+    is_owner = authz.check(("user", ctx.user_id), "owner", ("team", team_id))
 
-    # Get members with their roles
-    owners = authz.list_users("owner", ("team", team_id))
-    admins = authz.list_users("admin", ("team", team_id))
-    members = authz.list_users("member", ("team", team_id))
+    # Get members with their roles (extract user IDs from tuples)
+    owners = [
+        s[1] for s in authz.list_subjects("owner", ("team", team_id)) if s[0] == "user"
+    ]
+    admins = [
+        s[1] for s in authz.list_subjects("admin", ("team", team_id)) if s[0] == "user"
+    ]
+    members = [
+        s[1] for s in authz.list_subjects("member", ("team", team_id)) if s[0] == "user"
+    ]
 
     # Build member list
     member_list = []
@@ -224,7 +234,7 @@ def add_member(ctx: OrgContext, team_id: str):
     authn = get_authn()
 
     # Check admin permission
-    if not authz.check(ctx.user_id, "admin", ("team", team_id)):
+    if not authz.check(("user", ctx.user_id), "admin", ("team", team_id)):
         flash("You don't have permission to add members", "error")
         return redirect(url_for(".view", team_id=team_id))
 
@@ -267,18 +277,22 @@ def remove_member(ctx: OrgContext, team_id: str, member_id: str):
     authz = get_authz(ctx.org_id)
 
     # Check admin permission
-    if not authz.check(ctx.user_id, "admin", ("team", team_id)):
+    if not authz.check(("user", ctx.user_id), "admin", ("team", team_id)):
         flash("You don't have permission to remove members", "error")
         return redirect(url_for(".view", team_id=team_id))
 
     # Can't remove the owner
-    if authz.check(member_id, "owner", ("team", team_id)):
+    if authz.check(("user", member_id), "owner", ("team", team_id)):
         flash("Cannot remove the team owner", "error")
         return redirect(url_for(".view", team_id=team_id))
 
     # Can't remove yourself if you're the last admin
     if member_id == ctx.user_id:
-        admins = authz.list_users("admin", ("team", team_id))
+        admins = [
+            s[1]
+            for s in authz.list_subjects("admin", ("team", team_id))
+            if s[0] == "user"
+        ]
         if len(admins) <= 1:
             flash("You are the last admin - cannot remove yourself", "error")
             return redirect(url_for(".view", team_id=team_id))
@@ -303,7 +317,7 @@ def promote_member(ctx: OrgContext, team_id: str, member_id: str):
     authz = get_authz(ctx.org_id)
 
     # Check owner permission (only owners can promote to admin)
-    if not authz.check(ctx.user_id, "owner", ("team", team_id)):
+    if not authz.check(("user", ctx.user_id), "owner", ("team", team_id)):
         flash("Only team owners can promote members", "error")
         return redirect(url_for(".view", team_id=team_id))
 
@@ -323,7 +337,7 @@ def demote_member(ctx: OrgContext, team_id: str, member_id: str):
     authz = get_authz(ctx.org_id)
 
     # Check owner permission
-    if not authz.check(ctx.user_id, "owner", ("team", team_id)):
+    if not authz.check(("user", ctx.user_id), "owner", ("team", team_id)):
         flash("Only team owners can demote admins", "error")
         return redirect(url_for(".view", team_id=team_id))
 
@@ -348,7 +362,7 @@ def delete(ctx: OrgContext, team_id: str):
     authz = get_authz(ctx.org_id)
 
     # Check owner permission
-    if not authz.check(ctx.user_id, "owner", ("team", team_id)):
+    if not authz.check(("user", ctx.user_id), "owner", ("team", team_id)):
         flash("Only team owners can delete teams", "error")
         return redirect(url_for(".view", team_id=team_id))
 
@@ -359,7 +373,11 @@ def delete(ctx: OrgContext, team_id: str):
 
     # Revoke all team permissions
     for permission in ["owner", "admin", "member"]:
-        users = authz.list_users(permission, ("team", team_id))
+        users = [
+            s[1]
+            for s in authz.list_subjects(permission, ("team", team_id))
+            if s[0] == "user"
+        ]
         for uid in users:
             authz.revoke(permission, resource=("team", team_id), subject=("user", uid))
 

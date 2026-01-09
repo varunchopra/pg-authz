@@ -1,4 +1,30 @@
 -- @group Hierarchy
+-- =============================================================================
+-- PERMISSION HIERARCHY FUNCTIONS
+-- =============================================================================
+--
+-- TWO-TIER HIERARCHY SYSTEM:
+--
+-- Permission checks look at BOTH global AND tenant-specific hierarchies:
+--
+--   1. GLOBAL (namespace = 'global')
+--      - App-wide defaults set by developer
+--      - Example: "owner -> edit -> view" for all tenants
+--      - RLS allows all tenants to READ but not WRITE global rules
+--
+--   2. TENANT-SPECIFIC (namespace = tenant namespace)
+--      - Org-specific customizations set by customers
+--      - Example: "legal_approver -> viewer" for enterprise workflow
+--      - Allows orgs to extend the model for their structure
+--
+-- HOW IT WORKS:
+--   - Permission checks use: namespace IN ('global', p_namespace)
+--   - SDK passes tenant namespace for org-specific rules
+--   - SDK passes 'global' for app-wide defaults
+--   - RLS ensures tenants can only modify their own rules, not global ones
+--
+-- See 001_tables.sql for full architecture documentation.
+-- =============================================================================
 
 -- @function authz.add_hierarchy
 -- @brief Define that one permission implies another (e.g., admin implies write)
@@ -29,10 +55,12 @@ BEGIN
         RAISE EXCEPTION 'Hierarchy cycle detected: % implies itself', p_permission;
     END IF;
     -- Check for indirect cycle: would p_implies eventually lead back to p_permission?
+    -- Includes depth limit to prevent runaway recursion if cycles exist in data.
     WITH RECURSIVE hierarchy_chain AS (
         -- Start with what p_implies currently implies
         SELECT
-            implies AS perm
+            implies AS perm,
+            1 AS depth
         FROM
             authz.permission_hierarchy
         WHERE
@@ -42,12 +70,14 @@ BEGIN
         UNION
         -- Follow the chain
         SELECT
-            h.implies
+            h.implies,
+            hc.depth + 1
         FROM
             hierarchy_chain hc
             JOIN authz.permission_hierarchy h ON h.namespace = p_namespace
                 AND h.resource_type = p_resource_type
                 AND h.permission = hc.perm
+        WHERE hc.depth < authz._max_group_depth()
 )
         SELECT
             EXISTS (

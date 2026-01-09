@@ -34,9 +34,9 @@ class TestApiKeyWithScopedPermissions:
         assert key_info["user_id"] == user_id
         assert key_info["name"] == "Production"
 
-        assert authz.check_subject("api_key", key_id, "read", ("repo", "api"))
-        assert authz.check_subject("api_key", key_id, "write", ("repo", "api"))
-        assert not authz.check_subject("api_key", key_id, "admin", ("repo", "api"))
+        assert authz.check(("api_key", key_id), "read", ("repo", "api"))
+        assert authz.check(("api_key", key_id), "write", ("repo", "api"))
+        assert not authz.check(("api_key", key_id), "admin", ("repo", "api"))
 
     def test_inherits_via_group(self, clients):
         """API key inherits permissions through group membership."""
@@ -53,7 +53,7 @@ class TestApiKeyWithScopedPermissions:
             "deploy", resource=("env", "staging"), subject=("group", "ci-services")
         )
 
-        assert authz.check_subject("api_key", key_id, "deploy", ("env", "staging"))
+        assert authz.check(("api_key", key_id), "deploy", ("env", "staging"))
 
     def test_hierarchy_expansion(self, clients):
         """API key permissions expand via hierarchy."""
@@ -67,12 +67,12 @@ class TestApiKeyWithScopedPermissions:
 
         authz.grant("admin", resource=("repo", "core"), subject=("api_key", key_id))
 
-        assert authz.check_subject("api_key", key_id, "admin", ("repo", "core"))
-        assert authz.check_subject("api_key", key_id, "write", ("repo", "core"))
-        assert authz.check_subject("api_key", key_id, "read", ("repo", "core"))
+        assert authz.check(("api_key", key_id), "admin", ("repo", "core"))
+        assert authz.check(("api_key", key_id), "write", ("repo", "core"))
+        assert authz.check(("api_key", key_id), "read", ("repo", "core"))
 
     def test_check_any_and_all(self, clients):
-        """check_subject_any and check_subject_all work correctly."""
+        """check_any and check_all work correctly with non-user subjects."""
         authn, authz, _ = clients
 
         user_id = authn.create_user("dave@example.com", hash_key("password"))
@@ -82,18 +82,16 @@ class TestApiKeyWithScopedPermissions:
         authz.grant("read", resource=("doc", "spec"), subject=("api_key", key_id))
         authz.grant("comment", resource=("doc", "spec"), subject=("api_key", key_id))
 
-        assert authz.check_subject_any(
-            "api_key", key_id, ["read", "write"], ("doc", "spec")
-        )
-        assert not authz.check_subject_any(
-            "api_key", key_id, ["write", "delete"], ("doc", "spec")
+        assert authz.check_any(("api_key", key_id), ["read", "write"], ("doc", "spec"))
+        assert not authz.check_any(
+            ("api_key", key_id), ["write", "delete"], ("doc", "spec")
         )
 
-        assert authz.check_subject_all(
-            "api_key", key_id, ["read", "comment"], ("doc", "spec")
+        assert authz.check_all(
+            ("api_key", key_id), ["read", "comment"], ("doc", "spec")
         )
-        assert not authz.check_subject_all(
-            "api_key", key_id, ["read", "write"], ("doc", "spec")
+        assert not authz.check_all(
+            ("api_key", key_id), ["read", "write"], ("doc", "spec")
         )
 
     def test_revoked_key_denied(self, clients):
@@ -158,8 +156,10 @@ class TestRealWorldScenarios:
             if not key_info:
                 return {"status": 401}
 
-            if not authz.check_subject(
-                "api_key", key_info["key_id"], action, ("resource_type", resource_type)
+            if not authz.check(
+                ("api_key", key_info["key_id"]),
+                action,
+                ("resource_type", resource_type),
             ):
                 return {"status": 403}
 
@@ -197,15 +197,13 @@ class TestRealWorldScenarios:
         )
 
         # Token is limited
-        assert authz.check_subject("api_key", token_id, "write", ("repo", "frontend"))
-        assert not authz.check_subject(
-            "api_key", token_id, "admin", ("repo", "frontend")
-        )
-        assert not authz.check_subject("api_key", token_id, "read", ("repo", "backend"))
+        assert authz.check(("api_key", token_id), "write", ("repo", "frontend"))
+        assert not authz.check(("api_key", token_id), "admin", ("repo", "frontend"))
+        assert not authz.check(("api_key", token_id), "read", ("repo", "backend"))
 
         # User still has full access
-        assert authz.check(dev_id, "admin", ("repo", "frontend"))
-        assert authz.check(dev_id, "admin", ("repo", "backend"))
+        assert authz.check(("user", dev_id), "admin", ("repo", "frontend"))
+        assert authz.check(("user", dev_id), "admin", ("repo", "backend"))
 
 
 class TestServiceToServiceAuth:
@@ -220,14 +218,10 @@ class TestServiceToServiceAuth:
             "write", resource=("queue", "events"), subject=("service", "api-gateway")
         )
 
-        assert authz.check_subject(
-            "service", "api-gateway", "read", ("database", "users")
-        )
-        assert authz.check_subject(
-            "service", "api-gateway", "write", ("queue", "events")
-        )
-        assert not authz.check_subject(
-            "service", "api-gateway", "delete", ("database", "users")
+        assert authz.check(("service", "api-gateway"), "read", ("database", "users"))
+        assert authz.check(("service", "api-gateway"), "write", ("queue", "events"))
+        assert not authz.check(
+            ("service", "api-gateway"), "delete", ("database", "users")
         )
 
     def test_service_in_group(self, authz):
@@ -248,7 +242,5 @@ class TestServiceToServiceAuth:
             subject=("group", "internal-services"),
         )
 
-        assert authz.check_subject("service", "billing", "read", ("database", "orders"))
-        assert authz.check_subject(
-            "service", "shipping", "read", ("database", "orders")
-        )
+        assert authz.check(("service", "billing"), "read", ("database", "orders"))
+        assert authz.check(("service", "shipping"), "read", ("database", "orders"))

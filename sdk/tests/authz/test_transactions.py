@@ -34,7 +34,7 @@ class TestTransactionSemantics:
         conn.close()
 
         # Verify not persisted
-        assert not checker.check("alice", "read", ("doc", "1"))
+        assert not checker.check(("user", "alice"), "read", ("doc", "1"))
 
     def test_multiple_writes_atomic(self, make_authz):
         """Multiple writes in one transaction are atomic."""
@@ -59,7 +59,7 @@ class TestTransactionSemantics:
         conn.close()
 
         # After commit: visible to other connections
-        assert checker.check("alice", "read", ("doc", "1"))
+        assert checker.check(("user", "alice"), "read", ("doc", "1"))
 
     def test_partial_rollback_not_visible(self, make_authz):
         """Partially rolled-back transaction doesn't leave partial state."""
@@ -84,4 +84,4 @@ class TestTransactionSemantics:
         conn.close()
 
         # Neither write should be visible
-        assert not checker.check("alice", "read", ("doc", "1"))
+        assert not checker.check(("user", "alice"), "read", ("doc", "1"))

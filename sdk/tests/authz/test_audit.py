@@ -38,10 +38,12 @@ class TestAuditCapture:
         assert events[0]["event_type"] == "tuple_deleted"
         assert events[1]["event_type"] == "tuple_created"
 
-    def test_hierarchy_change_creates_audit_event(self, authz):
+    def test_hierarchy_change_creates_audit_event(self, make_authz, db_connection):
         """Adding a hierarchy rule creates a hierarchy_created event."""
+        authz = make_authz("test_hier_audit")
         authz.add_hierarchy_rule("doc", "admin", "read")
 
+        # Audit events are in the same namespace as the hierarchy
         events = authz.get_audit_events()
 
         assert len(events) == 1
@@ -51,11 +53,13 @@ class TestAuditCapture:
         assert event["relation"] == "read"  # implies in relation
         assert event["subject"] == ("hierarchy", "")
 
-    def test_remove_hierarchy_creates_audit_event(self, authz):
+    def test_remove_hierarchy_creates_audit_event(self, make_authz, db_connection):
         """Removing a hierarchy rule creates a hierarchy_deleted event."""
+        authz = make_authz("test_hier_audit_rm")
         authz.add_hierarchy_rule("doc", "admin", "read")
         authz.remove_hierarchy_rule("doc", "admin", "read")
 
+        # Audit events are in the same namespace as the hierarchy
         events = authz.get_audit_events()
 
         assert len(events) == 2
@@ -65,7 +69,9 @@ class TestAuditCapture:
     def test_bulk_operations_create_multiple_events(self, authz):
         """Bulk grant creates one event per subject."""
         authz.bulk_grant(
-            "read", resource=("doc", "1"), subject_ids=["alice", "bob", "charlie"]
+            "read",
+            resource=("doc", "1"),
+            subjects=[("user", "alice"), ("user", "bob"), ("user", "charlie")],
         )
 
         events = authz.get_audit_events()

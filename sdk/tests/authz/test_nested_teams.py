@@ -24,7 +24,7 @@ class TestNestedTeamMembership:
         authz.grant("admin", resource=("repo", "api"), subject=("team", "platform"))
 
         # alice should have admin via: alice in infra in platform -> repo
-        assert authz.check("alice", "admin", ("repo", "api")) is True
+        assert authz.check(("user", "alice"), "admin", ("repo", "api")) is True
 
     def test_deep_nesting(self, authz):
         """Permissions work through deep nesting (5 levels)."""
@@ -38,7 +38,7 @@ class TestNestedTeamMembership:
         # team-e has read on doc
         authz.grant("read", resource=("doc", "secret"), subject=("team", "e"))
 
-        assert authz.check("alice", "read", ("doc", "secret")) is True
+        assert authz.check(("user", "alice"), "read", ("doc", "secret")) is True
 
     def test_user_not_in_nested_chain_denied(self, authz):
         """User outside the nested chain has no access."""
@@ -56,7 +56,7 @@ class TestNestedTeamMembership:
         authz.grant("admin", resource=("repo", "api"), subject=("team", "security"))
 
         # alice is not in security, so no access
-        assert authz.check("alice", "admin", ("repo", "api")) is False
+        assert authz.check(("user", "alice"), "admin", ("repo", "api")) is False
 
     def test_multiple_paths(self, authz):
         """User with multiple paths to permission (DAG structure)."""
@@ -75,7 +75,7 @@ class TestNestedTeamMembership:
         # engineering has admin
         authz.grant("admin", resource=("repo", "api"), subject=("team", "engineering"))
 
-        assert authz.check("alice", "admin", ("repo", "api")) is True
+        assert authz.check(("user", "alice"), "admin", ("repo", "api")) is True
 
     def test_diamond_structure(self, authz):
         """Diamond inheritance pattern works correctly."""
@@ -105,7 +105,7 @@ class TestNestedTeamMembership:
 
         authz.grant("admin", resource=("repo", "api"), subject=("team", "engineering"))
 
-        assert authz.check("alice", "admin", ("repo", "api")) is True
+        assert authz.check(("user", "alice"), "admin", ("repo", "api")) is True
 
 
 class TestCycleDetection:
@@ -165,7 +165,7 @@ class TestCycleDetection:
         authz.grant("member", resource=("team", "a"), subject=("user", "alice"))
         authz.grant("admin", resource=("repo", "api"), subject=("team", "d"))
 
-        assert authz.check("alice", "admin", ("repo", "api")) is True
+        assert authz.check(("user", "alice"), "admin", ("repo", "api")) is True
 
 
 class TestNestedTeamsWithHierarchy:
@@ -180,9 +180,9 @@ class TestNestedTeamsWithHierarchy:
         authz.grant("admin", resource=("repo", "api"), subject=("team", "platform"))
 
         # alice should have all permissions via: infra in platform -> admin -> write -> read
-        assert authz.check("alice", "admin", ("repo", "api")) is True
-        assert authz.check("alice", "write", ("repo", "api")) is True
-        assert authz.check("alice", "read", ("repo", "api")) is True
+        assert authz.check(("user", "alice"), "admin", ("repo", "api")) is True
+        assert authz.check(("user", "alice"), "write", ("repo", "api")) is True
+        assert authz.check(("user", "alice"), "read", ("repo", "api")) is True
 
     def test_multiple_hierarchy_levels(self, authz):
         """Deep permission hierarchy with nested teams."""
@@ -194,10 +194,10 @@ class TestNestedTeamsWithHierarchy:
         authz.grant("owner", resource=("repo", "api"), subject=("team", "c"))
 
         # alice has all permissions
-        assert authz.check("alice", "owner", ("repo", "api")) is True
-        assert authz.check("alice", "admin", ("repo", "api")) is True
-        assert authz.check("alice", "write", ("repo", "api")) is True
-        assert authz.check("alice", "read", ("repo", "api")) is True
+        assert authz.check(("user", "alice"), "owner", ("repo", "api")) is True
+        assert authz.check(("user", "alice"), "admin", ("repo", "api")) is True
+        assert authz.check(("user", "alice"), "write", ("repo", "api")) is True
+        assert authz.check(("user", "alice"), "read", ("repo", "api")) is True
 
 
 class TestNestedTeamsWithExpiration:
@@ -224,7 +224,7 @@ class TestNestedTeamsWithExpiration:
         authz.grant("admin", resource=("repo", "api"), subject=("team", "platform"))
 
         # alice should NOT have access (chain is broken)
-        assert authz.check("alice", "admin", ("repo", "api")) is False
+        assert authz.check(("user", "alice"), "admin", ("repo", "api")) is False
 
     def test_unexpired_chain_works(self, authz):
         """Access works when entire chain is unexpired."""
@@ -249,7 +249,7 @@ class TestNestedTeamsWithExpiration:
             expires_at=future,
         )
 
-        assert authz.check("alice", "admin", ("repo", "api")) is True
+        assert authz.check(("user", "alice"), "admin", ("repo", "api")) is True
 
     def test_alternate_unexpired_path_works(self, authz, db_connection):
         """Access works if at least one path is fully unexpired."""
@@ -282,14 +282,14 @@ class TestNestedTeamsWithExpiration:
         authz.grant("admin", resource=("repo", "api"), subject=("team", "platform"))
 
         # alice can access via security path
-        assert authz.check("alice", "admin", ("repo", "api")) is True
+        assert authz.check(("user", "alice"), "admin", ("repo", "api")) is True
 
 
 class TestListWithNestedTeams:
     """Test list functions with nested teams."""
 
-    def test_list_users_includes_nested_members(self, authz):
-        """list_users returns users from all nested teams."""
+    def test_list_subjects_includes_nested_members(self, authz):
+        """list_subjects returns subjects from all nested teams."""
         # alice in infra in platform
         # bob directly in platform
         authz.grant("member", resource=("team", "infra"), subject=("user", "alice"))
@@ -298,13 +298,13 @@ class TestListWithNestedTeams:
 
         authz.grant("read", resource=("doc", "1"), subject=("team", "platform"))
 
-        users = authz.list_users("read", ("doc", "1"))
+        subjects = authz.list_subjects("read", ("doc", "1"))
 
-        assert "alice" in users
-        assert "bob" in users
+        assert ("user", "alice") in subjects
+        assert ("user", "bob") in subjects
 
-    def test_list_users_deep_nesting(self, authz):
-        """list_users works with deeply nested teams."""
+    def test_list_subjects_deep_nesting(self, authz):
+        """list_subjects works with deeply nested teams."""
         # alice in a in b in c
         authz.grant("member", resource=("team", "a"), subject=("user", "alice"))
         authz.grant("member", resource=("team", "b"), subject=("team", "a"))
@@ -312,8 +312,8 @@ class TestListWithNestedTeams:
 
         authz.grant("read", resource=("doc", "1"), subject=("team", "c"))
 
-        users = authz.list_users("read", ("doc", "1"))
-        assert "alice" in users
+        subjects = authz.list_subjects("read", ("doc", "1"))
+        assert ("user", "alice") in subjects
 
     def test_list_resources_via_nested_teams(self, authz):
         """list_resources returns resources accessible via nested teams."""
@@ -325,7 +325,7 @@ class TestListWithNestedTeams:
         # Grant to platform (alice gets via nesting)
         authz.grant("read", resource=("doc", "2"), subject=("team", "platform"))
 
-        resources = authz.list_resources("alice", "doc", "read")
+        resources = authz.list_resources(("user", "alice"), "doc", "read")
 
         assert "1" in resources
         assert "2" in resources
@@ -338,7 +338,7 @@ class TestListWithNestedTeams:
         authz.grant("read", resource=("doc", "3"), subject=("team", "infra"))
 
         authorized = authz.filter_authorized(
-            "alice", "doc", "read", ["1", "2", "3", "4"]
+            ("user", "alice"), "doc", "read", ["1", "2", "3", "4"]
         )
 
         assert "1" in authorized  # via platform
@@ -366,9 +366,9 @@ class TestSubjectRelationWithNestedTeams:
         )
 
         # alice (admin) can write
-        assert authz.check("alice", "write", ("repo", "api")) is True
+        assert authz.check(("user", "alice"), "write", ("repo", "api")) is True
         # bob (member) cannot write
-        assert authz.check("bob", "write", ("repo", "api")) is False
+        assert authz.check(("user", "bob"), "write", ("repo", "api")) is False
 
     def test_null_subject_relation_matches_all(self, authz):
         """Grant without subject_relation matches any relation."""
@@ -379,5 +379,5 @@ class TestSubjectRelationWithNestedTeams:
         authz.grant("read", resource=("repo", "api"), subject=("team", "eng"))
 
         # Both can read
-        assert authz.check("alice", "read", ("repo", "api")) is True
-        assert authz.check("bob", "read", ("repo", "api")) is True
+        assert authz.check(("user", "alice"), "read", ("repo", "api")) is True
+        assert authz.check(("user", "bob"), "read", ("repo", "api")) is True

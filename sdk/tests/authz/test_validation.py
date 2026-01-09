@@ -22,7 +22,7 @@ class TestBoundaryConditions:
         """Identifiers at max length (1024) work correctly."""
         long_id = "a" * 1024
         authz.grant("read", resource=("doc", long_id), subject=("user", "alice"))
-        assert authz.check("alice", "read", ("doc", long_id))
+        assert authz.check(("user", "alice"), "read", ("doc", long_id))
 
     def test_identifier_over_max_length_rejected(self, authz):
         """Identifiers over 1024 chars are rejected."""
@@ -33,25 +33,25 @@ class TestBoundaryConditions:
     def test_single_char_identifiers(self, authz):
         """Single character identifiers work."""
         authz.grant("r", resource=("d", "1"), subject=("user", "a"))
-        assert authz.check("a", "r", ("d", "1"))
+        assert authz.check(("user", "a"), "r", ("d", "1"))
 
     def test_numeric_looking_ids(self, authz):
         """IDs that look like numbers work correctly."""
         authz.grant("read", resource=("doc", "12345"), subject=("user", "67890"))
-        assert authz.check("67890", "read", ("doc", "12345"))
+        assert authz.check(("user", "67890"), "read", ("doc", "12345"))
 
     def test_uuid_style_ids(self, authz):
         """UUID-style IDs work correctly."""
         uuid_id = "550e8400-e29b-41d4-a716-446655440000"
         authz.grant("read", resource=("doc", uuid_id), subject=("user", "alice"))
-        assert authz.check("alice", "read", ("doc", uuid_id))
+        assert authz.check(("user", "alice"), "read", ("doc", uuid_id))
 
     def test_special_chars_in_ids(self, authz):
         """IDs with allowed special characters work."""
         # Underscores, hyphens, dots are typically allowed
         special_id = "my-doc_v1.0"
         authz.grant("read", resource=("doc", special_id), subject=("user", "alice"))
-        assert authz.check("alice", "read", ("doc", special_id))
+        assert authz.check(("user", "alice"), "read", ("doc", special_id))
 
     def test_empty_id_rejected(self, authz):
         """Empty IDs are rejected."""
@@ -85,14 +85,18 @@ class TestBulkValidation:
         """bulk_grant rejects arrays with empty strings."""
         with pytest.raises(AuthzError, match=r"subject_ids\[2\] is empty"):
             authz.bulk_grant(
-                "read", resource=("doc", "1"), subject_ids=["alice", "", "bob"]
+                "read",
+                resource=("doc", "1"),
+                subjects=[("user", "alice"), ("user", ""), ("user", "bob")],
             )
 
     def test_bulk_grant_rejects_whitespace_only(self, authz):
         """bulk_grant rejects arrays with whitespace-only strings."""
         with pytest.raises(AuthzError, match=r"subject_ids\[2\] is empty"):
             authz.bulk_grant(
-                "read", resource=("doc", "1"), subject_ids=["alice", "   ", "bob"]
+                "read",
+                resource=("doc", "1"),
+                subjects=[("user", "alice"), ("user", "   "), ("user", "bob")],
             )
 
     def test_bulk_grant_rejects_too_long(self, authz):
@@ -100,18 +104,22 @@ class TestBulkValidation:
         too_long = "a" * 1025
         with pytest.raises(AuthzError, match=r"subject_ids\[2\] exceeds 1024"):
             authz.bulk_grant(
-                "read", resource=("doc", "1"), subject_ids=["alice", too_long]
+                "read",
+                resource=("doc", "1"),
+                subjects=[("user", "alice"), ("user", too_long)],
             )
 
     def test_bulk_grant_valid_array_succeeds(self, authz):
         """bulk_grant works with valid arrays."""
         count = authz.bulk_grant(
-            "read", resource=("doc", "1"), subject_ids=["alice", "bob", "carol"]
+            "read",
+            resource=("doc", "1"),
+            subjects=[("user", "alice"), ("user", "bob"), ("user", "carol")],
         )
         assert count == 3
-        assert authz.check("alice", "read", ("doc", "1"))
-        assert authz.check("bob", "read", ("doc", "1"))
-        assert authz.check("carol", "read", ("doc", "1"))
+        assert authz.check(("user", "alice"), "read", ("doc", "1"))
+        assert authz.check(("user", "bob"), "read", ("doc", "1"))
+        assert authz.check(("user", "carol"), "read", ("doc", "1"))
 
     def test_bulk_grant_resources_rejects_group_membership(self, authz):
         """bulk_grant_resources rejects group-to-group memberships (cycle risk)."""
@@ -230,7 +238,7 @@ class TestSDKValidation:
             subject=("user", "alice@example.com"),
         )
 
-        assert authz.check("alice@example.com", "read", ("doc", "acme/doc-1"))
+        assert authz.check(("user", "alice@example.com"), "read", ("doc", "acme/doc-1"))
 
 
 class TestValidationEdgeCases:
@@ -239,7 +247,7 @@ class TestValidationEdgeCases:
     def test_unicode_in_ids(self, authz):
         """Unicode characters in IDs work correctly."""
         authz.grant("read", resource=("doc", "文档-1"), subject=("user", "用户-alice"))
-        assert authz.check("用户-alice", "read", ("doc", "文档-1"))
+        assert authz.check(("user", "用户-alice"), "read", ("doc", "文档-1"))
 
     def test_special_chars_in_ids(self, authz):
         """Special characters in IDs work correctly."""
@@ -249,7 +257,7 @@ class TestValidationEdgeCases:
             subject=("user", "alice+test@example.com"),
         )
         assert authz.check(
-            "alice+test@example.com",
+            ("user", "alice+test@example.com"),
             "read",
             ("doc", "path/to/doc#section?v=1"),
         )
@@ -326,7 +334,7 @@ class TestNamespaceValidation:
         for ns in valid:
             client = make_authz(ns)
             client.grant("read", resource=("doc", "1"), subject=("user", "alice"))
-            assert client.check("alice", "read", ("doc", "1"))
+            assert client.check(("user", "alice"), "read", ("doc", "1"))
 
     def test_rejects_null(self, make_authz):
         with pytest.raises(AuthzError):

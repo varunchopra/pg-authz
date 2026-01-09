@@ -15,7 +15,7 @@ class TestExpiringPermissions:
             "read", resource=("doc", "1"), subject=("user", "alice"), expires_at=expires
         )
 
-        assert authz.check("alice", "read", ("doc", "1")) is True
+        assert authz.check(("user", "alice"), "read", ("doc", "1")) is True
 
     def test_expired_permission_denied(self, authz, db_connection):
         """Expired permissions return false."""
@@ -31,7 +31,7 @@ class TestExpiringPermissions:
             (authz.namespace,),
         )
 
-        assert authz.check("alice", "read", ("doc", "1")) is False
+        assert authz.check(("user", "alice"), "read", ("doc", "1")) is False
 
     def test_expiration_propagates_through_groups(self, authz):
         """Group membership expiration propagates to permissions."""
@@ -49,7 +49,7 @@ class TestExpiringPermissions:
         authz.grant("admin", resource=("repo", "api"), subject=("team", "eng"))
 
         # Alice has access (via team)
-        assert authz.check("alice", "admin", ("repo", "api")) is True
+        assert authz.check(("user", "alice"), "admin", ("repo", "api")) is True
 
     def test_expired_membership_blocks_access(self, authz, db_connection):
         """Expired membership blocks access even if grant is valid."""
@@ -69,10 +69,10 @@ class TestExpiringPermissions:
         authz.grant("admin", resource=("repo", "api"), subject=("team", "eng"))
 
         # Alice does NOT have access because membership is expired
-        assert authz.check("alice", "admin", ("repo", "api")) is False
+        assert authz.check(("user", "alice"), "admin", ("repo", "api")) is False
 
-    def test_list_users_excludes_expired(self, authz, db_connection):
-        """list_users does not return users with expired permissions."""
+    def test_list_subjects_excludes_expired(self, authz, db_connection):
+        """list_subjects does not return subjects with expired permissions."""
         cursor = db_connection.cursor()
 
         # Alice: valid permission
@@ -88,9 +88,9 @@ class TestExpiringPermissions:
             (authz.namespace,),
         )
 
-        users = authz.list_users("read", ("doc", "1"))
-        assert "alice" in users
-        assert "bob" not in users
+        subjects = authz.list_subjects("read", ("doc", "1"))
+        assert ("user", "alice") in subjects
+        assert ("user", "bob") not in subjects
 
     def test_list_resources_excludes_expired(self, authz, db_connection):
         """list_resources does not return resources with expired permissions."""
@@ -109,7 +109,7 @@ class TestExpiringPermissions:
             (authz.namespace,),
         )
 
-        resources = authz.list_resources("alice", "doc", "read")
+        resources = authz.list_resources(("user", "alice"), "doc", "read")
         assert "1" in resources
         assert "2" not in resources
 
@@ -167,9 +167,9 @@ class TestExpiringPermissions:
         )
 
         # All permissions should work
-        assert authz.check("alice", "admin", ("repo", "api"))
-        assert authz.check("alice", "write", ("repo", "api"))
-        assert authz.check("alice", "read", ("repo", "api"))
+        assert authz.check(("user", "alice"), "admin", ("repo", "api"))
+        assert authz.check(("user", "alice"), "write", ("repo", "api"))
+        assert authz.check(("user", "alice"), "read", ("repo", "api"))
 
 
 class TestListExpiring:
@@ -265,8 +265,8 @@ class TestCleanupExpired:
         result = authz.cleanup_expired()
 
         assert result["tuples_deleted"] == 0
-        assert authz.check("alice", "read", ("doc", "1")) is True
-        assert authz.check("bob", "read", ("doc", "2")) is True
+        assert authz.check(("user", "alice"), "read", ("doc", "1")) is True
+        assert authz.check(("user", "bob"), "read", ("doc", "2")) is True
 
 
 class TestSetExpiration:
@@ -383,8 +383,10 @@ class TestExpirationWithBatchOperations:
         )
 
         # Should find read but not write
-        assert authz.check_any("alice", ["read", "write"], ("doc", "1")) is True
-        assert authz.check("alice", "write", ("doc", "1")) is False
+        assert (
+            authz.check_any(("user", "alice"), ["read", "write"], ("doc", "1")) is True
+        )
+        assert authz.check(("user", "alice"), "write", ("doc", "1")) is False
 
     def test_check_all_excludes_expired(self, authz, db_connection):
         """check_all excludes expired permissions."""
@@ -404,8 +406,10 @@ class TestExpirationWithBatchOperations:
         )
 
         # Should fail because write is expired
-        assert authz.check_all("alice", ["read", "write"], ("doc", "1")) is False
-        assert authz.check_all("alice", ["read"], ("doc", "1")) is True
+        assert (
+            authz.check_all(("user", "alice"), ["read", "write"], ("doc", "1")) is False
+        )
+        assert authz.check_all(("user", "alice"), ["read"], ("doc", "1")) is True
 
     def test_filter_authorized_excludes_expired(self, authz, db_connection):
         """filter_authorized excludes expired permissions."""
@@ -424,7 +428,9 @@ class TestExpirationWithBatchOperations:
             (authz.namespace,),
         )
 
-        authorized = authz.filter_authorized("alice", "doc", "read", ["1", "2", "3"])
+        authorized = authz.filter_authorized(
+            ("user", "alice"), "doc", "read", ["1", "2", "3"]
+        )
         assert "1" in authorized
         assert "2" not in authorized
         assert "3" not in authorized

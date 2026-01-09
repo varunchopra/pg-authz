@@ -18,24 +18,24 @@ class TestGroupDeletion:
         authz.grant("member", resource=("team", "eng"), subject=("user", "alice"))
         authz.grant("read", resource=("doc", "1"), subject=("team", "eng"))
 
-        assert authz.check("alice", "read", ("doc", "1"))
+        assert authz.check(("user", "alice"), "read", ("doc", "1"))
 
         # Remove team's permission (not alice's membership)
         authz.revoke("read", resource=("doc", "1"), subject=("team", "eng"))
 
-        assert not authz.check("alice", "read", ("doc", "1"))
+        assert not authz.check(("user", "alice"), "read", ("doc", "1"))
 
     def test_removing_user_from_team_removes_access(self, authz):
         """Removing user from team removes their team-based access."""
         authz.grant("member", resource=("team", "eng"), subject=("user", "alice"))
         authz.grant("read", resource=("doc", "1"), subject=("team", "eng"))
 
-        assert authz.check("alice", "read", ("doc", "1"))
+        assert authz.check(("user", "alice"), "read", ("doc", "1"))
 
         # Remove alice from team
         authz.revoke("member", resource=("team", "eng"), subject=("user", "alice"))
 
-        assert not authz.check("alice", "read", ("doc", "1"))
+        assert not authz.check(("user", "alice"), "read", ("doc", "1"))
 
     def test_deleting_all_team_members_clears_access(self, authz):
         """Removing all members from team removes their access."""
@@ -48,8 +48,8 @@ class TestGroupDeletion:
         authz.revoke("member", resource=("team", "eng"), subject=("user", "bob"))
 
         # No one can access via team anymore
-        assert not authz.check("alice", "read", ("doc", "1"))
-        assert not authz.check("bob", "read", ("doc", "1"))
+        assert not authz.check(("user", "alice"), "read", ("doc", "1"))
+        assert not authz.check(("user", "bob"), "read", ("doc", "1"))
 
 
 class TestGroupMembership:
@@ -60,7 +60,7 @@ class TestGroupMembership:
         authz.grant("member", resource=("team", "eng"), subject=("user", "alice"))
         authz.grant("read", resource=("doc", "1"), subject=("team", "eng"))
 
-        assert authz.check("alice", "read", ("doc", "1"))
+        assert authz.check(("user", "alice"), "read", ("doc", "1"))
 
     def test_multiple_users_in_team(self, authz):
         """Multiple users in same team all get permissions."""
@@ -68,8 +68,8 @@ class TestGroupMembership:
         authz.grant("member", resource=("team", "eng"), subject=("user", "bob"))
         authz.grant("read", resource=("doc", "1"), subject=("team", "eng"))
 
-        assert authz.check("alice", "read", ("doc", "1"))
-        assert authz.check("bob", "read", ("doc", "1"))
+        assert authz.check(("user", "alice"), "read", ("doc", "1"))
+        assert authz.check(("user", "bob"), "read", ("doc", "1"))
 
     def test_user_in_multiple_teams(self, authz):
         """User can be in multiple teams and get all permissions."""
@@ -78,8 +78,8 @@ class TestGroupMembership:
         authz.grant("read", resource=("doc", "1"), subject=("team", "eng"))
         authz.grant("write", resource=("doc", "2"), subject=("team", "ops"))
 
-        assert authz.check("alice", "read", ("doc", "1"))
-        assert authz.check("alice", "write", ("doc", "2"))
+        assert authz.check(("user", "alice"), "read", ("doc", "1"))
+        assert authz.check(("user", "alice"), "write", ("doc", "2"))
 
     def test_team_permissions_combine_with_hierarchy(self, authz):
         """Team permissions work with hierarchy expansion."""
@@ -88,9 +88,9 @@ class TestGroupMembership:
         authz.grant("admin", resource=("doc", "1"), subject=("team", "eng"))
 
         # alice gets admin from team, plus write and read from hierarchy
-        assert authz.check("alice", "admin", ("doc", "1"))
-        assert authz.check("alice", "write", ("doc", "1"))
-        assert authz.check("alice", "read", ("doc", "1"))
+        assert authz.check(("user", "alice"), "admin", ("doc", "1"))
+        assert authz.check(("user", "alice"), "write", ("doc", "1"))
+        assert authz.check(("user", "alice"), "read", ("doc", "1"))
 
 
 class TestSubjectRelations:
@@ -116,7 +116,7 @@ class TestSubjectRelations:
         )
 
         # alice should have access via team#admin
-        assert authz.check("alice", "read", ("repo", "api"))
+        assert authz.check(("user", "alice"), "read", ("repo", "api"))
 
     def test_member_not_matching_admin_relation(self, authz):
         """User with 'member' doesn't get access via 'admin' subject_relation."""
@@ -132,7 +132,7 @@ class TestSubjectRelations:
         )
 
         # bob is member, not admin, so no access
-        assert not authz.check("bob", "read", ("repo", "api"))
+        assert not authz.check(("user", "bob"), "read", ("repo", "api"))
 
     def test_both_member_and_admin_get_respective_access(self, authz):
         """Users get access based on their specific relation."""
@@ -155,10 +155,10 @@ class TestSubjectRelations:
         )
 
         # alice (admin) gets write
-        assert authz.check("alice", "write", ("repo", "api"))
+        assert authz.check(("user", "alice"), "write", ("repo", "api"))
         # bob (member) gets read only
-        assert authz.check("bob", "read", ("repo", "api"))
-        assert not authz.check("bob", "write", ("repo", "api"))
+        assert authz.check(("user", "bob"), "read", ("repo", "api"))
+        assert not authz.check(("user", "bob"), "write", ("repo", "api"))
 
     def test_default_member_relation_still_works(self, authz):
         """Regular grant() still uses default 'member' relation."""
@@ -169,7 +169,7 @@ class TestSubjectRelations:
         authz.grant("read", resource=("doc", "1"), subject=("team", "eng"))
 
         # charlie should have access via default member relation
-        assert authz.check("charlie", "read", ("doc", "1"))
+        assert authz.check(("user", "charlie"), "read", ("doc", "1"))
 
 
 class TestGroupEdgeCases:
@@ -181,15 +181,15 @@ class TestGroupEdgeCases:
         authz.bulk_grant(
             "member",
             resource=("team", "big-team"),
-            subject_ids=[f"user-{i}" for i in range(100)],
+            subjects=[("user", f"user-{i}") for i in range(100)],
         )
 
         for i in range(100):
-            assert authz.check(f"user-{i}", "read", ("doc", "1"))
+            assert authz.check(("user", f"user-{i}"), "read", ("doc", "1"))
 
     def test_empty_group(self, authz):
         """Group with no members grants no access."""
         authz.grant("read", resource=("doc", "1"), subject=("team", "empty-team"))
 
         # No one has access since the team has no members
-        assert not authz.check("anyone", "read", ("doc", "1"))
+        assert not authz.check(("user", "anyone"), "read", ("doc", "1"))

@@ -20,7 +20,7 @@ class TestBasicResourceHierarchy:
         authz.grant("read", resource=("folder", "docs"), subject=("user", "alice"))
 
         # Alice should be able to read the doc inside
-        assert authz.check("alice", "read", ("doc", "readme"))
+        assert authz.check(("user", "alice"), "read", ("doc", "readme"))
 
     def test_no_folder_access_no_doc_access(self, authz):
         """User without folder access cannot access docs in folder."""
@@ -29,7 +29,7 @@ class TestBasicResourceHierarchy:
 
         # Alice has no access to the folder
         # Alice should not be able to read the doc
-        assert not authz.check("alice", "read", ("doc", "readme"))
+        assert not authz.check(("user", "alice"), "read", ("doc", "readme"))
 
     def test_direct_doc_access_without_folder(self, authz):
         """Direct grant on doc works without folder access."""
@@ -40,9 +40,9 @@ class TestBasicResourceHierarchy:
         authz.grant("read", resource=("doc", "readme"), subject=("user", "alice"))
 
         # Alice can read the doc directly
-        assert authz.check("alice", "read", ("doc", "readme"))
+        assert authz.check(("user", "alice"), "read", ("doc", "readme"))
         # But not the folder
-        assert not authz.check("alice", "read", ("folder", "docs"))
+        assert not authz.check(("user", "alice"), "read", ("folder", "docs"))
 
 
 class TestNestedResourceHierarchy:
@@ -58,7 +58,7 @@ class TestNestedResourceHierarchy:
         authz.grant("read", resource=("org", "acme"), subject=("user", "alice"))
 
         # Alice should be able to read the doc
-        assert authz.check("alice", "read", ("doc", "spec"))
+        assert authz.check(("user", "alice"), "read", ("doc", "spec"))
 
     def test_middle_level_access(self, authz):
         """Access at middle level grants access to children only."""
@@ -70,9 +70,9 @@ class TestNestedResourceHierarchy:
         authz.grant("read", resource=("project", "api"), subject=("user", "alice"))
 
         # Alice can read the doc (child)
-        assert authz.check("alice", "read", ("doc", "spec"))
+        assert authz.check(("user", "alice"), "read", ("doc", "spec"))
         # But not the org (parent)
-        assert not authz.check("alice", "read", ("org", "acme"))
+        assert not authz.check(("user", "alice"), "read", ("org", "acme"))
 
 
 class TestResourceHierarchyWithPermissionHierarchy:
@@ -91,7 +91,7 @@ class TestResourceHierarchyWithPermissionHierarchy:
         authz.grant("admin", resource=("folder", "docs"), subject=("user", "alice"))
 
         # Alice should be able to read the doc
-        assert authz.check("alice", "read", ("doc", "readme"))
+        assert authz.check(("user", "alice"), "read", ("doc", "readme"))
 
     def test_write_on_folder_gives_write_on_doc(self, authz):
         """Write permission propagates to child resources."""
@@ -102,7 +102,7 @@ class TestResourceHierarchyWithPermissionHierarchy:
         authz.grant("write", resource=("folder", "docs"), subject=("user", "alice"))
 
         # Alice should be able to write to the doc
-        assert authz.check("alice", "write", ("doc", "readme"))
+        assert authz.check(("user", "alice"), "write", ("doc", "readme"))
 
 
 class TestResourceHierarchyWithGroups:
@@ -124,7 +124,7 @@ class TestResourceHierarchyWithGroups:
         )
 
         # Alice should be able to read the doc
-        assert authz.check("alice", "read", ("doc", "readme"))
+        assert authz.check(("user", "alice"), "read", ("doc", "readme"))
 
     def test_nested_team_with_resource_hierarchy(self, authz):
         """Nested teams work with resource hierarchies."""
@@ -145,7 +145,7 @@ class TestResourceHierarchyWithGroups:
         )
 
         # Alice should be able to read the doc
-        assert authz.check("alice", "read", ("doc", "readme"))
+        assert authz.check(("user", "alice"), "read", ("doc", "readme"))
 
 
 class TestResourceHierarchyCycleDetection:
@@ -182,8 +182,8 @@ class TestResourceHierarchyCycleDetection:
 class TestListingWithResourceHierarchy:
     """Tests for list operations with resource hierarchies."""
 
-    def test_list_users_includes_parent_access(self, authz):
-        """list_users on doc includes users with folder access."""
+    def test_list_subjects_includes_parent_access(self, authz):
+        """list_subjects on doc includes subjects with folder access."""
         # doc:readme is inside folder:docs
         authz.grant("parent", resource=("doc", "readme"), subject=("folder", "docs"))
 
@@ -193,10 +193,10 @@ class TestListingWithResourceHierarchy:
         # Bob has access via folder
         authz.grant("read", resource=("folder", "docs"), subject=("user", "bob"))
 
-        users = authz.list_users("read", ("doc", "readme"))
+        subjects = authz.list_subjects("read", ("doc", "readme"))
 
-        assert "alice" in users
-        assert "bob" in users
+        assert ("user", "alice") in subjects
+        assert ("user", "bob") in subjects
 
     def test_list_resources_includes_child_resources(self, authz):
         """list_resources includes resources accessible via parent."""
@@ -210,7 +210,7 @@ class TestListingWithResourceHierarchy:
         # Alice also has direct access to another doc
         authz.grant("read", resource=("doc", "other"), subject=("user", "alice"))
 
-        resources = authz.list_resources("alice", "doc", "read")
+        resources = authz.list_resources(("user", "alice"), "doc", "read")
 
         assert "readme" in resources
         assert "changelog" in resources
@@ -225,7 +225,7 @@ class TestListingWithResourceHierarchy:
         authz.grant("read", resource=("folder", "docs"), subject=("user", "alice"))
 
         authorized = authz.filter_authorized(
-            "alice", "doc", "read", ["readme", "secret", "other"]
+            ("user", "alice"), "doc", "read", ["readme", "secret", "other"]
         )
 
         assert authorized == ["readme"]
@@ -242,7 +242,7 @@ class TestExplainWithResourceHierarchy:
         # Alice can read the folder
         authz.grant("read", resource=("folder", "docs"), subject=("user", "alice"))
 
-        explanation = authz.explain("alice", "read", ("doc", "readme"))
+        explanation = authz.explain(("user", "alice"), "read", ("doc", "readme"))
 
         # Should have at least one explanation showing access
         assert len(explanation) > 0

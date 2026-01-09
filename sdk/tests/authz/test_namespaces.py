@@ -22,7 +22,7 @@ class TestNamespaceIsolation:
         other_ns = make_authz("other_tenant")
 
         # Must not have access in other namespace
-        assert not other_ns.check("alice", "read", ("doc", "secret"))
+        assert not other_ns.check(("user", "alice"), "read", ("doc", "secret"))
 
     def test_same_resource_different_permissions_per_namespace(self, make_authz):
         """Same resource ID can have different permissions in different namespaces."""
@@ -32,25 +32,37 @@ class TestNamespaceIsolation:
         tenant_a.grant("admin", resource=("doc", "1"), subject=("user", "alice"))
         tenant_b.grant("read", resource=("doc", "1"), subject=("user", "alice"))
 
-        assert tenant_a.check("alice", "admin", ("doc", "1"))
-        assert not tenant_b.check("alice", "admin", ("doc", "1"))
-        assert tenant_b.check("alice", "read", ("doc", "1"))
+        assert tenant_a.check(("user", "alice"), "admin", ("doc", "1"))
+        assert not tenant_b.check(("user", "alice"), "admin", ("doc", "1"))
+        assert tenant_b.check(("user", "alice"), "read", ("doc", "1"))
 
-    def test_hierarchy_rules_namespace_scoped(self, make_authz):
-        """Hierarchy rules in one namespace don't affect another."""
+    def test_hierarchy_rules_are_global(self, make_authz, db_connection):
+        """Hierarchy rules in 'global' namespace apply to all tenants."""
+        # Clean up any existing global hierarchies first
+        with db_connection.cursor() as cur:
+            cur.execute(
+                "DELETE FROM authz.permission_hierarchy WHERE namespace = 'global'"
+            )
+
+        # Add hierarchy via global namespace client
+        global_authz = make_authz("global")
+        global_authz.set_hierarchy("doc", "admin", "read")
+
         tenant_a = make_authz("tenant_a_hier")
         tenant_b = make_authz("tenant_b_hier")
-
-        # Only tenant_a has hierarchy
-        tenant_a.set_hierarchy("doc", "admin", "read")
 
         tenant_a.grant("admin", resource=("doc", "1"), subject=("user", "alice"))
         tenant_b.grant("admin", resource=("doc", "1"), subject=("user", "alice"))
 
-        # tenant_a: admin implies read
-        assert tenant_a.check("alice", "read", ("doc", "1"))
-        # tenant_b: no hierarchy, so admin does NOT imply read
-        assert not tenant_b.check("alice", "read", ("doc", "1"))
+        # Both tenants: admin implies read (hierarchy is global)
+        assert tenant_a.check(("user", "alice"), "read", ("doc", "1"))
+        assert tenant_b.check(("user", "alice"), "read", ("doc", "1"))
+
+        # Cleanup
+        with db_connection.cursor() as cur:
+            cur.execute(
+                "DELETE FROM authz.permission_hierarchy WHERE namespace = 'global'"
+            )
 
     def test_group_membership_namespace_scoped(self, make_authz):
         """Group membership in one namespace doesn't grant access in another."""
@@ -65,6 +77,6 @@ class TestNamespaceIsolation:
         tenant_b.grant("read", resource=("doc", "1"), subject=("team", "eng"))
 
         # tenant_a: alice can read via team membership
-        assert tenant_a.check("alice", "read", ("doc", "1"))
+        assert tenant_a.check(("user", "alice"), "read", ("doc", "1"))
         # tenant_b: alice cannot read (not a member in this namespace)
-        assert not tenant_b.check("alice", "read", ("doc", "1"))
+        assert not tenant_b.check(("user", "alice"), "read", ("doc", "1"))

@@ -4,6 +4,18 @@ Consistency and statistics tests for postkit/authz.
 These tests verify data integrity checks and statistics functions.
 """
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def cleanup_global_hierarchies(db_connection):
+    """Clean up global hierarchies before and after each test."""
+    with db_connection.cursor() as cur:
+        cur.execute("DELETE FROM authz.permission_hierarchy WHERE namespace = 'global'")
+    yield
+    with db_connection.cursor() as cur:
+        cur.execute("DELETE FROM authz.permission_hierarchy WHERE namespace = 'global'")
+
 
 class TestStatistics:
     """Test the stats monitoring function."""
@@ -85,7 +97,7 @@ class TestLazyEvaluationCorrectness:
             authz.grant("read", resource=("doc", "1"), subject=("team", team))
             authz.grant("member", resource=("team", team), subject=("user", "alice"))
 
-        assert authz.check("alice", "read", ("doc", "1"))
+        assert authz.check(("user", "alice"), "read", ("doc", "1"))
 
     def test_direct_and_group_both_work(self, authz):
         """User with direct grant and group membership has access."""
@@ -93,7 +105,7 @@ class TestLazyEvaluationCorrectness:
         authz.grant("member", resource=("team", "eng"), subject=("user", "alice"))
         authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
 
-        assert authz.check("alice", "read", ("doc", "1"))
+        assert authz.check(("user", "alice"), "read", ("doc", "1"))
 
     def test_diamond_hierarchy_works(self, authz):
         """Diamond hierarchy pattern produces correct results."""
@@ -107,7 +119,7 @@ class TestLazyEvaluationCorrectness:
         authz.grant("admin", resource=("doc", "1"), subject=("user", "alice"))
 
         # view is implied by both write and read
-        assert authz.check("alice", "view", ("doc", "1"))
-        assert authz.check("alice", "admin", ("doc", "1"))
-        assert authz.check("alice", "write", ("doc", "1"))
-        assert authz.check("alice", "read", ("doc", "1"))
+        assert authz.check(("user", "alice"), "view", ("doc", "1"))
+        assert authz.check(("user", "alice"), "admin", ("doc", "1"))
+        assert authz.check(("user", "alice"), "write", ("doc", "1"))
+        assert authz.check(("user", "alice"), "read", ("doc", "1"))

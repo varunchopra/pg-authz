@@ -131,11 +131,11 @@ class TestRowLevelSecurity:
 
         # As tenant-a, can verify permission
         tenant_a = AuthzClient(cursor, "tenant-a")
-        assert tenant_a.check("alice", "read", ("doc", "rls-2")) is True
+        assert tenant_a.check(("user", "alice"), "read", ("doc", "rls-2")) is True
 
         # As tenant-b, cannot see tenant-a's permission
         tenant_b = AuthzClient(cursor, "tenant-b")
-        assert tenant_b.check("alice", "read", ("doc", "rls-2")) is False
+        assert tenant_b.check(("user", "alice"), "read", ("doc", "rls-2")) is False
 
     def test_tenant_isolation_audit(
         self, rls_connection, db_connection, cleanup_tenant_a
@@ -227,3 +227,99 @@ class TestRowLevelSecurity:
         # No longer see data (RLS filters out)
         cursor.execute("SELECT * FROM authz.tuples WHERE namespace = 'tenant-a'")
         assert cursor.fetchall() == []
+
+    def test_recipient_can_leave_cross_org_share(self, rls_connection, db_connection):
+        """Recipients can delete/leave shares where they are the subject."""
+        # Org A (superuser) shares a doc with alice
+        superuser_cursor = db_connection.cursor()
+        org_a = AuthzClient(superuser_cursor, "org-a")
+        org_a.grant("read", resource=("doc", "shared-1"), subject=("user", "alice"))
+
+        # Verify share exists
+        superuser_cursor.execute(
+            "SELECT * FROM authz.tuples WHERE namespace = 'org-a' AND resource_id = 'shared-1'"
+        )
+        assert len(superuser_cursor.fetchall()) == 1
+
+        # Alice (in org-b) connects as non-superuser
+        cursor = rls_connection.cursor()
+
+        # Set tenant to org-b (alice's org, different from where share exists)
+        org_b = AuthzClient(cursor, "org-b")
+
+        # Set alice's viewer context (required for recipient policies)
+        org_b.set_viewer(("user", "alice"))
+
+        # Alice can SEE the share (recipient_visibility policy)
+        cursor.execute(
+            """
+            SELECT * FROM authz.tuples
+            WHERE subject_type = 'user' AND subject_id = 'alice'
+            AND namespace = 'org-a'
+            """
+        )
+        shares = cursor.fetchall()
+        assert len(shares) == 1
+
+        # Alice can DELETE/LEAVE the share (recipient_can_leave policy)
+        cursor.execute(
+            """
+            DELETE FROM authz.tuples
+            WHERE namespace = 'org-a'
+            AND resource_type = 'doc' AND resource_id = 'shared-1'
+            AND subject_type = 'user' AND subject_id = 'alice'
+            """
+        )
+
+        # Verify share is gone
+        superuser_cursor.execute(
+            "SELECT * FROM authz.tuples WHERE namespace = 'org-a' AND resource_id = 'shared-1'"
+        )
+        assert len(superuser_cursor.fetchall()) == 0
+
+        # Cleanup
+        db_connection.execute(
+            "DELETE FROM authz.audit_events WHERE namespace = 'org-a'"
+        )
+
+    def test_recipient_cannot_delete_others_shares(self, rls_connection, db_connection):
+        """Recipients can only delete shares where THEY are the subject."""
+        # Org A shares a doc with bob (not alice)
+        superuser_cursor = db_connection.cursor()
+        org_a = AuthzClient(superuser_cursor, "org-a")
+        org_a.grant("read", resource=("doc", "bobs-share"), subject=("user", "bob"))
+
+        # Alice tries to delete bob's share
+        cursor = rls_connection.cursor()
+        org_b = AuthzClient(cursor, "org-b")
+        org_b.set_viewer(("user", "alice"))
+
+        # Alice cannot see bob's share (recipient_visibility only shows YOUR shares)
+        cursor.execute(
+            """
+            SELECT * FROM authz.tuples
+            WHERE namespace = 'org-a' AND resource_id = 'bobs-share'
+            """
+        )
+        assert len(cursor.fetchall()) == 0
+
+        # Alice cannot delete bob's share (even with direct DELETE)
+        cursor.execute(
+            """
+            DELETE FROM authz.tuples
+            WHERE namespace = 'org-a' AND resource_id = 'bobs-share'
+            """
+        )
+        # Should delete 0 rows (RLS filters it out)
+
+        # Verify bob's share still exists
+        superuser_cursor.execute(
+            "SELECT * FROM authz.tuples WHERE namespace = 'org-a' AND resource_id = 'bobs-share'"
+        )
+        assert len(superuser_cursor.fetchall()) == 1
+
+        # Cleanup
+        db_connection.execute("DELETE FROM authz.tuples WHERE namespace = 'org-a'")
+        db_connection.execute(
+            "DELETE FROM authz.audit_events WHERE namespace = 'org-a'"
+        )

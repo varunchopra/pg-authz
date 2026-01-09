@@ -61,7 +61,7 @@ def authz(db_connection, request):
     Example:
         def test_permissions(authz):
             authz.grant("admin", resource=("repo", "api"), subject=("user", "alice"))
-            assert authz.check("alice", "read", ("repo", "api"))
+            assert authz.check(("user", "alice"), "read", ("repo", "api"))
     """
     namespace = _make_namespace(request)
     cursor = db_connection.cursor()

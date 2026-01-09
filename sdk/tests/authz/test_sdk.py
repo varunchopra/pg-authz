@@ -12,10 +12,10 @@ class TestGrantAndCheck:
     def test_grant_allows_access(self, authz):
         authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
 
-        assert authz.check("alice", "read", ("doc", "1"))
+        assert authz.check(("user", "alice"), "read", ("doc", "1"))
 
     def test_no_grant_means_no_access(self, authz):
-        assert not authz.check("alice", "read", ("doc", "1"))
+        assert not authz.check(("user", "alice"), "read", ("doc", "1"))
 
     def test_grant_is_idempotent(self, authz):
         id1 = authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
@@ -26,8 +26,8 @@ class TestGrantAndCheck:
     def test_different_permissions_are_independent(self, authz):
         authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
 
-        assert authz.check("alice", "read", ("doc", "1"))
-        assert not authz.check("alice", "write", ("doc", "1"))
+        assert authz.check(("user", "alice"), "read", ("doc", "1"))
+        assert not authz.check(("user", "alice"), "write", ("doc", "1"))
 
 
 class TestRevoke:
@@ -35,18 +35,18 @@ class TestRevoke:
 
     def test_revoke_removes_access(self, authz):
         authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
-        assert authz.check("alice", "read", ("doc", "1"))
+        assert authz.check(("user", "alice"), "read", ("doc", "1"))
 
         authz.revoke("read", resource=("doc", "1"), subject=("user", "alice"))
-        assert not authz.check("alice", "read", ("doc", "1"))
+        assert not authz.check(("user", "alice"), "read", ("doc", "1"))
 
     def test_revoke_group_membership(self, authz):
         authz.grant("write", resource=("doc", "1"), subject=("team", "eng"))
         authz.grant("member", resource=("team", "eng"), subject=("user", "bob"))
-        assert authz.check("bob", "write", ("doc", "1"))
+        assert authz.check(("user", "bob"), "write", ("doc", "1"))
 
         authz.revoke("member", resource=("team", "eng"), subject=("user", "bob"))
-        assert not authz.check("bob", "write", ("doc", "1"))
+        assert not authz.check(("user", "bob"), "write", ("doc", "1"))
 
     def test_revoke_direct_keeps_group_access(self, authz):
         # Alice has access via team AND direct grant
@@ -58,7 +58,7 @@ class TestRevoke:
         authz.revoke("read", resource=("doc", "1"), subject=("user", "alice"))
 
         # Still has access via team
-        assert authz.check("alice", "read", ("doc", "1"))
+        assert authz.check(("user", "alice"), "read", ("doc", "1"))
 
     def test_revoke_nonexistent_returns_false(self, authz):
         """Revoking a permission that doesn't exist returns False."""
@@ -88,31 +88,33 @@ class TestBatchChecks:
     def test_check_any_true_if_one_matches(self, authz):
         authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
 
-        assert authz.check_any("alice", ["write", "read"], ("doc", "1"))
+        assert authz.check_any(("user", "alice"), ["write", "read"], ("doc", "1"))
 
     def test_check_any_false_if_none_match(self, authz):
         authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
 
-        assert not authz.check_any("alice", ["write", "admin"], ("doc", "1"))
+        assert not authz.check_any(("user", "alice"), ["write", "admin"], ("doc", "1"))
 
     def test_check_all_true_if_all_match(self, authz):
         authz.set_hierarchy("doc", "admin", "write", "read")
         authz.grant("admin", resource=("doc", "1"), subject=("user", "alice"))
 
-        assert authz.check_all("alice", ["admin", "write", "read"], ("doc", "1"))
+        assert authz.check_all(
+            ("user", "alice"), ["admin", "write", "read"], ("doc", "1")
+        )
 
     def test_check_all_false_if_any_missing(self, authz):
         authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
 
-        assert not authz.check_all("alice", ["read", "write"], ("doc", "1"))
+        assert not authz.check_all(("user", "alice"), ["read", "write"], ("doc", "1"))
 
     def test_check_all_empty_list_returns_true(self, authz):
         # Vacuous truth: user has all zero required permissions
-        assert authz.check_all("alice", [], ("doc", "1"))
+        assert authz.check_all(("user", "alice"), [], ("doc", "1"))
 
     def test_check_any_empty_list_returns_false(self, authz):
         # No permissions to check means none match
-        assert not authz.check_any("alice", [], ("doc", "1"))
+        assert not authz.check_any(("user", "alice"), [], ("doc", "1"))
 
 
 class TestAudit:
@@ -121,7 +123,7 @@ class TestAudit:
     def test_explain_explains_direct_grant(self, authz):
         authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
 
-        explanations = authz.explain("alice", "read", ("doc", "1"))
+        explanations = authz.explain(("user", "alice"), "read", ("doc", "1"))
 
         assert len(explanations) == 1
         assert "DIRECT" in explanations[0]
@@ -130,7 +132,7 @@ class TestAudit:
         authz.grant("write", resource=("doc", "1"), subject=("team", "eng"))
         authz.grant("member", resource=("team", "eng"), subject=("user", "alice"))
 
-        explanations = authz.explain("alice", "write", ("doc", "1"))
+        explanations = authz.explain(("user", "alice"), "write", ("doc", "1"))
 
         assert len(explanations) >= 1
         assert any("GROUP" in exp for exp in explanations)
@@ -139,38 +141,38 @@ class TestAudit:
         authz.set_hierarchy("doc", "admin", "read")
         authz.grant("admin", resource=("doc", "1"), subject=("user", "alice"))
 
-        explanations = authz.explain("alice", "read", ("doc", "1"))
+        explanations = authz.explain(("user", "alice"), "read", ("doc", "1"))
 
         assert any("HIERARCHY" in exp for exp in explanations)
 
     def test_explain_returns_no_access_message(self, authz):
-        explanations = authz.explain("alice", "read", ("doc", "1"))
+        explanations = authz.explain(("user", "alice"), "read", ("doc", "1"))
 
         assert len(explanations) == 1
         assert "NO ACCESS" in explanations[0]
 
-    def test_list_users_lists_users(self, authz):
+    def test_list_subjects_lists_subjects(self, authz):
         authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
         authz.grant("read", resource=("doc", "1"), subject=("user", "bob"))
 
-        users = authz.list_users("read", ("doc", "1"))
+        subjects = authz.list_subjects("read", ("doc", "1"))
 
-        assert "alice" in users
-        assert "bob" in users
+        assert ("user", "alice") in subjects
+        assert ("user", "bob") in subjects
 
-    def test_list_users_includes_group_members(self, authz):
+    def test_list_subjects_includes_group_members(self, authz):
         authz.grant("read", resource=("doc", "1"), subject=("team", "eng"))
         authz.grant("member", resource=("team", "eng"), subject=("user", "alice"))
 
-        users = authz.list_users("read", ("doc", "1"))
+        subjects = authz.list_subjects("read", ("doc", "1"))
 
-        assert "alice" in users
+        assert ("user", "alice") in subjects
 
     def test_list_resources_lists_resources(self, authz):
         authz.grant("read", resource=("doc", "1"), subject=("user", "alice"))
         authz.grant("read", resource=("doc", "2"), subject=("user", "alice"))
 
-        docs = authz.list_resources("alice", "doc", "read")
+        docs = authz.list_resources(("user", "alice"), "doc", "read")
 
         assert "1" in docs
         assert "2" in docs
@@ -179,66 +181,91 @@ class TestAudit:
 class TestSubjectGrants:
     """Subject grant listing and revocation (e.g., for API keys)."""
 
-    def test_list_subject_grants_returns_grants(self, authz):
-        """list_subject_grants returns all grants for a subject."""
+    def test_list_grants_returns_grants(self, authz):
+        """list_grants returns all grants for a subject."""
         authz.grant("view", resource=("note", "1"), subject=("api_key", "key-123"))
         authz.grant("edit", resource=("note", "2"), subject=("api_key", "key-123"))
 
-        grants = authz.list_subject_grants("api_key", "key-123")
+        grants = authz.list_grants(("api_key", "key-123"))
 
         assert len(grants) == 2
         resources = [g["resource"] for g in grants]
         assert ("note", "1") in resources
         assert ("note", "2") in resources
 
-    def test_list_subject_grants_filters_by_resource_type(self, authz):
-        """list_subject_grants can filter by resource type."""
+    def test_list_grants_filters_by_resource_type(self, authz):
+        """list_grants can filter by resource type."""
         authz.grant("view", resource=("note", "1"), subject=("api_key", "key-123"))
         authz.grant("view", resource=("doc", "2"), subject=("api_key", "key-123"))
 
-        grants = authz.list_subject_grants("api_key", "key-123", resource_type="note")
+        grants = authz.list_grants(("api_key", "key-123"), resource_type="note")
 
         assert len(grants) == 1
         assert grants[0]["resource"] == ("note", "1")
 
-    def test_list_subject_grants_returns_empty_for_no_grants(self, authz):
-        """list_subject_grants returns empty list when no grants exist."""
-        grants = authz.list_subject_grants("api_key", "nonexistent")
+    def test_list_grants_returns_empty_for_no_grants(self, authz):
+        """list_grants returns empty list when no grants exist."""
+        grants = authz.list_grants(("api_key", "nonexistent"))
         assert grants == []
 
-    def test_revoke_subject_grants_removes_all(self, authz):
-        """revoke_subject_grants removes all grants for a subject."""
+    def test_revoke_all_grants_removes_all(self, authz):
+        """revoke_all_grants removes all grants for a subject."""
         authz.grant("view", resource=("note", "1"), subject=("api_key", "key-123"))
         authz.grant("edit", resource=("note", "2"), subject=("api_key", "key-123"))
 
-        count = authz.revoke_subject_grants("api_key", "key-123")
+        count = authz.revoke_all_grants(("api_key", "key-123"))
 
         assert count == 2
-        assert authz.list_subject_grants("api_key", "key-123") == []
+        assert authz.list_grants(("api_key", "key-123")) == []
 
-    def test_revoke_subject_grants_filters_by_resource_type(self, authz):
-        """revoke_subject_grants can filter by resource type."""
+    def test_revoke_all_grants_filters_by_resource_type(self, authz):
+        """revoke_all_grants can filter by resource type."""
         authz.grant("view", resource=("note", "1"), subject=("api_key", "key-123"))
         authz.grant("view", resource=("doc", "2"), subject=("api_key", "key-123"))
 
-        count = authz.revoke_subject_grants("api_key", "key-123", resource_type="note")
+        count = authz.revoke_all_grants(("api_key", "key-123"), resource_type="note")
 
         assert count == 1
-        grants = authz.list_subject_grants("api_key", "key-123")
+        grants = authz.list_grants(("api_key", "key-123"))
         assert len(grants) == 1
         assert grants[0]["resource"] == ("doc", "2")
 
-    def test_revoke_subject_grants_returns_zero_for_no_grants(self, authz):
-        """revoke_subject_grants returns 0 when no grants exist."""
-        count = authz.revoke_subject_grants("api_key", "nonexistent")
+    def test_revoke_all_grants_returns_zero_for_no_grants(self, authz):
+        """revoke_all_grants returns 0 when no grants exist."""
+        count = authz.revoke_all_grants(("api_key", "nonexistent"))
         assert count == 0
 
-    def test_revoke_subject_grants_doesnt_affect_other_subjects(self, authz):
-        """revoke_subject_grants only affects the specified subject."""
+    def test_revoke_all_grants_doesnt_affect_other_subjects(self, authz):
+        """revoke_all_grants only affects the specified subject."""
         authz.grant("view", resource=("note", "1"), subject=("api_key", "key-123"))
         authz.grant("view", resource=("note", "1"), subject=("api_key", "key-456"))
 
-        authz.revoke_subject_grants("api_key", "key-123")
+        authz.revoke_all_grants(("api_key", "key-123"))
 
         # key-456 should still have access
-        assert authz.check_subject("api_key", "key-456", "view", ("note", "1"))
+        assert authz.check(("api_key", "key-456"), "view", ("note", "1"))
+
+
+class TestViewerContext:
+    """Tests for set_viewer/clear_viewer."""
+
+    def test_set_viewer(self, authz):
+        authz.set_viewer(("user", "alice"))
+        authz.cursor.execute(
+            "SELECT current_setting('authz.viewer_type', true), current_setting('authz.viewer_id', true)"
+        )
+        result = authz.cursor.fetchone()
+        assert result[0] == "user"
+        assert result[1] == "alice"
+        assert authz._viewer == ("user", "alice")
+
+    def test_clear_viewer(self, authz):
+        authz.set_viewer(("user", "alice"))
+        authz.clear_viewer()
+        authz.cursor.execute(
+            "SELECT current_setting('authz.viewer_type', true), current_setting('authz.viewer_id', true)"
+        )
+        result = authz.cursor.fetchone()
+        assert result[0] == ""
+        assert result[1] == ""
+        assert authz._viewer is None

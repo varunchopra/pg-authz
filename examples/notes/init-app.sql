@@ -168,23 +168,17 @@ CREATE INDEX IF NOT EXISTS idx_share_links_resource
     ON share_links(resource_type, resource_id);
 
 -- =============================================================================
--- PERMISSION HIERARCHIES (set up per-org when org is created)
+-- GLOBAL PERMISSION HIERARCHIES
 -- =============================================================================
--- Note: These are set up dynamically when creating an org via:
---   authz.add_hierarchy('note', 'owner', 'edit', 'org:{org_id}')
---   authz.add_hierarchy('note', 'edit', 'view', 'org:{org_id}')
---   authz.add_hierarchy('team', 'owner', 'admin', 'org:{org_id}')
---   authz.add_hierarchy('team', 'admin', 'member', 'org:{org_id}')
---   authz.add_hierarchy('org', 'owner', 'admin', 'org:{org_id}')
---   authz.add_hierarchy('org', 'admin', 'member', 'org:{org_id}')
-
--- Legacy hierarchies for backward compatibility (will be removed)
-SELECT authz.add_hierarchy('system', 'superadmin', 'admin', 'default');
-SELECT authz.add_hierarchy('system', 'admin', 'user', 'default');
-SELECT authz.add_hierarchy('note', 'owner', 'edit', 'default');
-SELECT authz.add_hierarchy('note', 'edit', 'view', 'default');
-SELECT authz.add_hierarchy('team', 'owner', 'admin', 'default');
-SELECT authz.add_hierarchy('team', 'admin', 'member', 'default');
+-- These apply to ALL tenants, enabling cross-org features like "Shared with me"
+SELECT authz.add_hierarchy('note', 'owner', 'edit', 'global');
+SELECT authz.add_hierarchy('note', 'edit', 'view', 'global');
+SELECT authz.add_hierarchy('team', 'owner', 'admin', 'global');
+SELECT authz.add_hierarchy('team', 'admin', 'member', 'global');
+SELECT authz.add_hierarchy('org', 'owner', 'admin', 'global');
+SELECT authz.add_hierarchy('org', 'admin', 'member', 'global');
+SELECT authz.add_hierarchy('system', 'superadmin', 'admin', 'global');
+SELECT authz.add_hierarchy('system', 'admin', 'user', 'global');
 
 -- =============================================================================
 -- PLAN DEFINITIONS (stored in config)

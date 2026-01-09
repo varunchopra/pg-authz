@@ -25,7 +25,7 @@ class TestVacuumBehavior:
         authz.grant("admin", resource=("doc", "1"), subject=("team", "eng"))
 
         # Verify initial state
-        assert authz.check("alice", "read", ("doc", "1"))
+        assert authz.check(("user", "alice"), "read", ("doc", "1"))
 
         # Run VACUUM
         conn = psycopg.connect(DATABASE_URL, autocommit=True)
@@ -35,7 +35,7 @@ class TestVacuumBehavior:
         conn.close()
 
         # Permissions should still work
-        assert authz.check("alice", "read", ("doc", "1"))
+        assert authz.check(("user", "alice"), "read", ("doc", "1"))
 
     def test_vacuum_full_preserves_permissions(self, authz):
         """VACUUM FULL should not affect permissions."""
@@ -44,8 +44,8 @@ class TestVacuumBehavior:
         authz.grant("write", resource=("doc", "2"), subject=("user", "bob"))
 
         # Verify initial state
-        assert authz.check("alice", "read", ("doc", "1"))
-        assert authz.check("bob", "write", ("doc", "2"))
+        assert authz.check(("user", "alice"), "read", ("doc", "1"))
+        assert authz.check(("user", "bob"), "write", ("doc", "2"))
 
         # Run VACUUM FULL (requires exclusive lock)
         conn = psycopg.connect(DATABASE_URL, autocommit=True)
@@ -54,8 +54,8 @@ class TestVacuumBehavior:
         conn.close()
 
         # Permissions should still work
-        assert authz.check("alice", "read", ("doc", "1"))
-        assert authz.check("bob", "write", ("doc", "2"))
+        assert authz.check(("user", "alice"), "read", ("doc", "1"))
+        assert authz.check(("user", "bob"), "write", ("doc", "2"))
 
 
 class TestVerifyRepair:
@@ -76,11 +76,11 @@ class TestBulkOperations:
 
     def test_bulk_grant_many_users(self, authz):
         """bulk_grant handles many users efficiently."""
-        users = [f"user-{i}" for i in range(100)]
-        authz.bulk_grant("read", resource=("doc", "1"), subject_ids=users)
+        subjects = [("user", f"user-{i}") for i in range(100)]
+        authz.bulk_grant("read", resource=("doc", "1"), subjects=subjects)
 
-        for user in users:
-            assert authz.check(user, "read", ("doc", "1"))
+        for subject in subjects:
+            assert authz.check(subject, "read", ("doc", "1"))
 
     def test_bulk_grant_resources(self, authz):
         """bulk_grant_resources grants to subject on many resources."""
@@ -96,7 +96,7 @@ class TestBulkOperations:
         # Add a user to the team and verify access to all resources
         authz.grant("member", resource=("team", "eng"), subject=("user", "alice"))
         for rid in resource_ids:
-            assert authz.check("alice", "read", ("doc", rid))
+            assert authz.check(("user", "alice"), "read", ("doc", rid))
 
     def test_bulk_grant_resources_with_subject_relation(self, authz):
         """bulk_grant_resources supports subject_relation parameter."""
@@ -113,9 +113,9 @@ class TestBulkOperations:
         # Member of team should NOT have access (grant is to team#admin)
         authz.grant("member", resource=("team", "security"), subject=("user", "bob"))
         for rid in resource_ids:
-            assert not authz.check("bob", "admin", ("doc", rid))
+            assert not authz.check(("user", "bob"), "admin", ("doc", rid))
 
         # Admin of team should have access
         authz.grant("admin", resource=("team", "security"), subject=("user", "carol"))
         for rid in resource_ids:
-            assert authz.check("carol", "admin", ("doc", rid))
+            assert authz.check(("user", "carol"), "admin", ("doc", rid))

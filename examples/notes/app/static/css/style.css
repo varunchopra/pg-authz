@@ -12,8 +12,11 @@
     --bg-secondary: #fafafa;
     --border: #ddd;
     --primary: #0066cc;
+    --primary-hover: #0052a3;
     --danger: #c00;
     --success: #080;
+    --warning: #996600;
+    --warning-light: #cc6600;
 }
 
 body {
@@ -161,6 +164,7 @@ code {
     font-family: inherit;
     line-height: 1.5;
     border: 1px solid var(--border);
+    border-radius: 4px;
     background: var(--bg);
     color: var(--text);
     cursor: pointer;
@@ -180,8 +184,8 @@ code {
 }
 
 .btn-primary:hover {
-    background: #0052a3;
-    border-color: #0052a3;
+    background: var(--primary-hover);
+    border-color: var(--primary-hover);
 }
 
 .btn-danger {
@@ -212,6 +216,10 @@ code {
 
 .text-muted {
     color: var(--text-secondary);
+}
+
+.text-danger {
+    color: var(--danger);
 }
 
 .btn-sm {
@@ -247,7 +255,9 @@ code {
     width: 100%;
     padding: 8px 12px;
     font-size: 14px;
+    line-height: 1.5;
     border: 1px solid var(--border);
+    border-radius: 4px;
     background: var(--bg);
 }
 
@@ -420,7 +430,7 @@ code {
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--text-secondary);
-    margin-bottom: 12px;
+    margin-bottom: 16px;
 }
 
 .nav-menu a {
@@ -512,6 +522,12 @@ code {
     margin-bottom: 48px;
 }
 
+.section > h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
 .section-header {
     display: flex;
     justify-content: space-between;
@@ -576,7 +592,7 @@ code {
 }
 
 .settings-tab {
-    padding: 12px 20px;
+    padding: 12px 24px;
     color: var(--text-secondary);
     text-decoration: none;
     border-bottom: 2px solid transparent;
@@ -614,7 +630,7 @@ code {
 
 .badge-admin {
     background: #fff0e6;
-    color: #cc6600;
+    color: var(--warning-light);
 }
 
 .badge-member {
@@ -640,7 +656,7 @@ code {
 
 .status-pending {
     background: #fff8e6;
-    color: #996600;
+    color: var(--warning);
 }
 
 .status-disabled {
@@ -681,6 +697,7 @@ select {
     padding: 8px 12px;
     font-size: 14px;
     font-family: inherit;
+    line-height: 1.5;
     border: 1px solid var(--border);
     border-radius: 4px;
     background: var(--bg);
@@ -884,7 +901,6 @@ textarea:focus {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    max-width: 600px;
 }
 
 .org-item {
@@ -901,13 +917,28 @@ textarea:focus {
     border-color: var(--primary);
 }
 
-.org-item-info h3 {
-    margin: 0 0 4px 0;
+.org-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.org-info strong {
     font-size: 16px;
 }
 
 .org-role {
     font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.org-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 3px;
+    background: var(--bg-secondary);
     color: var(--text-secondary);
 }
 
@@ -1041,7 +1072,7 @@ textarea:focus {
 .bill-summary {
     background: var(--bg-secondary);
     border-radius: 8px;
-    padding: 20px;
+    padding: 24px;
 }
 
 .bill-header {
@@ -1111,7 +1142,7 @@ textarea:focus {
 
 .section-description {
     color: var(--text-secondary);
-    margin-bottom: 20px;
+    margin-bottom: 16px;
 }
 
 .permission-section h3 {
@@ -1186,9 +1217,9 @@ textarea:focus {
 }
 
 .scope-none { background: var(--bg-secondary); color: var(--text-secondary); }
-.scope-read { background: #e6f7ff; color: #0066cc; }
-.scope-write { background: #fff7e6; color: #996600; }
-.scope-admin { background: #ffe6e6; color: #cc0000; }
+.scope-read { background: #e6f7ff; color: var(--primary); }
+.scope-write { background: #fff7e6; color: var(--warning); }
+.scope-admin { background: #ffe6e6; color: var(--danger); }
 
 /* Permission Badge */
 .permission-badge {
@@ -1208,7 +1239,7 @@ textarea:focus {
 
 .permission-edit {
     background: #fff7e6;
-    color: #996600;
+    color: var(--warning);
 }
 
 .permission-view {
@@ -1236,7 +1267,7 @@ textarea:focus {
 
 .role-admin {
     background: #fff0e6;
-    color: #cc6600;
+    color: var(--warning-light);
 }
 
 .role-member {
@@ -1279,7 +1310,7 @@ textarea:focus {
 .info-panel h3 {
     font-size: 14px;
     font-weight: 600;
-    margin: 0 0 16px 0;
+    margin: 0 0 12px 0;
 }
 
 .info-panel ul {
@@ -1377,6 +1408,7 @@ label.radio-option {
     display: flex;
     gap: 16px;
     align-items: flex-end;
+    margin-bottom: 16px;
 }
 
 .form-row .form-group {

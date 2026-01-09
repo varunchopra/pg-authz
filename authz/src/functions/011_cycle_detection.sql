@@ -20,12 +20,15 @@ DECLARE
     v_key1 text := p_namespace || E'\x1F' || p_type1 || E'\x1F' || p_id1;
     v_key2 text := p_namespace || E'\x1F' || p_type2 || E'\x1F' || p_id2;
 BEGIN
+    -- Use two-argument pg_advisory_xact_lock(int, int) to reduce collision probability.
+    -- First arg is namespace hash, second is entity hash. This gives ~64 bits of
+    -- lock space instead of 32, making collisions astronomically unlikely.
     IF v_key1 < v_key2 THEN
-        PERFORM pg_advisory_xact_lock(hashtext(v_key1));
-        PERFORM pg_advisory_xact_lock(hashtext(v_key2));
+        PERFORM pg_advisory_xact_lock(hashtext(p_namespace), hashtext(p_type1 || E'\x1F' || p_id1));
+        PERFORM pg_advisory_xact_lock(hashtext(p_namespace), hashtext(p_type2 || E'\x1F' || p_id2));
     ELSE
-        PERFORM pg_advisory_xact_lock(hashtext(v_key2));
-        PERFORM pg_advisory_xact_lock(hashtext(v_key1));
+        PERFORM pg_advisory_xact_lock(hashtext(p_namespace), hashtext(p_type2 || E'\x1F' || p_id2));
+        PERFORM pg_advisory_xact_lock(hashtext(p_namespace), hashtext(p_type1 || E'\x1F' || p_id1));
     END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authz, pg_temp;

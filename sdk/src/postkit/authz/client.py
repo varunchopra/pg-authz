@@ -55,7 +55,7 @@ class AuthzClient(BaseClient):
         authz.grant("admin", resource=("repo", "api"), subject=("team", "eng"))
 
         # Check permission
-        if authz.check("alice", "read", ("repo", "api")):
+        if authz.check(("user", "alice"), "read", ("repo", "api")):
             allow_access()
     """
 
@@ -64,38 +64,45 @@ class AuthzClient(BaseClient):
 
     def __init__(self, cursor, namespace: str):
         super().__init__(cursor, namespace)
-        self._user_id: str | None = None
+        self._viewer: Entity | None = None
 
-    def set_user_context(self, user_id: str) -> None:
+    def set_viewer(self, subject: Entity) -> None:
         """
-        Set the current user context for cross-namespace queries.
+        Set the viewer context for cross-namespace queries.
 
-        This enables the recipient_visibility RLS policy, allowing users
-        to see grants where they are the subject across ALL namespaces.
-        Required for "Shared with me" functionality.
+        This enables the recipient_visibility RLS policy, allowing subjects
+        to see grants where they are the recipient across ALL namespaces.
+        Required for "Shared with me" / external resources functionality.
 
         Args:
-            user_id: The user ID to set as context
+            subject: The subject as (type, id) tuple (e.g., ("user", "alice"))
 
         Example:
-            authz.set_user_context("alice")
+            authz.set_viewer(("user", "alice"))
             # Now queries can see grants TO alice across all namespaces
-            shared = authz.list_resources_shared_with_me("alice", "note", "view")
+            shared = authz.list_external_resources(("user", "alice"), "note", "view")
         """
-        self._user_id = user_id
-        # Use set_config() function since SET doesn't support parameters
-        self.cursor.execute("SELECT set_config('authz.user_id', %s, true)", (user_id,))
+        self._viewer = subject
+        subject_type, subject_id = subject
+        # Store both type and id for RLS policy
+        self.cursor.execute(
+            "SELECT set_config('authz.viewer_type', %s, false), "
+            "set_config('authz.viewer_id', %s, false)",
+            (subject_type, subject_id),
+        )
 
-    def clear_user_context(self) -> None:
+    def clear_viewer(self) -> None:
         """
-        Clear the current user context.
+        Clear the viewer context.
 
         Should be called at end of request to prevent context leakage
         between requests in connection pools.
         """
-        self._user_id = None
-        # Use set_config with empty string to reset
-        self.cursor.execute("SELECT set_config('authz.user_id', '', true)")
+        self._viewer = None
+        self.cursor.execute(
+            "SELECT set_config('authz.viewer_type', '', false), "
+            "set_config('authz.viewer_id', '', false)"
+        )
 
     def _apply_actor_context(self) -> None:
         """Apply actor context via authz.set_actor()."""
@@ -230,88 +237,14 @@ class AuthzClient(BaseClient):
             )
         return bool(result)
 
-    def check(self, user_id: str, permission: str, resource: Entity) -> bool:
+    def check(self, subject: Entity, permission: str, resource: Entity) -> bool:
         """
-        Check if a user has a permission on a resource.
+        Check if a subject has a permission on a resource.
 
         This is the core authorization check - the question every service asks.
 
         Args:
-            user_id: The user ID
-            permission: The permission to check (e.g., "read", "write")
-            resource: The resource as (type, id) tuple
-
-        Returns:
-            True if the user has the permission
-
-        Example:
-            if authz.check("alice", "read", ("repo", "api")):
-                return repo_contents
-        """
-        resource_type, resource_id = resource
-        return self._fetch_val(
-            "SELECT authz.check(%s, %s, %s, %s, %s)",
-            (user_id, permission, resource_type, resource_id, self.namespace),
-        )
-
-    def check_any(self, user_id: str, permissions: list[str], resource: Entity) -> bool:
-        """
-        Check if a user has any of the specified permissions.
-
-        Useful for "can edit OR admin" style checks. More efficient than
-        multiple check() calls.
-
-        Args:
-            user_id: The user ID
-            permissions: List of permissions (user needs at least one)
-            resource: The resource as (type, id) tuple
-
-        Returns:
-            True if the user has at least one of the permissions
-        """
-        resource_type, resource_id = resource
-        return self._fetch_val(
-            "SELECT authz.check_any(%s, %s, %s, %s, %s)",
-            (user_id, permissions, resource_type, resource_id, self.namespace),
-        )
-
-    def check_all(self, user_id: str, permissions: list[str], resource: Entity) -> bool:
-        """
-        Check if a user has all of the specified permissions.
-
-        Useful for operations requiring multiple permissions.
-
-        Args:
-            user_id: The user ID
-            permissions: List of permissions (user needs all of them)
-            resource: The resource as (type, id) tuple
-
-        Returns:
-            True if the user has all of the permissions
-        """
-        resource_type, resource_id = resource
-        return self._fetch_val(
-            "SELECT authz.check_all(%s, %s, %s, %s, %s)",
-            (user_id, permissions, resource_type, resource_id, self.namespace),
-        )
-
-    def check_subject(
-        self,
-        subject_type: str,
-        subject_id: str,
-        permission: str,
-        resource: Entity,
-    ) -> bool:
-        """
-        Check if a subject has a permission on a resource.
-
-        Unlike check() which is for users, this works for any subject type
-        (api_key, service, bot, etc.). Use this when checking permissions
-        for non-user entities.
-
-        Args:
-            subject_type: The subject type (e.g., "api_key", "service")
-            subject_id: The subject ID
+            subject: The subject as (type, id) tuple (e.g., ("user", "alice"))
             permission: The permission to check (e.g., "read", "write")
             resource: The resource as (type, id) tuple
 
@@ -319,14 +252,12 @@ class AuthzClient(BaseClient):
             True if the subject has the permission
 
         Example:
-            # Check if an API key has read permission
-            if authz.check_subject("api_key", key_id, "read", ("repo", "api")):
+            if authz.check(("user", "alice"), "read", ("repo", "api")):
                 return repo_contents
-
-            # Check if a service can write to a resource
-            if authz.check_subject("service", "billing", "write", ("customer", "cust-1")):
-                update_customer()
+            if authz.check(("api_key", "key-123"), "read", ("repo", "api")):
+                return repo_contents
         """
+        subject_type, subject_id = subject
         resource_type, resource_id = resource
         return self._fetch_val(
             "SELECT authz.check_subject(%s, %s, %s, %s, %s, %s)",
@@ -340,25 +271,24 @@ class AuthzClient(BaseClient):
             ),
         )
 
-    def check_subject_any(
-        self,
-        subject_type: str,
-        subject_id: str,
-        permissions: list[str],
-        resource: Entity,
+    def check_any(
+        self, subject: Entity, permissions: list[str], resource: Entity
     ) -> bool:
         """
         Check if a subject has any of the specified permissions.
 
+        Useful for "can edit OR admin" style checks. More efficient than
+        multiple check() calls.
+
         Args:
-            subject_type: The subject type (e.g., "api_key", "service")
-            subject_id: The subject ID
+            subject: The subject as (type, id) tuple
             permissions: List of permissions (subject needs at least one)
             resource: The resource as (type, id) tuple
 
         Returns:
             True if the subject has at least one of the permissions
         """
+        subject_type, subject_id = subject
         resource_type, resource_id = resource
         return self._fetch_val(
             "SELECT authz.check_subject_any(%s, %s, %s, %s, %s, %s)",
@@ -372,25 +302,23 @@ class AuthzClient(BaseClient):
             ),
         )
 
-    def check_subject_all(
-        self,
-        subject_type: str,
-        subject_id: str,
-        permissions: list[str],
-        resource: Entity,
+    def check_all(
+        self, subject: Entity, permissions: list[str], resource: Entity
     ) -> bool:
         """
         Check if a subject has all of the specified permissions.
 
+        Useful for operations requiring multiple permissions.
+
         Args:
-            subject_type: The subject type (e.g., "api_key", "service")
-            subject_id: The subject ID
+            subject: The subject as (type, id) tuple
             permissions: List of permissions (subject needs all of them)
             resource: The resource as (type, id) tuple
 
         Returns:
             True if the subject has all of the permissions
         """
+        subject_type, subject_id = subject
         resource_type, resource_id = resource
         return self._fetch_val(
             "SELECT authz.check_subject_all(%s, %s, %s, %s, %s, %s)",
@@ -404,14 +332,14 @@ class AuthzClient(BaseClient):
             ),
         )
 
-    def explain(self, user_id: str, permission: str, resource: Entity) -> list[str]:
+    def explain(self, subject: Entity, permission: str, resource: Entity) -> list[str]:
         """
-        Explain why a user has a permission.
+        Explain why a subject has a permission.
 
         Returns the permission paths - useful for debugging and auditing.
 
         Args:
-            user_id: The user ID
+            subject: The subject as (type, id) tuple
             permission: The permission to explain
             resource: The resource as (type, id) tuple
 
@@ -419,56 +347,79 @@ class AuthzClient(BaseClient):
             List of human-readable explanation strings
 
         Example:
-            paths = authz.explain("alice", "read", ("repo", "api"))
+            paths = authz.explain(("user", "alice"), "read", ("repo", "api"))
             # ["HIERARCHY: alice is member of team:eng which has admin (admin -> read)"]
         """
+        subject_type, subject_id = subject
         resource_type, resource_id = resource
         rows = self._fetch_raw(
-            "SELECT * FROM authz.explain_text(%s, %s, %s, %s, %s)",
-            (user_id, permission, resource_type, resource_id, self.namespace),
+            "SELECT * FROM authz.explain_text(%s, %s, %s, %s, %s, %s)",
+            (
+                subject_type,
+                subject_id,
+                permission,
+                resource_type,
+                resource_id,
+                self.namespace,
+            ),
         )
         return [row[0] for row in rows]
 
-    def list_users(
+    def list_subjects(
         self,
         permission: str,
         resource: Entity,
         *,
         limit: int | None = None,
-        cursor: str | None = None,
-    ) -> list[str]:
+        cursor: Entity | None = None,
+    ) -> list[Entity]:
         """
-        List users who have a permission on a resource.
+        List subjects who have a permission on a resource.
 
         Args:
             permission: The permission to check
             resource: The resource as (type, id) tuple
             limit: Maximum number of results (optional)
-            cursor: Pagination cursor (optional)
+            cursor: Pagination cursor as (type, id) tuple from last result (optional)
 
         Returns:
-            List of user IDs
+            List of subjects as (type, id) tuples
 
         Example:
-            users = authz.list_users("read", ("repo", "api"))
-            # ["alice", "bob", "charlie"]
+            subjects = authz.list_subjects("read", ("repo", "api"))
+            # [("api_key", "key-123"), ("user", "alice"), ("user", "bob")]
+
+            # Pagination:
+            page1 = authz.list_subjects("read", ("repo", "api"), limit=10)
+            page2 = authz.list_subjects("read", ("repo", "api"), limit=10, cursor=page1[-1])
         """
         resource_type, resource_id = resource
+        cursor_type = cursor[0] if cursor else None
+        cursor_id = cursor[1] if cursor else None
+
         if limit is not None:
             rows = self._fetch_raw(
-                "SELECT * FROM authz.list_users(%s, %s, %s, %s, %s, %s)",
-                (resource_type, resource_id, permission, self.namespace, limit, cursor),
+                "SELECT * FROM authz.list_subjects(%s, %s, %s, %s, %s, %s, %s)",
+                (
+                    resource_type,
+                    resource_id,
+                    permission,
+                    self.namespace,
+                    limit,
+                    cursor_type,
+                    cursor_id,
+                ),
             )
         else:
             rows = self._fetch_raw(
-                "SELECT * FROM authz.list_users(%s, %s, %s, %s)",
+                "SELECT * FROM authz.list_subjects(%s, %s, %s, %s)",
                 (resource_type, resource_id, permission, self.namespace),
             )
-        return [row[0] for row in rows]
+        return [(row[0], row[1]) for row in rows]
 
     def list_resources(
         self,
-        user_id: str,
+        subject: Entity,
         resource_type: str,
         permission: str,
         *,
@@ -476,10 +427,10 @@ class AuthzClient(BaseClient):
         cursor: str | None = None,
     ) -> list[str]:
         """
-        List resources a user has a permission on.
+        List resources a subject has a permission on.
 
         Args:
-            user_id: The user ID
+            subject: The subject as (type, id) tuple (e.g., ("user", "alice"))
             resource_type: The resource type to list
             permission: The permission to check
             limit: Maximum number of results (optional)
@@ -489,78 +440,83 @@ class AuthzClient(BaseClient):
             List of resource IDs
 
         Example:
-            repos = authz.list_resources("alice", "repo", "read")
+            repos = authz.list_resources(("user", "alice"), "repo", "read")
             # ["api", "frontend", "docs"]
         """
+        subject_type, subject_id = subject
         if limit is not None:
             rows = self._fetch_raw(
-                "SELECT * FROM authz.list_resources(%s, %s, %s, %s, %s, %s)",
-                (user_id, resource_type, permission, self.namespace, limit, cursor),
+                "SELECT * FROM authz.list_resources(%s, %s, %s, %s, %s, %s, %s)",
+                (
+                    subject_type,
+                    subject_id,
+                    resource_type,
+                    permission,
+                    self.namespace,
+                    limit,
+                    cursor,
+                ),
             )
         else:
             rows = self._fetch_raw(
-                "SELECT * FROM authz.list_resources(%s, %s, %s, %s)",
-                (user_id, resource_type, permission, self.namespace),
+                "SELECT * FROM authz.list_resources(%s, %s, %s, %s, %s)",
+                (subject_type, subject_id, resource_type, permission, self.namespace),
             )
         return [row[0] for row in rows]
 
-    def list_resources_shared_with_me(
+    def list_external_resources(
         self,
-        user_id: str,
+        subject: Entity,
         resource_type: str,
         permission: str,
     ) -> list[dict]:
         """
-        List resources shared with a user across ALL namespaces.
+        List resources shared with a subject from other namespaces.
 
-        Uses the recipient_visibility RLS policy to see cross-org grants.
-        This powers the "Shared with me" section in applications.
-
-        IMPORTANT: Requires set_user_context() to be called first with the
-        same user_id, otherwise the RLS policy won't allow cross-namespace
+        Returns resources where the subject is the recipient of a grant from
+        a different namespace. Requires set_viewer() to enable cross-namespace
         visibility.
 
         Args:
-            user_id: The user ID to query for
-            resource_type: The resource type to list (e.g., "note")
-            permission: The minimum permission level (e.g., "view")
+            subject: The subject as (type, id) tuple (e.g., ("user", "alice"))
+            resource_type: Resource type (e.g., "note")
+            permission: Minimum permission level (uses global hierarchy)
 
         Returns:
-            List of dicts with namespace, resource_id, relation, expires_at
+            List of dicts: namespace, resource_id, relation, created_at, expires_at
 
         Example:
-            authz.set_user_context("alice")
-            shared = authz.list_resources_shared_with_me("alice", "note", "view")
-            for item in shared:
-                print(f"Note {item['resource_id']} in {item['namespace']}")
+            authz.set_viewer(("user", "alice"))
+            shared = authz.list_external_resources(("user", "alice"), "note", "view")
         """
-        # Ensure user context is set for RLS
-        if self._user_id != user_id:
-            self.set_user_context(user_id)
+        subject_type, subject_id = subject
+        if self._viewer != subject:
+            self.set_viewer(subject)
 
         rows = self._fetch_raw(
             """
             SELECT t.namespace, t.resource_id, t.relation, t.created_at, t.expires_at
             FROM authz.tuples t
-            WHERE t.subject_type = 'user'
-            AND t.subject_id = %s
-            AND t.resource_type = %s
-            AND (
-                t.relation = %s
-                OR EXISTS (
-                    SELECT 1 FROM authz.permission_hierarchy h
-                    WHERE h.namespace = t.namespace
-                    AND h.resource_type = %s
-                    AND h.permission = t.relation
-                    AND h.implies = %s
-                )
-            )
-            AND t.namespace != %s  -- Exclude current namespace
-            AND (t.expires_at IS NULL OR t.expires_at > now())
+            WHERE t.subject_type = %s
+              AND t.subject_id = %s
+              AND t.resource_type = %s
+              AND (
+                  t.relation = %s
+                  OR EXISTS (
+                      SELECT 1 FROM authz.permission_hierarchy h
+                      WHERE h.resource_type = %s
+                        AND h.permission = t.relation
+                        AND h.implies = %s
+                        AND h.namespace = 'global'
+                  )
+              )
+              AND t.namespace != %s
+              AND (t.expires_at IS NULL OR t.expires_at > now())
             ORDER BY t.created_at DESC
             """,
             (
-                user_id,
+                subject_type,
+                subject_id,
                 resource_type,
                 permission,
                 resource_type,
@@ -579,22 +535,20 @@ class AuthzClient(BaseClient):
             for row in rows
         ]
 
-    def list_subject_grants(
+    def list_grants(
         self,
-        subject_type: str,
-        subject_id: str,
+        subject: Entity,
         *,
         resource_type: str | None = None,
     ) -> list[dict]:
         """
-        List all grants for a subject (e.g., an API key or service).
+        List all grants for a subject.
 
-        Useful for inspecting what permissions a non-user entity has,
+        Useful for inspecting what permissions an entity has,
         such as viewing API key scopes or auditing service access.
 
         Args:
-            subject_type: The subject type (e.g., "api_key", "service")
-            subject_id: The subject ID
+            subject: The subject as (type, id) tuple (e.g., ("api_key", "key-123"))
             resource_type: Optional filter by resource type
 
         Returns:
@@ -602,13 +556,14 @@ class AuthzClient(BaseClient):
 
         Example:
             # Get all grants for an API key
-            grants = authz.list_subject_grants("api_key", key_id)
+            grants = authz.list_grants(("api_key", key_id))
             for grant in grants:
                 print(f"{grant['relation']} on {grant['resource']}")
 
             # Get only note-related grants
-            note_grants = authz.list_subject_grants("api_key", key_id, resource_type="note")
+            note_grants = authz.list_grants(("api_key", key_id), resource_type="note")
         """
+        subject_type, subject_id = subject
         rows = self._fetch_raw(
             "SELECT * FROM authz.list_subject_grants(%s, %s, %s, %s)",
             (subject_type, subject_id, self.namespace, resource_type),
@@ -623,10 +578,9 @@ class AuthzClient(BaseClient):
             for row in rows
         ]
 
-    def revoke_subject_grants(
+    def revoke_all_grants(
         self,
-        subject_type: str,
-        subject_id: str,
+        subject: Entity,
         *,
         resource_type: str | None = None,
     ) -> int:
@@ -637,8 +591,7 @@ class AuthzClient(BaseClient):
         accumulated many permissions across different resources.
 
         Args:
-            subject_type: The subject type (e.g., "api_key", "service")
-            subject_id: The subject ID
+            subject: The subject as (type, id) tuple (e.g., ("api_key", "key-123"))
             resource_type: Optional filter to only revoke grants on specific resource type
 
         Returns:
@@ -646,12 +599,13 @@ class AuthzClient(BaseClient):
 
         Example:
             # Revoke all grants for an API key before deletion
-            count = authz.revoke_subject_grants("api_key", key_id)
+            count = authz.revoke_all_grants(("api_key", key_id))
             print(f"Revoked {count} grants")
 
             # Revoke only note-related grants
-            count = authz.revoke_subject_grants("api_key", key_id, resource_type="note")
+            count = authz.revoke_all_grants(("api_key", key_id), resource_type="note")
         """
+        subject_type, subject_id = subject
         return self._fetch_val(
             "SELECT authz.revoke_subject_grants(%s, %s, %s, %s)",
             (subject_type, subject_id, self.namespace, resource_type),
@@ -659,12 +613,42 @@ class AuthzClient(BaseClient):
         )
 
     def filter_authorized(
-        self, user_id: str, resource_type: str, permission: str, resource_ids: list[str]
+        self,
+        subject: Entity,
+        resource_type: str,
+        permission: str,
+        resource_ids: list[str],
     ) -> list[str]:
-        """Filter resource IDs to only those the user can access."""
+        """
+        Filter resource IDs to only those the subject can access.
+
+        Args:
+            subject: The subject as (type, id) tuple (e.g., ("user", "alice"))
+            resource_type: The resource type
+            permission: The permission to check
+            resource_ids: List of resource IDs to filter
+
+        Returns:
+            Subset of resource_ids the subject has permission on
+
+        Example:
+            # Filter search results to only accessible repos
+            accessible = authz.filter_authorized(
+                ("user", "alice"), "repo", "read",
+                ["payments-api", "internal-api", "public-api"]
+            )
+        """
+        subject_type, subject_id = subject
         result = self._fetch_val(
-            "SELECT authz.filter_authorized(%s, %s, %s, %s, %s)",
-            (user_id, resource_type, permission, resource_ids, self.namespace),
+            "SELECT authz.filter_authorized(%s, %s, %s, %s, %s, %s)",
+            (
+                subject_type,
+                subject_id,
+                resource_type,
+                permission,
+                resource_ids,
+                self.namespace,
+            ),
         )
         return result if result else []
 
@@ -689,14 +673,25 @@ class AuthzClient(BaseClient):
         """
         Add a single hierarchy rule (for complex/branching hierarchies).
 
+        Hierarchies are stored in the client's namespace:
+        - Use namespace="global" for app-wide defaults (all tenants inherit)
+        - Use tenant namespace (e.g., "org:xxx") for org-specific customizations
+
+        Permission checks look at BOTH global AND tenant hierarchies.
+
         Args:
             resource_type: The resource type
             permission: The higher permission
             implies: The permission it implies
 
         Example:
-            authz.add_hierarchy_rule("doc", "admin", "read")
-            authz.add_hierarchy_rule("doc", "admin", "share")
+            # App-wide defaults (global client)
+            global_authz = AuthzClient(cursor, namespace="global")
+            global_authz.add_hierarchy_rule("doc", "owner", "edit")
+
+            # Org-specific customization (tenant client)
+            org_authz = AuthzClient(cursor, namespace="org:acme")
+            org_authz.add_hierarchy_rule("doc", "legal_approver", "view")
         """
         self._fetch_val(
             "SELECT authz.add_hierarchy(%s, %s, %s, %s)",
@@ -705,7 +700,7 @@ class AuthzClient(BaseClient):
         )
 
     def remove_hierarchy_rule(self, resource_type: str, permission: str, implies: str):
-        """Remove a single hierarchy rule."""
+        """Remove a hierarchy rule from the client's namespace."""
         self._fetch_val(
             "SELECT authz.remove_hierarchy(%s, %s, %s, %s)",
             (resource_type, permission, implies, self.namespace),
@@ -713,7 +708,7 @@ class AuthzClient(BaseClient):
         )
 
     def clear_hierarchy(self, resource_type: str) -> int:
-        """Clear all hierarchy rules for a resource type."""
+        """Clear all hierarchy rules for a resource type in the client's namespace."""
         return self._fetch_val(
             "SELECT authz.clear_hierarchy(%s, %s)",
             (resource_type, self.namespace),
@@ -858,22 +853,51 @@ class AuthzClient(BaseClient):
         )
 
     def bulk_grant(
-        self, permission: str, *, resource: Entity, subject_ids: list[str]
+        self, permission: str, *, resource: Entity, subjects: list[Entity]
     ) -> int:
         """
-        Grant permission to many users at once (single statement).
+        Grant permission to many subjects at once.
 
-        Returns count of tuples inserted.
+        Subjects are grouped by type and inserted efficiently. Supports
+        mixed subject types in a single call.
+
+        Args:
+            permission: The permission to grant
+            resource: The resource as (type, id) tuple
+            subjects: List of subjects as (type, id) tuples
+
+        Returns:
+            Count of tuples inserted
 
         Example:
-            authz.bulk_grant("read", resource=("doc", "1"), subject_ids=["alice", "bob", "carol"])
+            authz.bulk_grant("read", resource=("doc", "1"), subjects=[
+                ("user", "alice"),
+                ("user", "bob"),
+                ("api_key", "key-123"),
+            ])
         """
         resource_type, resource_id = resource
-        return self._fetch_val(
-            "SELECT authz.write_tuples_bulk(%s, %s, %s, 'user', %s, %s)",
-            (resource_type, resource_id, permission, subject_ids, self.namespace),
-            write=True,
-        )
+
+        # Group subjects by type for efficient batch inserts
+        by_type: dict[str, list[str]] = {}
+        for subject_type, subject_id in subjects:
+            by_type.setdefault(subject_type, []).append(subject_id)
+
+        total = 0
+        for subject_type, subject_ids in by_type.items():
+            total += self._fetch_val(
+                "SELECT authz.write_tuples_bulk(%s, %s, %s, %s, %s, %s)",
+                (
+                    resource_type,
+                    resource_id,
+                    permission,
+                    subject_type,
+                    subject_ids,
+                    self.namespace,
+                ),
+                write=True,
+            )
+        return total
 
     def bulk_grant_resources(
         self,

@@ -430,7 +430,7 @@ def check_permission(permission: str, resource: tuple[str, str]) -> bool:
     authz = get_authz(org_id)
 
     # User must have permission
-    if not authz.check(user_id, permission, resource):
+    if not authz.check(("user", user_id), permission, resource):
         return False
 
     # If API key auth, key must also have scope
@@ -439,14 +439,14 @@ def check_permission(permission: str, resource: tuple[str, str]) -> bool:
         resource_type, resource_id = resource
 
         # 1. Check specific resource access: note:abc123
-        has_specific = authz.check_subject("api_key", api_key_id, permission, resource)
+        has_specific = authz.check(("api_key", api_key_id), permission, resource)
 
         # 2. Check wildcard access: notes:* (pluralized type)
         wildcard_type = (
             resource_type + "s" if not resource_type.endswith("s") else resource_type
         )
-        has_wildcard = authz.check_subject(
-            "api_key", api_key_id, permission, (wildcard_type, "*")
+        has_wildcard = authz.check(
+            ("api_key", api_key_id), permission, (wildcard_type, "*")
         )
 
         if not (has_specific or has_wildcard):
@@ -463,7 +463,7 @@ def is_org_admin(user_id: str | None = None, org_id: str | None = None) -> bool:
     if not user_id or not org_id:
         return False
 
-    return get_authz(org_id).check(user_id, "admin", ("org", org_id))
+    return get_authz(org_id).check(("user", user_id), "admin", ("org", org_id))
 
 
 def is_org_owner(user_id: str | None = None, org_id: str | None = None) -> bool:
@@ -474,7 +474,7 @@ def is_org_owner(user_id: str | None = None, org_id: str | None = None) -> bool:
     if not user_id or not org_id:
         return False
 
-    return get_authz(org_id).check(user_id, "owner", ("org", org_id))
+    return get_authz(org_id).check(("user", user_id), "owner", ("org", org_id))
 
 
 # =============================================================================
@@ -533,7 +533,7 @@ def revoke_all_api_key_grants(key_id: str, org_id: str) -> int:
         Number of grants revoked
     """
     authz = get_authz(org_id)
-    return authz.revoke_subject_grants("api_key", key_id)
+    return authz.revoke_all_grants(("api_key", key_id))
 
 
 def get_api_key_scopes(key_id: str, org_id: str) -> dict:
@@ -544,15 +544,15 @@ def get_api_key_scopes(key_id: str, org_id: str) -> dict:
     authz = get_authz(org_id)
 
     # Check wildcard access first (notes:*)
-    if authz.check_subject("api_key", key_id, "delete", ("notes", "*")):
+    if authz.check(("api_key", key_id), "delete", ("notes", "*")):
         return {"notes": "admin"}
-    if authz.check_subject("api_key", key_id, "edit", ("notes", "*")):
+    if authz.check(("api_key", key_id), "edit", ("notes", "*")):
         return {"notes": "write"}
-    if authz.check_subject("api_key", key_id, "view", ("notes", "*")):
+    if authz.check(("api_key", key_id), "view", ("notes", "*")):
         return {"notes": "read"}
 
     # Check for specific note grants using SDK
-    grants = authz.list_subject_grants("api_key", key_id, resource_type="note")
+    grants = authz.list_grants(("api_key", key_id), resource_type="note")
     relations = {g["relation"] for g in grants}
 
     if "delete" in relations or "share" in relations:

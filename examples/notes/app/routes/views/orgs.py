@@ -78,19 +78,8 @@ def create_org_membership(org_id: str, user_id: str, role: str = "member") -> No
 
 
 def initialize_org_authz(org_id: str, owner_id: str) -> None:
-    """Initialize authz namespace for a new organization.
-
-    Sets up permission hierarchies and grants owner permission.
-    """
+    """Initialize authz for a new org. Hierarchies are global (init-app.sql)."""
     authz = get_authz_for_org(org_id)
-
-    # Define permission inheritance: granting "owner" automatically grants "edit" and "view".
-    # This eliminates the need to grant all three permissions separately.
-    authz.set_hierarchy("note", "owner", "edit", "view")
-    authz.set_hierarchy("team", "owner", "admin", "member")
-    authz.set_hierarchy("org", "owner", "admin", "member")
-
-    # Grant owner permission on org
     authz.grant("owner", resource=("org", org_id), subject=("user", owner_id))
 
 
@@ -302,7 +291,9 @@ def settings_members(ctx: OrgContext, org_id: str):
     admin_count = 0
     disabled_count = 0
     for member in members:
-        member["is_admin"] = authz.check(member["user_id"], "admin", ("org", org_id))
+        member["is_admin"] = authz.check(
+            ("user", member["user_id"]), "admin", ("org", org_id)
+        )
         if member["is_admin"] or member["user_id"] == org["owner_id"]:
             admin_count += 1
         if member["disabled_at"]:

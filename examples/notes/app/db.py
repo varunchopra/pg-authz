@@ -149,7 +149,8 @@ def reset_context():
         with db.cursor() as cur:
             # Use set_config with empty string to reset (RESET doesn't work in transactions)
             cur.execute("SELECT set_config('authz.tenant_id', '', true)")
-            cur.execute("SELECT set_config('authz.user_id', '', true)")
+            cur.execute("SELECT set_config('authz.viewer_type', '', true)")
+            cur.execute("SELECT set_config('authz.viewer_id', '', true)")
 
 
 def get_note_org_id(note_id: str) -> str | None:

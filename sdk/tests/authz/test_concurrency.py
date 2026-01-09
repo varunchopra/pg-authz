@@ -462,4 +462,4 @@ class TestConcurrentIdempotency:
         assert len(set(results["ids"])) == 1, "All grants should return same ID"
 
         # With lazy evaluation, we just verify the permission works
-        assert checker.check("alice", "read", ("doc", "1"))
+        assert checker.check(("user", "alice"), "read", ("doc", "1"))

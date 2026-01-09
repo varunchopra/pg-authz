@@ -12,8 +12,8 @@
 <div class="page-header">
     <h1>{{ note.title }}</h1>
     <div class="actions">
-        {% if can_edit and not is_external_share %}
-        <a href="{{ url_for('views.notes.edit', note_id=note.note_id) }}" class="btn">Edit</a>
+        {% if can_edit %}
+        <a href="{{ edit_url }}" class="btn">Edit</a>
         {% endif %}
         {% if can_share %}
         <a href="{{ url_for('views.notes.share', note_id=note.note_id) }}" class="btn btn-primary">Share</a>
@@ -60,13 +60,5 @@
         </div>
         {% endif %}
     </div>
-</div>
-
-<div class="mt-3">
-    {% if is_external_share %}
-    <a href="{{ url_for('views.dashboard.index') }}">&larr; Back to Dashboard</a>
-    {% else %}
-    <a href="{{ url_for('views.notes.index') }}">&larr; Back to Notes</a>
-    {% endif %}
 </div>
 {% endblock %}

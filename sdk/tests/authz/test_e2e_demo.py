@@ -89,23 +89,25 @@ class TestInternalDevPlatform:
         # Alice and Bob automatically have access to everything their team owns.
 
         # Alice can write (team has admin -> admin implies write)
-        assert authz.check("alice", "write", ("repo", "payments-api"))
+        assert authz.check(("user", "alice"), "write", ("repo", "payments-api"))
 
         # Alice can read (admin -> write -> read)
-        assert authz.check("alice", "read", ("repo", "payments-api"))
+        assert authz.check(("user", "alice"), "read", ("repo", "payments-api"))
 
         # Alice can read the secret (team has read)
-        assert authz.check("alice", "read", ("secret", "stripe-key"))
+        assert authz.check(("user", "alice"), "read", ("secret", "stripe-key"))
 
         # Alice cannot write to secret (team only has read)
-        assert not authz.check("alice", "write", ("secret", "stripe-key"))
+        assert not authz.check(("user", "alice"), "write", ("secret", "stripe-key"))
 
         # Charlie is not on the team - no access
-        assert not authz.check("charlie", "read", ("repo", "payments-api"))
+        assert not authz.check(("user", "charlie"), "read", ("repo", "payments-api"))
 
         # 4. Explain: Why does alice have access?
         # Auditing and debugging: trace the permission path.
-        explanations = authz.explain("alice", "write", ("repo", "payments-api"))
+        explanations = authz.explain(
+            ("user", "alice"), "write", ("repo", "payments-api")
+        )
 
         assert len(explanations) > 0
         assert any("HIERARCHY" in exp for exp in explanations)
@@ -117,8 +119,8 @@ class TestInternalDevPlatform:
             "write", resource=("incident", "inc-123"), subject=("user", "alice")
         )
 
-        assert authz.check("alice", "write", ("incident", "inc-123"))
-        assert not authz.check("bob", "write", ("incident", "inc-123"))
+        assert authz.check(("user", "alice"), "write", ("incident", "inc-123"))
+        assert not authz.check(("user", "bob"), "write", ("incident", "inc-123"))
 
         # 6. Contractor access
         # Charlie is a contractor who needs to review the code.
@@ -127,17 +129,17 @@ class TestInternalDevPlatform:
             "read", resource=("repo", "payments-api"), subject=("user", "charlie")
         )
 
-        assert authz.check("charlie", "read", ("repo", "payments-api"))
-        assert not authz.check("charlie", "write", ("repo", "payments-api"))
+        assert authz.check(("user", "charlie"), "read", ("repo", "payments-api"))
+        assert not authz.check(("user", "charlie"), "write", ("repo", "payments-api"))
 
         # 7. List operations
         # Security review: who has access? what can someone access?
-        users = authz.list_users("read", ("repo", "payments-api"))
-        assert "alice" in users
-        assert "bob" in users
-        assert "charlie" in users
+        subjects = authz.list_subjects("read", ("repo", "payments-api"))
+        assert ("user", "alice") in subjects
+        assert ("user", "bob") in subjects
+        assert ("user", "charlie") in subjects
 
-        repos = authz.list_resources("alice", "repo", "read")
+        repos = authz.list_resources(("user", "alice"), "repo", "read")
         assert "payments-api" in repos
 
         # 8. Revoke
@@ -145,13 +147,13 @@ class TestInternalDevPlatform:
         authz.revoke(
             "write", resource=("incident", "inc-123"), subject=("user", "alice")
         )
-        assert not authz.check("alice", "write", ("incident", "inc-123"))
+        assert not authz.check(("user", "alice"), "write", ("incident", "inc-123"))
 
         authz.revoke(
             "read", resource=("repo", "payments-api"), subject=("user", "charlie")
         )
-        assert not authz.check("charlie", "read", ("repo", "payments-api"))
+        assert not authz.check(("user", "charlie"), "read", ("repo", "payments-api"))
 
         # Team access unchanged
-        assert authz.check("alice", "read", ("repo", "payments-api"))
-        assert authz.check("bob", "read", ("repo", "payments-api"))
+        assert authz.check(("user", "alice"), "read", ("repo", "payments-api"))
+        assert authz.check(("user", "bob"), "read", ("repo", "payments-api"))

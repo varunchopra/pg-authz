@@ -81,8 +81,8 @@ AS $$
           AND (t.expires_at IS NULL OR t.expires_at > now())
     ),
 
-    -- Phase 4: Expand permission hierarchy
-    -- Note: We use the original resource_type for hierarchy lookup, not ancestors
+    -- Phase 4: Expand via permission hierarchy
+    -- Check global namespace (shared rules) and tenant namespace (overrides)
     all_permissions AS (
         SELECT perm FROM granted_permissions
 
@@ -91,9 +91,9 @@ AS $$
         SELECT h.implies
         FROM all_permissions ap
         JOIN authz.permission_hierarchy h
-          ON h.namespace = p_namespace
-          AND h.resource_type = p_resource_type
+          ON h.resource_type = p_resource_type
           AND h.permission = ap.perm
+          AND h.namespace IN ('global', p_namespace)
     )
 
     SELECT perm AS permission FROM all_permissions;
