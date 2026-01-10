@@ -52,7 +52,9 @@ class TestTransactionSemantics:
         )
 
         # Before commit: check in same transaction should see it
-        cursor.execute("SELECT authz.check('alice', 'read', 'doc', '1', 'test_atomic')")
+        cursor.execute(
+            "SELECT authz.check('user', 'alice', 'read', 'doc', '1', 'test_atomic')"
+        )
         assert cursor.fetchone()[0] is True
 
         conn.commit()

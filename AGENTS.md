@@ -44,9 +44,10 @@ For SQL functions, add documentation tags:
 -- @group Permission Checks
 
 -- @function authz.check
--- @brief Check if a user has a permission on a resource
--- @param p_user_id The user to check
--- @returns True if user has permission
--- @example SELECT authz.check('alice', 'read', 'doc', '1');
+-- @brief Check if a subject has a permission on a resource
+-- @param p_subject_type The subject type (e.g., 'user', 'api_key')
+-- @param p_subject_id The subject ID
+-- @returns True if subject has permission
+-- @example SELECT authz.check('user', 'alice', 'read', 'doc', '1');
 CREATE OR REPLACE FUNCTION authz.check(...)
 ```

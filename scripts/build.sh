@@ -149,7 +149,7 @@ COMMIT;
 --
 -- Quick test:
 --   SELECT authz.write('doc', '1', 'read', 'user', 'alice');
---   SELECT authz.check('alice', 'read', 'doc', '1');
+--   SELECT authz.check('user', 'alice', 'read', 'doc', '1');
 --
 FOOTER
 }

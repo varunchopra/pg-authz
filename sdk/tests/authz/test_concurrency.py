@@ -82,7 +82,8 @@ class TestWriteSerialization:
         # The critical assertion: Alice MUST have access
         # With lazy evaluation, this is computed at query time
         cursor.execute(
-            "SELECT authz.check('alice', 'admin', 'repo', 'api', %s)", (namespace,)
+            "SELECT authz.check('user', 'alice', 'admin', 'repo', 'api', %s)",
+            (namespace,),
         )
         has_permission = cursor.fetchone()[0]
         assert has_permission, "Alice MUST have admin on repo:api via team:eng"
@@ -134,7 +135,7 @@ class TestWriteSerialization:
         # All users should have read permission
         for i in range(num_users):
             cursor.execute(
-                "SELECT authz.check(%s, 'read', 'doc', 'shared', %s)",
+                "SELECT authz.check('user', %s, 'read', 'doc', 'shared', %s)",
                 (f"user-{i}", namespace),
             )
             assert cursor.fetchone()[0], f"user-{i} should have read permission"

@@ -566,88 +566,13 @@ SELECT authz.set_tenant('acme-corp');
 ### authz.check
 
 ```sql
-authz.check(p_user_id: text, p_permission: text, p_resource_type: text, p_resource_id: text, p_namespace: text) -> bool
+authz.check(p_subject_type: text, p_subject_id: text, p_permission: text, p_resource_type: text, p_resource_id: text, p_namespace: text) -> bool
 ```
 
-Check if a user has a specific permission on a resource
+Check if a subject has a permission on a resource
 
 **Parameters:**
-- `p_user_id`: The user to check
-- `p_permission`: The permission to verify (e.g., 'read', 'write', 'admin')
-- `p_resource_type`: The type of resource (e.g., 'repo', 'doc')
-- `p_resource_id`: The resource identifier
-
-**Returns:** True if the user has the permission
-
-**Example:**
-```sql
-SELECT authz.check('alice', 'read', 'doc', 'spec-123');
-```
-
-*Source: authz/src/functions/022_check.sql:100*
-
----
-
-### authz.check_all
-
-```sql
-authz.check_all(p_user_id: text, p_permissions: text[], p_resource_type: text, p_resource_id: text, p_namespace: text) -> bool
-```
-
-Check if a user has all of the specified permissions
-
-**Parameters:**
-- `p_user_id`: The user to check
-- `p_permissions`: Array of permissions (user needs all of them)
-- `p_resource_type`: The type of resource
-- `p_resource_id`: The resource identifier
-
-**Returns:** True if the user has all of the permissions
-
-**Example:**
-```sql
-SELECT authz.check_all('alice', ARRAY['read', 'write'], 'doc', 'spec-123');
-```
-
-*Source: authz/src/functions/022_check.sql:150*
-
----
-
-### authz.check_any
-
-```sql
-authz.check_any(p_user_id: text, p_permissions: text[], p_resource_type: text, p_resource_id: text, p_namespace: text) -> bool
-```
-
-Check if a user has any of the specified permissions
-
-**Parameters:**
-- `p_user_id`: The user to check
-- `p_permissions`: Array of permissions (user needs at least one)
-- `p_resource_type`: The type of resource
-- `p_resource_id`: The resource identifier
-
-**Returns:** True if the user has at least one of the permissions
-
-**Example:**
-```sql
-SELECT authz.check_any('alice', ARRAY['read', 'write'], 'doc', 'spec-123');
-```
-
-*Source: authz/src/functions/022_check.sql:125*
-
----
-
-### authz.check_subject
-
-```sql
-authz.check_subject(p_subject_type: text, p_subject_id: text, p_permission: text, p_resource_type: text, p_resource_id: text, p_namespace: text) -> bool
-```
-
-Check if any subject type has a permission on a resource
-
-**Parameters:**
-- `p_subject_type`: The subject type (e.g., 'api_key', 'service', 'user')
+- `p_subject_type`: The subject type (e.g., 'user', 'api_key', 'service')
 - `p_subject_id`: The subject ID
 - `p_permission`: The permission to verify (e.g., 'read', 'write', 'admin')
 - `p_resource_type`: The type of resource (e.g., 'repo', 'doc')
@@ -657,18 +582,18 @@ Check if any subject type has a permission on a resource
 
 **Example:**
 ```sql
-SELECT authz.check_subject('api_key', 'key-123', 'read', 'repo', 'api');
-SELECT authz.check_subject('service', 'billing', 'write', 'customer', 'cust-1');
+SELECT authz.check('user', 'alice', 'read', 'doc', 'spec-123');
+SELECT authz.check('api_key', 'key-123', 'read', 'repo', 'api');
 ```
 
-*Source: authz/src/functions/024_check_subject.sql:85*
+*Source: authz/src/functions/022_check.sql:84*
 
 ---
 
-### authz.check_subject_all
+### authz.check_all
 
 ```sql
-authz.check_subject_all(p_subject_type: text, p_subject_id: text, p_permissions: text[], p_resource_type: text, p_resource_id: text, p_namespace: text) -> bool
+authz.check_all(p_subject_type: text, p_subject_id: text, p_permissions: text[], p_resource_type: text, p_resource_id: text, p_namespace: text) -> bool
 ```
 
 Check if a subject has all of the specified permissions
@@ -684,17 +609,17 @@ Check if a subject has all of the specified permissions
 
 **Example:**
 ```sql
-SELECT authz.check_subject_all('api_key', 'key-123', ARRAY['read', 'write'], 'repo', 'api');
+SELECT authz.check_all('user', 'alice', ARRAY['read', 'write'], 'doc', 'spec-123');
 ```
 
-*Source: authz/src/functions/024_check_subject.sql:144*
+*Source: authz/src/functions/022_check.sql:143*
 
 ---
 
-### authz.check_subject_any
+### authz.check_any
 
 ```sql
-authz.check_subject_any(p_subject_type: text, p_subject_id: text, p_permissions: text[], p_resource_type: text, p_resource_id: text, p_namespace: text) -> bool
+authz.check_any(p_subject_type: text, p_subject_id: text, p_permissions: text[], p_resource_type: text, p_resource_id: text, p_namespace: text) -> bool
 ```
 
 Check if a subject has any of the specified permissions
@@ -710,10 +635,10 @@ Check if a subject has any of the specified permissions
 
 **Example:**
 ```sql
-SELECT authz.check_subject_any('api_key', 'key-123', ARRAY['read', 'write'], 'repo', 'api');
+SELECT authz.check_any('user', 'alice', ARRAY['read', 'write'], 'doc', 'spec-123');
 ```
 
-*Source: authz/src/functions/024_check_subject.sql:115*
+*Source: authz/src/functions/022_check.sql:114*
 
 ---
 

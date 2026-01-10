@@ -118,12 +118,19 @@ def index(ctx: OrgContext):
     # Get cross-org shared notes
     shared_with_me = get_shared_with_me(user_id, "note")
 
+    # Get pending invites for current user
+    user_info = authn.get_user(user_id)
+    pending_invites = []
+    if user_info:
+        pending_invites = get_pending_shares_for_email(user_info["email"])
+
     return render_template(
         "notes/index.html",
         notes=notes,
         owned_count=len(owned_ids),
         shared_count=len(viewable_ids) - len(owned_ids),
         shared_with_me=shared_with_me,
+        pending_invites=pending_invites,
     )
 
 
@@ -484,7 +491,6 @@ def grant_access(ctx: OrgContext, note_id: str):
     user_id = ctx.user_id
     org_id = ctx.org_id
     authz = get_authz(org_id)
-    authn = get_authn()
 
     # Check owner permission
     if not authz.check(("user", user_id), "owner", ("note", note_id)):
@@ -506,39 +512,21 @@ def grant_access(ctx: OrgContext, note_id: str):
             flash("Please enter an email address", "error")
             return redirect(url_for(".share", note_id=note_id))
 
-        # Look up user by email
-        target_user = authn.get_user_by_email(email)
-
-        if target_user:
-            # User exists - grant directly
-            authz.grant(
-                permission,
-                resource=("note", note_id),
-                subject=("user", target_user["user_id"]),
-                expires_at=expires_at,
-            )
-            log.info(f"Note shared: note_id={note_id[:8]}... with user {email}")
-            flash(f"Shared with {email}", "success")
+        # All user shares require acceptance (GitHub-style)
+        share_id = create_pending_share(
+            recipient_email=email,
+            org_id=org_id,
+            resource_type="note",
+            resource_id=note_id,
+            permission=permission,
+            invited_by=user_id,
+            expires_at=expires_at,
+        )
+        if share_id:
+            log.info(f"Invite created: note_id={note_id[:8]}... for {email}")
+            flash(f"Invite sent to {email}", "success")
         else:
-            # User doesn't exist - create pending share
-            # Will be converted to real grant when user signs up and verifies email
-            share_id = create_pending_share(
-                recipient_email=email,
-                org_id=org_id,
-                resource_type="note",
-                resource_id=note_id,
-                permission=permission,
-                invited_by=user_id,
-                expires_at=expires_at,
-            )
-            if share_id:
-                log.info(f"Pending share created: note_id={note_id[:8]}... for {email}")
-                flash(
-                    f"Invite sent to {email}. They'll get access when they sign up.",
-                    "success",
-                )
-            else:
-                flash(f"Share already pending for {email}", "info")
+            flash(f"Invite already pending for {email}", "info")
 
     elif share_type == "team":
         team_id = request.form.get("team_id", "").strip()
@@ -587,6 +575,62 @@ def revoke_access(ctx: OrgContext, note_id: str):
         flash("Access revoked", "success")
 
     return redirect(url_for(".access", note_id=note_id))
+
+
+@bp.post("/<note_id>/cancel-invite")
+@authenticated(org=True)
+def cancel_invite(ctx: OrgContext, note_id: str):
+    """Cancel a pending invite (owner action)."""
+    authz = get_authz(ctx.org_id)
+    if not authz.check(("user", ctx.user_id), "owner", ("note", note_id)):
+        flash("You don't have permission to manage sharing", "error")
+        return redirect(url_for(".view", note_id=note_id))
+
+    share_id = request.form.get("share_id")
+    if share_id and cancel_pending_share(share_id, ctx.org_id):
+        flash("Invite cancelled", "success")
+    else:
+        flash("Could not cancel invite", "error")
+    return redirect(url_for(".access", note_id=note_id))
+
+
+@bp.post("/invites/<share_id>/accept")
+@authenticated(org=False)
+def accept_invite(ctx: UserContext, share_id: str):
+    """Accept a pending invite."""
+    authn = get_authn()
+    user = authn.get_user(ctx.user_id)
+    if not user:
+        flash("User not found", "error")
+        return redirect(url_for("views.dashboard.index"))
+
+    share = accept_pending_share(share_id, ctx.user_id, user["email"])
+    if share:
+        log.info(
+            f"Invite accepted: {share['resource_id'][:8]}... by {ctx.user_id[:8]}..."
+        )
+        flash("You now have access to this note", "success")
+        return redirect(url_for(".view_shared", note_id=share["resource_id"]))
+
+    flash("Invite not found or expired", "error")
+    return redirect(url_for("views.dashboard.index"))
+
+
+@bp.post("/invites/<share_id>/reject")
+@authenticated(org=False)
+def reject_invite(ctx: UserContext, share_id: str):
+    """Decline a pending invite."""
+    authn = get_authn()
+    user = authn.get_user(ctx.user_id)
+    if not user:
+        flash("User not found", "error")
+        return redirect(url_for("views.dashboard.index"))
+
+    if reject_pending_share(share_id, user["email"]):
+        flash("Invite declined", "success")
+    else:
+        flash("Invite not found", "error")
+    return redirect(url_for("views.dashboard.index"))
 
 
 @bp.get("/<note_id>/access")
@@ -657,10 +701,14 @@ def access(ctx: OrgContext, note_id: str):
     for subject_type, subject_id in viewer_subjects:
         add_subject(subject_type, subject_id, "view")
 
+    # Get pending invites for this note
+    pending_invites = get_pending_shares_for_note(note_id, org_id)
+
     return render_template(
         "notes/access.html",
         note=note,
         access_list=access_list,
+        pending_invites=pending_invites,
     )
 
 
@@ -703,10 +751,24 @@ def create_pending_share(
 ) -> str | None:
     """Create a pending share for an external user.
 
-    Returns the share ID if created, None if duplicate.
+    Returns the share ID if created, None if duplicate active invite exists.
     """
-    share_id = str(uuid.uuid4())
     with get_db().cursor() as cur:
+        # Check if an active (non-cancelled) pending share already exists
+        cur.execute(
+            """
+            SELECT id FROM pending_shares
+            WHERE recipient_email = %s AND org_id = %s AND resource_type = %s
+            AND resource_id = %s AND permission = %s
+            AND converted_at IS NULL AND cancelled_at IS NULL
+            """,
+            (recipient_email.lower(), org_id, resource_type, resource_id, permission),
+        )
+        if cur.fetchone():
+            return None  # Already exists
+
+        # Create new pending share
+        share_id = str(uuid.uuid4())
         try:
             cur.execute(
                 """
@@ -714,8 +776,6 @@ def create_pending_share(
                 (id, recipient_email, org_id, resource_type, resource_id,
                  permission, invited_by, expires_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (recipient_email, org_id, resource_type, resource_id, permission)
-                DO NOTHING
                 RETURNING id
                 """,
                 (
@@ -737,7 +797,7 @@ def create_pending_share(
 
 
 def get_pending_shares_for_email(email: str) -> list[dict]:
-    """Get all unconverted pending shares for an email."""
+    """Get all active pending shares for an email (recipient's view)."""
     with get_db().cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
@@ -747,6 +807,7 @@ def get_pending_shares_for_email(email: str) -> list[dict]:
             LEFT JOIN orgs o ON ps.org_id = o.org_id
             WHERE ps.recipient_email = %s
             AND ps.converted_at IS NULL
+            AND ps.cancelled_at IS NULL
             AND (ps.expires_at IS NULL OR ps.expires_at > now())
             ORDER BY ps.invited_at DESC
             """,
@@ -794,6 +855,86 @@ def convert_pending_shares(user_id: str, email: str) -> int:
             log.error(f"Failed to convert pending share {share['id']}: {e}")
 
     return converted
+
+
+def get_pending_shares_for_note(note_id: str, org_id: str) -> list[dict]:
+    """Get active pending invites for a note (owner's view)."""
+    with get_db().cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT id, recipient_email, permission, invited_at, expires_at
+            FROM pending_shares
+            WHERE resource_type = 'note' AND resource_id = %s AND org_id = %s
+            AND converted_at IS NULL AND cancelled_at IS NULL
+            AND (expires_at IS NULL OR expires_at > now())
+            ORDER BY invited_at DESC
+            """,
+            (note_id, org_id),
+        )
+        return cur.fetchall()
+
+
+def cancel_pending_share(share_id: str, org_id: str) -> bool:
+    """Cancel a pending invite. Returns True if cancelled."""
+    with get_db().cursor() as cur:
+        cur.execute(
+            """
+            UPDATE pending_shares SET cancelled_at = now()
+            WHERE id = %s AND org_id = %s
+            AND converted_at IS NULL AND cancelled_at IS NULL
+            RETURNING id
+            """,
+            (share_id, org_id),
+        )
+        return cur.fetchone() is not None
+
+
+def accept_pending_share(share_id: str, user_id: str, email: str) -> dict | None:
+    """Accept invite and grant permission. Returns share info or None."""
+    with get_db().cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT * FROM pending_shares
+            WHERE id = %s AND recipient_email = %s
+            AND converted_at IS NULL AND cancelled_at IS NULL
+            AND (expires_at IS NULL OR expires_at > now())
+            """,
+            (share_id, email.lower()),
+        )
+        share = cur.fetchone()
+        if not share:
+            return None
+
+        # Grant permission
+        authz = get_authz(share["org_id"])
+        authz.grant(
+            share["permission"],
+            resource=(share["resource_type"], share["resource_id"]),
+            subject=("user", user_id),
+            expires_at=share["expires_at"],
+        )
+
+        # Mark converted
+        cur.execute(
+            "UPDATE pending_shares SET converted_at = now(), converted_to_user_id = %s WHERE id = %s",
+            (user_id, share_id),
+        )
+        return share
+
+
+def reject_pending_share(share_id: str, email: str) -> bool:
+    """Reject (delete) a pending invite. Returns True if deleted."""
+    with get_db().cursor() as cur:
+        cur.execute(
+            """
+            DELETE FROM pending_shares
+            WHERE id = %s AND recipient_email = %s
+            AND converted_at IS NULL AND cancelled_at IS NULL
+            RETURNING id
+            """,
+            (share_id, email.lower()),
+        )
+        return cur.fetchone() is not None
 
 
 def get_shared_with_me(user_id: str, resource_type: str = "note") -> list[dict]:

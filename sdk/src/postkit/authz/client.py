@@ -260,7 +260,7 @@ class AuthzClient(BaseClient):
         subject_type, subject_id = subject
         resource_type, resource_id = resource
         return self._fetch_val(
-            "SELECT authz.check_subject(%s, %s, %s, %s, %s, %s)",
+            "SELECT authz.check(%s, %s, %s, %s, %s, %s)",
             (
                 subject_type,
                 subject_id,
@@ -291,7 +291,7 @@ class AuthzClient(BaseClient):
         subject_type, subject_id = subject
         resource_type, resource_id = resource
         return self._fetch_val(
-            "SELECT authz.check_subject_any(%s, %s, %s, %s, %s, %s)",
+            "SELECT authz.check_any(%s, %s, %s, %s, %s, %s)",
             (
                 subject_type,
                 subject_id,
@@ -321,7 +321,7 @@ class AuthzClient(BaseClient):
         subject_type, subject_id = subject
         resource_type, resource_id = resource
         return self._fetch_val(
-            "SELECT authz.check_subject_all(%s, %s, %s, %s, %s, %s)",
+            "SELECT authz.check_all(%s, %s, %s, %s, %s, %s)",
             (
                 subject_type,
                 subject_id,

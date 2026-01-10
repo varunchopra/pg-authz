@@ -37,15 +37,15 @@ psql $DATABASE_URL -f dist/meter.sql
 Works with any language or driver:
 
 ```python
-cursor.execute("SELECT authz.check(%s, %s, %s, %s)", (user_id, "read", "doc", doc_id))
+cursor.execute("SELECT authz.check(%s, %s, %s, %s, %s)", ("user", user_id, "read", "doc", doc_id))
 ```
 
 ```typescript
-await pool.query("SELECT authz.check($1, $2, $3, $4)", [userId, "read", "doc", docId]);
+await pool.query("SELECT authz.check($1, $2, $3, $4, $5)", ["user", userId, "read", "doc", docId]);
 ```
 
 ```go
-db.QueryRow(ctx, "SELECT authz.check($1, $2, $3, $4)", userID, "read", "doc", docID).Scan(&ok)
+db.QueryRow(ctx, "SELECT authz.check($1, $2, $3, $4, $5)", "user", userID, "read", "doc", docID).Scan(&ok)
 ```
 
 ## Python SDK
@@ -61,18 +61,18 @@ pip install git+https://github.com/varunchopra/postkit.git#subdirectory=sdk
 >>> authz.grant("admin", resource=("repo", "api"), subject=("user", "alice"))
 1
 
->>> authz.check("alice", "admin", ("repo", "api"))
+>>> authz.check(("user", "alice"), "admin", ("repo", "api"))
 True
 
 # Without a hierarchy, admin does not imply read.
->>> authz.check("alice", "read", ("repo", "api"))
+>>> authz.check(("user", "alice"), "read", ("repo", "api"))
 False
 
 # Define a permission hierarchy: admin > write > read.
 >>> authz.set_hierarchy("repo", "admin", "write", "read")
 
 # Now alice has read access via admin.
->>> authz.check("alice", "read", ("repo", "api"))
+>>> authz.check(("user", "alice"), "read", ("repo", "api"))
 True
 
 # Create a versioned config entry.

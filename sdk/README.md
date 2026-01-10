@@ -21,7 +21,7 @@ cursor = conn.cursor()
 # Authorization
 authz = AuthzClient(cursor, namespace="my-app")
 authz.grant("admin", resource=("repo", "api"), subject=("user", "alice"))
-if authz.check("alice", "read", ("repo", "api")):
+if authz.check(("user", "alice"), "read", ("repo", "api")):
     print("Access granted")
 
 # Authentication

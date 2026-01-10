@@ -64,12 +64,9 @@
 | [`authz.verify_integrity`](sql.md#authzverify_integrity) | Check for data corruption (circular memberships, broken hierarchies) |
 | [`authz.clear_tenant`](sql.md#authzclear_tenant) | Clear tenant context. Queries return no rows (fail-closed for safety). |
 | [`authz.set_tenant`](sql.md#authzset_tenant) | Set the tenant context for Row-Level Security (session-level) |
-| [`authz.check`](sql.md#authzcheck) | Check if a user has a specific permission on a resource |
-| [`authz.check_all`](sql.md#authzcheck_all) | Check if a user has all of the specified permissions |
-| [`authz.check_any`](sql.md#authzcheck_any) | Check if a user has any of the specified permissions |
-| [`authz.check_subject`](sql.md#authzcheck_subject) | Check if any subject type has a permission on a resource |
-| [`authz.check_subject_all`](sql.md#authzcheck_subject_all) | Check if a subject has all of the specified permissions |
-| [`authz.check_subject_any`](sql.md#authzcheck_subject_any) | Check if a subject has any of the specified permissions |
+| [`authz.check`](sql.md#authzcheck) | Check if a subject has a permission on a resource |
+| [`authz.check_all`](sql.md#authzcheck_all) | Check if a subject has all of the specified permissions |
+| [`authz.check_any`](sql.md#authzcheck_any) | Check if a subject has any of the specified permissions |
 | [`authz.list_subject_grants`](sql.md#authzlist_subject_grants) | List all grants for a subject ("What can this API key access?") |
 | [`authz.revoke_subject_grants`](sql.md#authzrevoke_subject_grants) | Revoke all grants for a subject (cleanup on deletion) |
 | [`authz.write`](sql.md#authzwrite) | Simpler write_tuple when you don't need subject_relation |

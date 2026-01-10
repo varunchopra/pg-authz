@@ -1,65 +1,14 @@
 -- @group Internal
 
--- @function authz._expand_user_memberships
--- @brief Expand user memberships recursively
--- @param p_user_id The user ID
--- @param p_namespace Namespace (default: 'default')
--- @returns Table of (group_type, group_id, membership_relation)
--- Given a user, returns all groups they belong to, including nested groups.
--- Used by check, list_resources, and filter_authorized to avoid duplicating
--- the same recursive CTE logic.
--- @example If alice is in team:infra, and team:infra is in team:platform,
--- @example returns both (team, infra, member) and (team, platform, member).
-CREATE OR REPLACE FUNCTION authz._expand_user_memberships(
-    p_user_id text,
-    p_namespace text DEFAULT 'default'
-)
-RETURNS TABLE(group_type text, group_id text, membership_relation text)
-AS $$
-    WITH RECURSIVE user_memberships AS (
-        -- Direct memberships
-        SELECT
-            resource_type AS group_type,
-            resource_id AS group_id,
-            relation AS membership_relation,
-            1 AS depth
-        FROM authz.tuples
-        WHERE namespace = p_namespace
-          AND subject_type = 'user'
-          AND subject_id = p_user_id
-          AND (expires_at IS NULL OR expires_at > now())
-
-        UNION
-
-        -- Nested: groups containing groups the user is in
-        SELECT
-            t.resource_type,
-            t.resource_id,
-            t.relation,
-            um.depth + 1
-        FROM user_memberships um
-        JOIN authz.tuples t
-          ON t.namespace = p_namespace
-          AND t.subject_type = um.group_type
-          AND t.subject_id = um.group_id
-          AND t.relation = 'member'
-          AND (t.expires_at IS NULL OR t.expires_at > now())
-        WHERE um.depth < authz._max_group_depth()
-    )
-    SELECT group_type, group_id, membership_relation FROM user_memberships;
-$$ LANGUAGE sql STABLE PARALLEL SAFE SECURITY INVOKER SET search_path = authz, pg_temp;
-
-
 -- @function authz._expand_subject_memberships
 -- @brief Expand memberships for any subject type recursively
--- @param p_subject_type The subject type (e.g., 'api_key', 'service', 'user')
+-- @param p_subject_type The subject type (e.g., 'user', 'api_key', 'service')
 -- @param p_subject_id The subject ID
 -- @param p_namespace Namespace (default: 'default')
 -- @returns Table of (group_type, group_id, membership_relation)
--- Like _expand_user_memberships but works for any subject type.
 -- Given a subject, returns all groups it belongs to, including nested groups.
--- @example If api_key:key-1 is in group:ci-services, and group:ci-services is
--- @example in group:all-services, returns both groups.
+-- @example If user:alice is in team:infra, and team:infra is in team:platform,
+-- @example returns both (team, infra, member) and (team, platform, member).
 CREATE OR REPLACE FUNCTION authz._expand_subject_memberships(
     p_subject_type text,
     p_subject_id text,

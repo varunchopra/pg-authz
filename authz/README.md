@@ -25,9 +25,9 @@ SELECT authz.write('team', 'engineering', 'member', 'user', 'bob');
 SELECT authz.write('repo', 'acme/api', 'admin', 'team', 'engineering');
 
 -- Check permissions
-SELECT authz.check('alice', 'read', 'repo', 'acme/api');   -- true (admin implies read)
-SELECT authz.check('alice', 'admin', 'repo', 'acme/api');  -- true (via team)
-SELECT authz.check('charlie', 'read', 'repo', 'acme/api'); -- false (not on team)
+SELECT authz.check('user', 'alice', 'read', 'repo', 'acme/api');   -- true (admin implies read)
+SELECT authz.check('user', 'alice', 'admin', 'repo', 'acme/api');  -- true (via team)
+SELECT authz.check('user', 'charlie', 'read', 'repo', 'acme/api'); -- false (not on team)
 ```
 
 See [docs/authz/](../docs/authz/) for full API reference.

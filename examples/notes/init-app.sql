@@ -111,15 +111,16 @@ CREATE TABLE IF NOT EXISTS pending_shares (
     -- Status
     converted_at TIMESTAMPTZ,  -- When converted to real grant
     converted_to_user_id TEXT, -- Which user got the grant
+    cancelled_at TIMESTAMPTZ,  -- When owner cancelled the invite
 
-    -- Prevent duplicate pending shares
-    CONSTRAINT pending_shares_unique UNIQUE (recipient_email, org_id, resource_type, resource_id, permission)
+    -- Prevent duplicate active pending shares (allows re-invite after cancellation)
+    CONSTRAINT pending_shares_unique UNIQUE NULLS NOT DISTINCT (recipient_email, org_id, resource_type, resource_id, permission, cancelled_at)
 );
 
 -- Index for lookup by email (most common query)
 CREATE INDEX IF NOT EXISTS idx_pending_shares_email
     ON pending_shares(recipient_email)
-    WHERE converted_at IS NULL;
+    WHERE converted_at IS NULL AND cancelled_at IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_pending_shares_org
     ON pending_shares(org_id);
