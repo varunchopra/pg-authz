@@ -3,13 +3,41 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from typing import Any
+
+import jsonschema
 
 from postkit.base import BaseClient, PostkitError
 
 
 class ConfigError(PostkitError):
     """Exception for config operations."""
+
+
+class ValidationError(ConfigError):
+    """Raised when config value doesn't match schema."""
+
+    def __init__(self, key: str, errors: list[str]):
+        self.key = key
+        self.errors = errors
+        super().__init__(f"Validation failed for '{key}': {errors}")
+
+
+class SchemaViolationError(ConfigError):
+    """Raised when schema change would invalidate existing configs."""
+
+    def __init__(self, message: str, invalid_configs: list[dict]):
+        self.invalid_configs = invalid_configs
+        super().__init__(message)
+
+
+@dataclass
+class ValidationResult:
+    """Result of JSON Schema validation."""
+
+    valid: bool
+    errors: list[str]
 
 
 class ConfigClient(BaseClient):
@@ -55,7 +83,6 @@ class ConfigClient(BaseClient):
         super().__init__(cursor, namespace)
 
     def _apply_actor_context(self) -> None:
-        """Apply actor context via config.set_actor()."""
         self.cursor.execute(
             """SELECT config.set_actor(
                 p_actor_id := %s,
@@ -69,13 +96,24 @@ class ConfigClient(BaseClient):
     def set(self, key: str, value: Any) -> int:
         """Create a new version and activate it.
 
+        Validates against schema if one exists for this key pattern.
+
         Args:
             key: Config key (e.g., 'prompts/support-bot', 'flags/checkout')
             value: Config value (will be stored as JSONB)
 
         Returns:
             New version number
+
+        Raises:
+            ValidationError: If value doesn't match the schema for this key
         """
+        schema = self.get_schema(key)
+        if schema is not None:
+            result = self._validate_value(value, schema)
+            if not result.valid:
+                raise ValidationError(key, result.errors)
+
         return self._fetch_val(
             "SELECT config.set(%s, %s::jsonb, %s)",
             (key, json.dumps(value), self.namespace),
@@ -152,6 +190,8 @@ class ConfigClient(BaseClient):
         Performs a shallow merge - top-level keys in changes overwrite
         existing keys, other keys are preserved.
 
+        Validates the merged result against schema if one exists.
+
         Args:
             key: Config key
             changes: Dict of fields to merge
@@ -159,10 +199,21 @@ class ConfigClient(BaseClient):
         Returns:
             New version number
 
+        Raises:
+            ValidationError: If merged result doesn't match the schema
+
         Example:
             config.merge("flags/checkout", {"rollout": 0.75})
             config.merge("prompts/bot", {"temperature": 0.8, "max_tokens": 2000})
         """
+        schema = self.get_schema(key)
+        if schema is not None:
+            current = self.get_value(key, default={})
+            merged = {**current, **changes}
+            result = self._validate_value(merged, schema)
+            if not result.valid:
+                raise ValidationError(key, result.errors)
+
         return self._fetch_val(
             "SELECT config.merge(%s, %s::jsonb, %s)",
             (key, json.dumps(changes), self.namespace),
@@ -351,3 +402,123 @@ class ConfigClient(BaseClient):
         return self._get_audit_events(
             limit=limit, event_type=event_type, filters=filters
         )
+
+    # Schema management
+
+    def set_schema(
+        self, key_pattern: str, schema: dict, description: str | None = None
+    ) -> None:
+        """Register a JSON Schema for validating config values.
+
+        Pattern types:
+            Prefix (trailing /):  'flags/'               - Homogeneous collections
+            Exact (no trailing /): 'integrations/webhook' - Unique schemas
+
+        Use prefix for collections where all items share structure:
+            - flags/*       : All have {enabled: bool, rollout?: number}
+            - rate_limits/* : All have {max: number, window_seconds: number}
+
+        Use exact for items with unique structure:
+            - integrations/webhook : {url, secret, headers}
+            - integrations/slack   : {workspace_id, channel, bot_token}
+
+        Args:
+            key_pattern: Prefix ending in '/' or exact key
+            schema: JSON Schema document (Draft 7)
+            description: Human-readable description
+
+        Raises:
+            SchemaViolationError: If existing configs don't comply with schema
+
+        Note:
+            Requires admin connection. Validates ALL existing configs across
+            all namespaces before saving.
+        """
+        # Get all matching configs across all namespaces
+        matching = self._fetch_all(
+            "SELECT namespace, key, value FROM config._get_configs_for_pattern(%s)",
+            (key_pattern,),
+        )
+
+        # Validate each against new schema
+        invalid = []
+        for config in matching:
+            result = self._validate_value(config["value"], schema)
+            if not result.valid:
+                invalid.append(
+                    {
+                        "namespace": config["namespace"],
+                        "key": config["key"],
+                        "errors": result.errors,
+                    }
+                )
+
+        if invalid:
+            raise SchemaViolationError(
+                f"{len(invalid)} existing configs don't comply with schema",
+                invalid_configs=invalid,
+            )
+
+        self._fetch_val(
+            "SELECT config._set_schema(%s, %s::jsonb, %s)",
+            (key_pattern, json.dumps(schema), description),
+            write=True,
+        )
+
+    def get_schema(self, key: str) -> dict | None:
+        """Get the JSON Schema that applies to a config key.
+
+        Matching precedence:
+            1. Exact match wins over prefix
+            2. Longer prefix wins over shorter
+            3. No match = returns None (no validation required)
+
+        Args:
+            key: Config key to find schema for
+
+        Returns:
+            JSON Schema document, or None if no matching schema
+
+        Note:
+            All connections (admin and tenant) can read schemas.
+        """
+        return self._fetch_val("SELECT config.get_schema(%s)", (key,))
+
+    def delete_schema(self, key_pattern: str) -> bool:
+        """Delete a schema by its key pattern.
+
+        Args:
+            key_pattern: Pattern to delete
+
+        Returns:
+            True if deleted, False if not found
+
+        Note:
+            Requires admin connection that bypasses RLS.
+        """
+        return self._fetch_val(
+            "SELECT config.delete_schema(%s)", (key_pattern,), write=True
+        )
+
+    def list_schemas(self, prefix: str | None = None, limit: int = 100) -> list[dict]:
+        """List all schemas, optionally filtered by prefix.
+
+        Args:
+            prefix: Optional prefix to filter by
+            limit: Maximum number of results (default 100)
+
+        Returns:
+            List of dicts with 'key_pattern', 'schema', 'description',
+            'created_at', 'updated_at'
+        """
+        return self._fetch_all(
+            "SELECT key_pattern, schema, description, created_at, updated_at "
+            "FROM config.list_schemas(%s, %s)",
+            (prefix, limit),
+        )
+
+    def _validate_value(self, value: Any, schema: dict) -> ValidationResult:
+        """Validate value against JSON Schema (Draft 7)."""
+        validator = jsonschema.Draft7Validator(schema)
+        errors = [error.message for error in validator.iter_errors(value)]
+        return ValidationResult(valid=len(errors) == 0, errors=errors)

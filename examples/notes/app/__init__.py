@@ -6,61 +6,13 @@ from flask import Flask, g, jsonify, request
 from . import db
 from .config import Config
 from .routes import api_bp, views_bp
+from .seed import seed_all
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 log = logging.getLogger(__name__)
-
-# Track whether plans have been seeded this process
-_plans_seeded = False
-
-
-def seed_plans():
-    """Seed default plans if they don't exist (idempotent)."""
-    global _plans_seeded
-    if _plans_seeded:
-        return
-
-    try:
-        config = db.get_system_config()
-
-        # Only seed if free plan doesn't exist
-        if not config.exists("plans/free"):
-            config.set(
-                "plans/free",
-                {
-                    "name": "Free",
-                    "seats": 3,
-                    "seat_price": 0,
-                    "storage_rate": 0.00001,  # $0.01 per 1000 chars
-                },
-            )
-            config.set(
-                "plans/pro",
-                {
-                    "name": "Pro",
-                    "seats": 25,
-                    "seat_price": 10,  # $10/seat/month
-                    "storage_rate": 0.000005,  # $0.005 per 1000 chars
-                },
-            )
-            config.set(
-                "plans/enterprise",
-                {
-                    "name": "Enterprise",
-                    "seats": -1,  # Unlimited
-                    "seat_price": None,  # Custom pricing
-                    "storage_rate": None,  # Custom pricing
-                },
-            )
-            log.info("Default plans seeded")
-
-        _plans_seeded = True
-    except Exception as e:
-        # Don't fail startup if seeding fails (e.g., DB not ready yet)
-        log.warning(f"Could not seed plans: {e}")
 
 
 def create_app():
@@ -81,8 +33,11 @@ def create_app():
             ip_address=request.remote_addr,
             user_agent=request.headers.get("User-Agent", "")[:1024],
         )
-        # Seed plans on first request (idempotent)
-        seed_plans()
+        # Seed schemas and default data on first request (idempotent)
+        try:
+            seed_all(db.get_system_config())
+        except Exception as e:
+            log.warning(f"Could not seed: {e}")
 
     @app.after_request
     def add_request_id_header(response):

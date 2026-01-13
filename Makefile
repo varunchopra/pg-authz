@@ -42,7 +42,7 @@ else
 endif
 
 docs:
-	@cd scripts && uv run --with pglast --with 'psycopg[binary]' python -m gendocs.cli
+	@cd scripts && uv run --with pglast --with 'psycopg[binary]' --with jsonschema python -m gendocs.cli
 	@echo "$(GREEN)✓ Generated docs$(NC)"
 
 clean:

@@ -22,6 +22,7 @@ class ParsedDocstring:
     brief: str = ""
     params: dict[str, str] = field(default_factory=dict)
     returns: str | None = None
+    raises: dict[str, str] = field(default_factory=dict)
     examples: list[str] = field(default_factory=list)
 
 

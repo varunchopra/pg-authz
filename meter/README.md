@@ -101,11 +101,4 @@ SELECT * FROM meter.consume(
 -- Safe to retry - same key returns same result without double-charging
 ```
 
-## Design Principles
-
-1. **Double-entry ledger**: Every balance change is an immutable ledger entry
-2. **Atomic operations**: Check-and-decrement in single statement (no race conditions)
-3. **Reservations are holds**: They block availability but don't affect balance until commit
-4. **Immutable audit trail**: Ledger entries cannot be modified, only adjusted with new entries
-
 See [docs/meter/](../docs/meter/) for full API reference.

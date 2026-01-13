@@ -57,51 +57,22 @@ pip install git+https://github.com/varunchopra/postkit.git#subdirectory=sdk
 ```
 
 ```python
-# Grant alice the admin role on repo:api.
->>> authz.grant("admin", resource=("repo", "api"), subject=("user", "alice"))
-1
+# authz: permission checks
+authz.grant("admin", resource=("repo", "api"), subject=("user", "alice"))
+authz.check(("user", "alice"), "read", ("repo", "api"))  # True
 
->>> authz.check(("user", "alice"), "admin", ("repo", "api"))
-True
+# authn: user management
+user_id = authn.create_user("alice@example.com", password_hash)
+authn.create_session(user_id, token_hash)
 
-# Without a hierarchy, admin does not imply read.
->>> authz.check(("user", "alice"), "read", ("repo", "api"))
-False
+# config: versioned configuration
+config.set("prompts/bot", {"template": "You are...", "model": "claude-sonnet-4-20250514"})
+config.rollback("prompts/bot")
 
-# Define a permission hierarchy: admin > write > read.
->>> authz.set_hierarchy("repo", "admin", "write", "read")
-
-# Now alice has read access via admin.
->>> authz.check(("user", "alice"), "read", ("repo", "api"))
-True
-
-# Create a versioned config entry.
->>> config.set(
-...     "prompts/support-bot",
-...     {"template": "You are...", "model": {"name": "claude-sonnet", "temperature": 0.7}},
-... )
-1
-
-# Shallow merge: top-level keys are replaced, creating a new version.
->>> config.merge("prompts/support-bot", {"model": {"temperature": 0.8}})
-2
-
-# Read a nested value (note: shallow merge replaced entire "model" object).
->>> config.get_path("prompts/support-bot", "model", "temperature")
-0.8
-
-# Alice has 10k tokens.
->>> meter.allocate("alice", "llm_call", 10000, "tokens")
-{'balance': 10000.0, 'entry_id': 1}
-
-# Reserve 4k for streaming (hold, not spent yet).
->>> res = meter.reserve("alice", "llm_call", 4000, "tokens")
->>> meter.get_balance("alice", "llm_call", "tokens")
-{'balance': 10000.0, 'reserved': 4000.0, 'available': 6000.0}
-
-# Stream done - commit actual usage.
->>> meter.commit(res["reservation_id"], 2347)
-{'success': True, 'consumed': 2347.0, 'balance': 7653.0, ...}
+# meter: usage tracking with reservations
+meter.allocate("alice", "llm_call", 10000, "tokens")
+res = meter.reserve("alice", "llm_call", 4000, "tokens")
+meter.commit(res["reservation_id"], 2347)
 ```
 
 See [sdk/](sdk/) for details.

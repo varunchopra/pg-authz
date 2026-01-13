@@ -377,6 +377,69 @@ SELECT config.set('secrets/OPENAI_API_KEY', '{"encrypted": "aes256gcm:..."}');
 
 ---
 
+## Internal
+
+### config.delete_schema
+
+```sql
+config.delete_schema(p_key_pattern: text) -> bool
+```
+
+Delete a schema by its key pattern
+
+**Parameters:**
+- `p_key_pattern`: Pattern to delete
+
+**Returns:** true if deleted, false if not found
+
+*Source: config/src/functions/060_schemas.sql:148*
+
+---
+
+### config.get_schema
+
+```sql
+config.get_schema(p_key: text) -> jsonb
+```
+
+Get the JSON Schema that applies to a config key
+
+**Parameters:**
+- `p_key`: The config key to find schema for
+
+**Returns:** JSON Schema document, or NULL if no matching schema
+
+**Example:**
+```sql
+SELECT config.get_schema('flags/checkout');
+Matching precedence:
+1. Exact match wins over prefix
+2. Longer prefix wins over shorter
+3. No match = returns NULL (no validation required)
+```
+
+*Source: config/src/functions/060_schemas.sql:105*
+
+---
+
+### config.list_schemas
+
+```sql
+config.list_schemas(p_prefix: text, p_limit: int4) -> table(key_pattern: text, schema: jsonb, description: text, created_at: timestamptz, updated_at: timestamptz)
+```
+
+List all schemas, optionally filtered by prefix
+
+**Parameters:**
+- `p_prefix`: Optional prefix to filter by
+- `p_limit`: Maximum number of results (default 100)
+
+**Returns:** Table of schemas
+
+*Source: config/src/functions/060_schemas.sql:171*
+
+---
+
 ## Maintenance
 
 ### config.cleanup_old_versions
