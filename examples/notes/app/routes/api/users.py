@@ -8,18 +8,22 @@ from werkzeug.exceptions import BadRequest
 
 from ...auth import (
     DUMMY_HASH,
+    REFRESH_TOKEN_PREFIX,
     UserContext,
     authenticated,
+    create_session_with_refresh,
     create_token,
     hash_password,
     hash_token,
     verify_password,
 )
+from ...config import Config
 from ...db import get_authn, get_db
 from ...schemas import (
     LoginRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
+    RefreshTokenRequest,
     SignupRequest,
 )
 
@@ -97,16 +101,21 @@ def login():
 
     authn.record_login_attempt(data.email, success=True, ip_address=request.remote_addr)
 
-    raw_token, token_hash = create_token()
-    authn.create_session(
+    tokens = create_session_with_refresh(
         user_id=creds["user_id"],
-        token_hash=token_hash,
         ip_address=request.remote_addr,
-        user_agent=request.headers.get("User-Agent", "")[:1024],
+        user_agent=request.headers.get("User-Agent", ""),
     )
 
     log.info(f"User logged in: user_id={creds['user_id'][:8]}...")
-    return jsonify({"token": raw_token})
+    return jsonify(
+        {
+            "token": tokens["access_token"],
+            "refresh_token": tokens["refresh_token"],
+            "expires_in": tokens["expires_in"],
+            "refresh_expires_in": tokens["refresh_expires_in"],
+        }
+    )
 
 
 @bp.post("/logout")
@@ -117,6 +126,62 @@ def logout(ctx: UserContext):
         token_hash = hash_token(auth_header[7:])
         get_authn().revoke_session(token_hash)
     return jsonify({"ok": True})
+
+
+@bp.post("/token/refresh")
+def refresh_token():
+    """Exchange a valid refresh token for a new access/refresh token pair.
+
+    On success, returns new tokens. The old refresh token is invalidated.
+    If the old token was already used (reuse attack), the entire token family
+    is revoked and the request fails.
+    """
+    try:
+        data = validate(RefreshTokenRequest)
+    except ValidationError as e:
+        return jsonify(
+            {"error": "validation failed", "details": e.errors(include_context=False)}
+        ), 400
+
+    authn = get_authn()
+    old_refresh_hash = hash_token(data.refresh_token)
+
+    # Generate new refresh token
+    new_refresh_token, new_refresh_hash = create_token(prefix=REFRESH_TOKEN_PREFIX)
+
+    # Attempt rotation (atomic: validates old + creates new)
+    rotation_result = authn.rotate_refresh_token(
+        old_token_hash=old_refresh_hash,
+        new_token_hash=new_refresh_hash,
+    )
+
+    if rotation_result is None:
+        # Token invalid, expired, already rotated (reuse), or user disabled
+        log.warning("Refresh token rotation failed")
+        return jsonify({"error": "invalid or expired refresh token"}), 401
+
+    # Generate new access token and create new session
+    new_access_token, new_access_hash = create_token()
+    authn.create_session(
+        user_id=rotation_result["user_id"],
+        token_hash=new_access_hash,
+        ip_address=request.remote_addr,
+        user_agent=request.headers.get("User-Agent", "")[:1024],
+    )
+
+    log.info(
+        f"Token refreshed for user_id={rotation_result['user_id'][:8]}... "
+        f"generation={rotation_result['generation']}"
+    )
+
+    return jsonify(
+        {
+            "token": new_access_token,
+            "refresh_token": new_refresh_token,
+            "expires_in": Config.ACCESS_TOKEN_EXPIRES_HOURS * 3600,
+            "refresh_expires_in": Config.REFRESH_TOKEN_EXPIRES_DAYS * 86400,
+        }
+    )
 
 
 @bp.get("/me")
@@ -186,10 +251,11 @@ def reset_password():
     if not token_data:
         return jsonify({"error": "invalid or expired token"}), 400
 
-    # Atomic: update password and revoke sessions together
+    # Atomic: update password and revoke all sessions/refresh tokens
     with get_db().transaction():
         authn.update_password(token_data["user_id"], hash_password(data.password))
         authn.revoke_all_sessions(token_data["user_id"])
+        authn.revoke_all_refresh_tokens(token_data["user_id"])
 
     log.info(f"Password reset completed: user_id={token_data['user_id'][:8]}...")
     return jsonify({"ok": True})

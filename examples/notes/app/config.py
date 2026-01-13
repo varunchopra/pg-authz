@@ -17,3 +17,6 @@ class Config:
         "GOOGLE_REDIRECT_URI_VIEW", "http://localhost:5000/auth/google/callback"
     )
     MIN_PASSWORD_LENGTH = 8
+    # Token expiry settings
+    ACCESS_TOKEN_EXPIRES_HOURS = int(os.environ.get("ACCESS_TOKEN_EXPIRES_HOURS", "1"))
+    REFRESH_TOKEN_EXPIRES_DAYS = int(os.environ.get("REFRESH_TOKEN_EXPIRES_DAYS", "30"))

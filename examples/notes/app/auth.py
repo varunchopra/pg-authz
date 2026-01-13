@@ -1,6 +1,7 @@
 import hashlib
 import secrets
 from dataclasses import dataclass
+from datetime import timedelta
 from functools import wraps
 
 from argon2 import PasswordHasher
@@ -8,6 +9,7 @@ from argon2.exceptions import VerifyMismatchError
 from flask import g, jsonify, redirect, request, session, url_for
 from psycopg.rows import dict_row
 
+from .config import Config
 from .db import get_authn, get_authz, get_current_org_id, get_db
 
 # =============================================================================
@@ -64,9 +66,58 @@ def create_token(prefix: str = "") -> tuple[str, str]:
 # API key prefix - makes keys identifiable (like GitHub's gh_, Stripe's sk_)
 API_KEY_PREFIX = "pk_"
 
+# Refresh token prefix - distinguishes from access tokens
+REFRESH_TOKEN_PREFIX = "pk_ref_"
+
 
 def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def create_session_with_refresh(
+    user_id: str,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+) -> dict:
+    """Create a session with associated refresh token.
+
+    Args:
+        user_id: The authenticated user's ID
+        ip_address: Client IP address
+        user_agent: Client user agent string
+
+    Returns:
+        Dict with access_token, refresh_token, session_id, and expiry info
+    """
+    authn = get_authn()
+
+    # Generate both tokens
+    access_token, access_hash = create_token()
+    refresh_token, refresh_hash = create_token(prefix=REFRESH_TOKEN_PREFIX)
+
+    # Create session with configurable expiry
+    session_id = authn.create_session(
+        user_id=user_id,
+        token_hash=access_hash,
+        expires_in=timedelta(hours=Config.ACCESS_TOKEN_EXPIRES_HOURS),
+        ip_address=ip_address,
+        user_agent=user_agent[:1024] if user_agent else None,
+    )
+
+    # Create associated refresh token
+    authn.create_refresh_token(
+        session_id=session_id,
+        token_hash=refresh_hash,
+        expires_in=timedelta(days=Config.REFRESH_TOKEN_EXPIRES_DAYS),
+    )
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "session_id": session_id,
+        "expires_in": Config.ACCESS_TOKEN_EXPIRES_HOURS * 3600,
+        "refresh_expires_in": Config.REFRESH_TOKEN_EXPIRES_DAYS * 86400,
+    }
 
 
 def _set_user_context(

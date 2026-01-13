@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 import requests as http_requests
 from flask import Blueprint, jsonify, request, session
 
-from ...auth import create_token
+from ...auth import create_session_with_refresh
 from ...config import Config
 from ...db import get_authn, get_db
 
@@ -110,13 +110,18 @@ def google_callback():
                 log.warning(f"Disabled user SSO attempt: user_id={user_id[:8]}...")
                 return jsonify({"error": "account disabled"}), 403
 
-        raw_token, token_hash = create_token()
-        authn.create_session(
+        tokens = create_session_with_refresh(
             user_id=user_id,
-            token_hash=token_hash,
             ip_address=request.remote_addr,
-            user_agent=request.headers.get("User-Agent", "")[:1024],
+            user_agent=request.headers.get("User-Agent", ""),
         )
 
     log.info(f"SSO login: user_id={user_id[:8]}...")
-    return jsonify({"token": raw_token})
+    return jsonify(
+        {
+            "token": tokens["access_token"],
+            "refresh_token": tokens["refresh_token"],
+            "expires_in": tokens["expires_in"],
+            "refresh_expires_in": tokens["refresh_expires_in"],
+        }
+    )
