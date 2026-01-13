@@ -50,6 +50,9 @@ def _cleanup(cursor, namespace: str):
     cursor.execute("DELETE FROM authn.mfa_secrets WHERE namespace = %s", (namespace,))
     cursor.execute("DELETE FROM authn.api_keys WHERE namespace = %s", (namespace,))
     cursor.execute("DELETE FROM authn.tokens WHERE namespace = %s", (namespace,))
+    cursor.execute(
+        "DELETE FROM authn.refresh_tokens WHERE namespace = %s", (namespace,)
+    )
     cursor.execute("DELETE FROM authn.sessions WHERE namespace = %s", (namespace,))
     cursor.execute("DELETE FROM authn.users WHERE namespace = %s", (namespace,))
 
@@ -124,3 +127,38 @@ def make_authn(db_connection):
     for ns in created:
         _cleanup(cursor, ns)
     cursor.close()
+
+
+@pytest.fixture
+def user_with_session(authn):
+    """
+    Create a user with an active session.
+
+    Returns dict with user_id and session_id.
+
+    Example:
+        def test_something(authn, user_with_session):
+            result = authn.some_action(user_with_session["session_id"])
+    """
+    user_id = authn.create_user("alice@example.com", "hash")
+    session_id = authn.create_session(user_id, "session_hash")
+    return {"user_id": user_id, "session_id": session_id}
+
+
+@pytest.fixture
+def user_with_refresh_token(authn, user_with_session):
+    """
+    Create a user with session and refresh token.
+
+    Returns dict with user_id, session_id, refresh_token_id, and family_id.
+
+    Example:
+        def test_rotation(authn, user_with_refresh_token):
+            result = authn.rotate_refresh_token("refresh_hash", "new_hash")
+    """
+    result = authn.create_refresh_token(user_with_session["session_id"], "refresh_hash")
+    return {
+        **user_with_session,
+        "refresh_token_id": str(result["refresh_token_id"]),
+        "family_id": str(result["family_id"]),
+    }

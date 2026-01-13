@@ -106,3 +106,60 @@ class AuthnTestHelpers:
             return None
         columns = [desc[0] for desc in self.cursor.description]
         return dict(zip(columns, result))
+
+    def insert_expired_refresh_token(
+        self,
+        user_id: str,
+        session_id: str,
+        token_hash: str,
+        expired_ago: timedelta = timedelta(hours=1),
+    ) -> str:
+        """Insert an already-expired refresh token for testing."""
+        self.cursor.execute(
+            """
+            INSERT INTO authn.refresh_tokens
+                (namespace, user_id, session_id, token_hash, family_id, expires_at)
+            VALUES (%s, %s::uuid, %s::uuid, %s, gen_random_uuid(), now() - %s)
+            RETURNING id
+            """,
+            (self.namespace, user_id, session_id, token_hash, expired_ago),
+        )
+        return str(self.cursor.fetchone()[0])
+
+    def count_refresh_tokens(self, user_id: str | None = None) -> int:
+        """Count refresh tokens, optionally filtered by user."""
+        if user_id:
+            self.cursor.execute(
+                """SELECT COUNT(*) FROM authn.refresh_tokens
+                   WHERE namespace = %s AND user_id = %s::uuid""",
+                (self.namespace, user_id),
+            )
+        else:
+            self.cursor.execute(
+                "SELECT COUNT(*) FROM authn.refresh_tokens WHERE namespace = %s",
+                (self.namespace,),
+            )
+        return self.cursor.fetchone()[0]
+
+    def count_active_refresh_tokens_in_family(self, family_id: str) -> int:
+        """Count active (non-revoked, non-replaced) tokens in a family."""
+        self.cursor.execute(
+            """SELECT COUNT(*) FROM authn.refresh_tokens
+               WHERE namespace = %s AND family_id = %s::uuid
+                 AND revoked_at IS NULL AND replaced_by IS NULL""",
+            (self.namespace, family_id),
+        )
+        return self.cursor.fetchone()[0]
+
+    def get_refresh_token_raw(self, token_hash: str) -> dict | None:
+        """Get refresh token by hash for testing."""
+        self.cursor.execute(
+            """SELECT * FROM authn.refresh_tokens
+               WHERE namespace = %s AND token_hash = %s""",
+            (self.namespace, token_hash),
+        )
+        result = self.cursor.fetchone()
+        if result is None:
+            return None
+        columns = [desc[0] for desc in self.cursor.description]
+        return dict(zip(columns, result))

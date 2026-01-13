@@ -10,6 +10,7 @@
 | [`clear_attempts`](sdk.md#clear_attempts) | Clear login attempts for an email. Returns count deleted. |
 | [`consume_token`](sdk.md#consume_token) | Consume a one-time token. |
 | [`create_api_key`](sdk.md#create_api_key) | Create an API key for programmatic access. |
+| [`create_refresh_token`](sdk.md#create_refresh_token) | Create a refresh token for a session. |
 | [`create_session`](sdk.md#create_session) | Create a new session. |
 | [`create_token`](sdk.md#create_token) | Create a one-time use token. |
 | [`create_user`](sdk.md#create_user) | Create a new user. |
@@ -29,21 +30,26 @@
 | [`is_locked_out`](sdk.md#is_locked_out) | Check if an email is locked out due to too many failed attempts. |
 | [`list_api_keys`](sdk.md#list_api_keys) | List active API keys for a user. Does not return key_hash. |
 | [`list_mfa`](sdk.md#list_mfa) | List MFA methods. Does NOT return secrets. |
+| [`list_refresh_tokens`](sdk.md#list_refresh_tokens) | List active refresh tokens for a user. |
 | [`list_sessions`](sdk.md#list_sessions) | List active sessions for a user. Does not return token_hash. |
 | [`list_users`](sdk.md#list_users) | List users with pagination. |
 | [`record_login_attempt`](sdk.md#record_login_attempt) | Record a login attempt. |
 | [`record_mfa_use`](sdk.md#record_mfa_use) | Record that an MFA method was used. |
 | [`remove_mfa`](sdk.md#remove_mfa) | Remove an MFA method. |
 | [`revoke_all_api_keys`](sdk.md#revoke_all_api_keys) | Revoke all API keys for a user. Returns count revoked. |
+| [`revoke_all_refresh_tokens`](sdk.md#revoke_all_refresh_tokens) | Revoke all refresh tokens for a user. |
 | [`revoke_all_sessions`](sdk.md#revoke_all_sessions) | Revoke all sessions for a user. Returns count revoked. |
 | [`revoke_api_key`](sdk.md#revoke_api_key) | Revoke an API key. |
 | [`revoke_other_sessions`](sdk.md#revoke_other_sessions) | Revoke all sessions except the specified one ("sign out other devices"). |
+| [`revoke_refresh_token_family`](sdk.md#revoke_refresh_token_family) | Revoke all tokens in a family (security response). |
 | [`revoke_session`](sdk.md#revoke_session) | Revoke a session. |
 | [`revoke_session_by_id`](sdk.md#revoke_session_by_id) | Revoke a session by ID (for manage devices UI). |
+| [`rotate_refresh_token`](sdk.md#rotate_refresh_token) | Rotate a refresh token (invalidate old, issue new). |
 | [`set_actor`](sdk.md#set_actor) | Set actor context for audit logging. Only updates fields that are passed. |
 | [`update_email`](sdk.md#update_email) | Update user's email. Clears email_verified_at. |
 | [`update_password`](sdk.md#update_password) | Update user's password hash. |
 | [`validate_api_key`](sdk.md#validate_api_key) | Validate an API key. |
+| [`validate_refresh_token`](sdk.md#validate_refresh_token) | Validate a refresh token without rotating (read-only check). |
 | [`validate_session`](sdk.md#validate_session) | Validate a session token. |
 | [`verify_email`](sdk.md#verify_email) | Verify email using a token. |
 
@@ -73,10 +79,16 @@
 | [`authn.list_mfa`](sql.md#authnlist_mfa) | List user's MFA methods for "manage security" UI (no secrets) |
 | [`authn.record_mfa_use`](sql.md#authnrecord_mfa_use) | Record successful MFA verification (updates last_used_at) |
 | [`authn.remove_mfa`](sql.md#authnremove_mfa) | Remove an MFA method |
-| [`authn.cleanup_expired`](sql.md#authncleanup_expired) | Delete expired sessions, tokens, API keys, and old login attempts (run via cron) |
+| [`authn.cleanup_expired`](sql.md#authncleanup_expired) | Delete expired sessions, tokens, refresh tokens, API keys, and old login attempts (run via cron) |
 | [`authn.get_stats`](sql.md#authnget_stats) | Get namespace statistics for monitoring dashboards |
 | [`authn.clear_tenant`](sql.md#authnclear_tenant) | Clear tenant context. Queries return no rows (fail-closed for safety). |
 | [`authn.set_tenant`](sql.md#authnset_tenant) | Set the tenant context for Row-Level Security |
+| [`authn.create_refresh_token`](sql.md#authncreate_refresh_token) | Create a refresh token for a session (call after create_session) |
+| [`authn.list_refresh_tokens`](sql.md#authnlist_refresh_tokens) | List active refresh tokens for a user (for "manage devices" UI) |
+| [`authn.revoke_all_refresh_tokens`](sql.md#authnrevoke_all_refresh_tokens) | Revoke all refresh tokens for a user (password change, security concern) |
+| [`authn.revoke_refresh_token_family`](sql.md#authnrevoke_refresh_token_family) | Revoke all tokens in a family (for security response) |
+| [`authn.rotate_refresh_token`](sql.md#authnrotate_refresh_token) | Rotate a refresh token: invalidate old, create new (secure by default) |
+| [`authn.validate_refresh_token`](sql.md#authnvalidate_refresh_token) | Check if a refresh token is valid WITHOUT rotating (for inspection only) |
 | [`authn.create_session`](sql.md#authncreate_session) | Create a session after successful login |
 | [`authn.extend_session`](sql.md#authnextend_session) | Extend session absolute timeout (for "remember me", not idle timeout) |
 | [`authn.list_sessions`](sql.md#authnlist_sessions) | List active sessions for "manage devices" UI |

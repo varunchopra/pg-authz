@@ -74,6 +74,8 @@ CREATE TABLE authn.audit_events (
         'password_updated', 'email_updated', 'email_verified',
         'session_created', 'session_extended', 'session_revoked', 'sessions_revoked_all', 'sessions_revoked_other',
         'token_created', 'token_consumed',
+        'refresh_token_created', 'refresh_token_rotated', 'refresh_token_reuse_detected',
+        'refresh_token_family_revoked', 'refresh_tokens_revoked_all',
         'api_key_created', 'api_key_revoked', 'api_keys_revoked_all',
         'mfa_added', 'mfa_removed', 'mfa_used',
         'login_attempt_failed', 'lockout_triggered'

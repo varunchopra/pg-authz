@@ -468,12 +468,12 @@ SELECT authn.remove_mfa(mfa_id);
 ### authn.cleanup_expired
 
 ```sql
-authn.cleanup_expired(p_namespace: text) -> table(sessions_deleted: int8, tokens_deleted: int8, api_keys_deleted: int8, attempts_deleted: int8)
+authn.cleanup_expired(p_namespace: text) -> table(sessions_deleted: int8, tokens_deleted: int8, refresh_tokens_deleted: int8, api_keys_deleted: int8, attempts_deleted: int8)
 ```
 
-Delete expired sessions, tokens, API keys, and old login attempts (run via cron)
+Delete expired sessions, tokens, refresh tokens, API keys, and old login attempts (run via cron)
 
-**Returns:** sessions_deleted, tokens_deleted, api_keys_deleted, attempts_deleted
+**Returns:** sessions_deleted, tokens_deleted, refresh_tokens_deleted, api_keys_deleted, attempts_deleted
 
 **Example:**
 ```sql
@@ -488,19 +488,19 @@ SELECT * FROM authn.cleanup_expired('default');
 ### authn.get_stats
 
 ```sql
-authn.get_stats(p_namespace: text) -> table(user_count: int8, verified_user_count: int8, disabled_user_count: int8, active_session_count: int8, active_api_key_count: int8, mfa_enabled_user_count: int8)
+authn.get_stats(p_namespace: text) -> table(user_count: int8, verified_user_count: int8, disabled_user_count: int8, active_session_count: int8, active_refresh_token_count: int8, active_api_key_count: int8, mfa_enabled_user_count: int8)
 ```
 
 Get namespace statistics for monitoring dashboards
 
-**Returns:** user_count, verified_user_count, disabled_user_count, active_session_count, active_api_key_count, mfa_enabled_user_count
+**Returns:** user_count, verified_user_count, disabled_user_count, active_session_count, active_refresh_token_count, active_api_key_count, mfa_enabled_user_count
 
 **Example:**
 ```sql
 SELECT * FROM authn.get_stats('default');
 ```
 
-*Source: authn/src/functions/060_maintenance.sql:55*
+*Source: authn/src/functions/060_maintenance.sql:64*
 
 ---
 
@@ -541,6 +541,135 @@ SELECT authn.set_tenant('acme-corp');
 ```
 
 *Source: authn/src/functions/080_rls.sql:1*
+
+---
+
+## Refresh Tokens
+
+### authn.create_refresh_token
+
+```sql
+authn.create_refresh_token(p_session_id: uuid, p_token_hash: text, p_expires_in: interval, p_namespace: text) -> table(refresh_token_id: uuid, family_id: uuid, expires_at: timestamptz)
+```
+
+Create a refresh token for a session (call after create_session)
+
+**Parameters:**
+- `p_session_id`: Session to associate with
+- `p_token_hash`: SHA-256 hash of the refresh token
+- `p_expires_in`: Token lifetime (default 30 days)
+
+**Returns:** Table with refresh_token_id, family_id, expires_at
+
+**Example:**
+```sql
+SELECT * FROM authn.create_refresh_token(session_id, sha256(token));
+```
+
+*Source: authn/src/functions/025_refresh_tokens.sql:16*
+
+---
+
+### authn.list_refresh_tokens
+
+```sql
+authn.list_refresh_tokens(p_user_id: uuid, p_namespace: text) -> table(refresh_token_id: uuid, session_id: uuid, family_id: uuid, generation: int4, created_at: timestamptz, expires_at: timestamptz)
+```
+
+List active refresh tokens for a user (for "manage devices" UI)
+
+**Returns:** Active tokens with family, generation, timestamps (no token hash)
+
+**Example:**
+```sql
+SELECT * FROM authn.list_refresh_tokens(user_id);
+```
+
+*Source: authn/src/functions/025_refresh_tokens.sql:360*
+
+---
+
+### authn.revoke_all_refresh_tokens
+
+```sql
+authn.revoke_all_refresh_tokens(p_user_id: uuid, p_namespace: text) -> int4
+```
+
+Revoke all refresh tokens for a user (password change, security concern)
+
+**Returns:** Count of tokens revoked
+
+**Example:**
+```sql
+SELECT authn.revoke_all_refresh_tokens(user_id);
+```
+
+*Source: authn/src/functions/025_refresh_tokens.sql:324*
+
+---
+
+### authn.revoke_refresh_token_family
+
+```sql
+authn.revoke_refresh_token_family(p_family_id: uuid, p_namespace: text) -> int4
+```
+
+Revoke all tokens in a family (for security response)
+
+**Parameters:**
+- `p_family_id`: The family to revoke
+
+**Returns:** Count of tokens revoked
+
+**Example:**
+```sql
+SELECT authn.revoke_refresh_token_family(family_id);
+```
+
+*Source: authn/src/functions/025_refresh_tokens.sql:279*
+
+---
+
+### authn.rotate_refresh_token
+
+```sql
+authn.rotate_refresh_token(p_old_token_hash: text, p_new_token_hash: text, p_expires_in: interval, p_namespace: text) -> table(user_id: uuid, session_id: uuid, new_refresh_token_id: uuid, family_id: uuid, generation: int4, expires_at: timestamptz)
+```
+
+Rotate a refresh token: invalidate old, create new (secure by default)
+
+**Parameters:**
+- `p_old_token_hash`: Hash of the token being rotated
+- `p_new_token_hash`: Hash of the new token to issue
+- `p_expires_in`: New token lifetime (default 30 days)
+
+**Returns:** user_id, session_id, new_refresh_token_id, family_id, generation, expires_at Returns empty if token invalid, expired, or already used (reuse triggers family revocation)
+
+**Example:**
+```sql
+SELECT * FROM authn.rotate_refresh_token(sha256(old), sha256(new));
+```
+
+*Source: authn/src/functions/025_refresh_tokens.sql:85*
+
+---
+
+### authn.validate_refresh_token
+
+```sql
+authn.validate_refresh_token(p_token_hash: text, p_namespace: text) -> table(user_id: uuid, session_id: uuid, family_id: uuid, generation: int4, expires_at: timestamptz, is_current: bool)
+```
+
+Check if a refresh token is valid WITHOUT rotating (for inspection only)
+
+**Returns:** user_id, session_id, family_id, generation, expires_at, is_current if valid
+
+**Example:**
+```sql
+SELECT * FROM authn.validate_refresh_token(sha256(token));
+```
+
+*Source: authn/src/functions/025_refresh_tokens.sql:235*
 
 ---
 

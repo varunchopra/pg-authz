@@ -292,6 +292,117 @@ class AuthnClient(BaseClient):
             (user_id, self.namespace),
         )
 
+    def create_refresh_token(
+        self,
+        session_id: str,
+        token_hash: str,
+        expires_in: timedelta | None = None,
+    ) -> dict:
+        """
+        Create a refresh token for a session.
+
+        Call this after create_session() to enable token rotation.
+
+        Args:
+            session_id: Session ID to associate with
+            token_hash: Pre-hashed refresh token (SHA-256)
+            expires_in: Token lifetime (default: 30 days)
+
+        Returns:
+            Dict with refresh_token_id, family_id, expires_at
+        """
+        result = self._fetch_one(
+            "SELECT * FROM authn.create_refresh_token(%s::uuid, %s, %s, %s)",
+            (session_id, token_hash, expires_in, self.namespace),
+            write=True,
+        )
+        if result is None:
+            raise AuthnError("Failed to create refresh token")
+        return result
+
+    def rotate_refresh_token(
+        self,
+        old_token_hash: str,
+        new_token_hash: str,
+        expires_in: timedelta | None = None,
+    ) -> dict | None:
+        """
+        Rotate a refresh token (invalidate old, issue new).
+
+        Returns None if:
+        - Token not found
+        - Token expired
+        - Token already rotated (reuse attack - entire family revoked!)
+        - Associated session revoked/expired
+        - User disabled
+
+        Args:
+            old_token_hash: Hash of token being rotated
+            new_token_hash: Hash of new token to issue
+            expires_in: New token lifetime (default: 30 days)
+
+        Returns:
+            Dict with user_id, session_id, new_refresh_token_id, family_id,
+            generation, expires_at - or None if rotation failed
+        """
+        return self._fetch_one(
+            "SELECT * FROM authn.rotate_refresh_token(%s, %s, %s, %s)",
+            (old_token_hash, new_token_hash, expires_in, self.namespace),
+            write=True,
+        )
+
+    def validate_refresh_token(self, token_hash: str) -> dict | None:
+        """
+        Validate a refresh token without rotating (read-only check).
+
+        Use for inspection/debugging, not for actual token refresh.
+
+        Returns:
+            Dict with user_id, session_id, family_id, generation,
+            expires_at, is_current - or None if invalid
+        """
+        return self._fetch_one(
+            "SELECT * FROM authn.validate_refresh_token(%s, %s)",
+            (token_hash, self.namespace),
+        )
+
+    def revoke_refresh_token_family(self, family_id: str) -> int:
+        """
+        Revoke all tokens in a family (security response).
+
+        Returns:
+            Count of tokens revoked
+        """
+        return self._fetch_val(
+            "SELECT authn.revoke_refresh_token_family(%s::uuid, %s)",
+            (family_id, self.namespace),
+            write=True,
+        )
+
+    def revoke_all_refresh_tokens(self, user_id: str) -> int:
+        """
+        Revoke all refresh tokens for a user.
+
+        Returns:
+            Count of tokens revoked
+        """
+        return self._fetch_val(
+            "SELECT authn.revoke_all_refresh_tokens(%s::uuid, %s)",
+            (user_id, self.namespace),
+            write=True,
+        )
+
+    def list_refresh_tokens(self, user_id: str) -> list[dict]:
+        """
+        List active refresh tokens for a user.
+
+        Does not return token_hash. For "manage devices" UI.
+        """
+        return self._fetch_all(
+            "SELECT * FROM authn.list_refresh_tokens(%s::uuid, %s)",
+            (user_id, self.namespace),
+        )
+
     def create_api_key(
         self,
         user_id: str,

@@ -55,6 +55,42 @@ class TestCleanupExpired:
         attempts = authn.get_recent_attempts("alice@example.com")
         assert len(attempts) == 1
 
+    def test_deletes_expired_refresh_tokens(self, authn, test_helpers):
+        user_id = authn.create_user("alice@example.com", "hash")
+        session_id = authn.create_session(user_id, "session_token")
+        authn.create_refresh_token(session_id, "active_refresh")
+        test_helpers.insert_expired_refresh_token(
+            user_id, session_id, "expired_refresh"
+        )
+
+        result = authn.cleanup_expired()
+
+        assert result["refresh_tokens_deleted"] == 1
+        assert authn.validate_refresh_token("active_refresh") is not None
+
+    def test_deletes_revoked_refresh_tokens(self, authn, test_helpers):
+        user_id = authn.create_user("alice@example.com", "hash")
+        session_id = authn.create_session(user_id, "session_token")
+        initial = authn.create_refresh_token(session_id, "refresh_hash")
+        authn.revoke_refresh_token_family(str(initial["family_id"]))
+
+        result = authn.cleanup_expired()
+
+        assert result["refresh_tokens_deleted"] == 1
+
+    def test_deletes_replaced_refresh_tokens(self, authn, test_helpers):
+        user_id = authn.create_user("alice@example.com", "hash")
+        session_id = authn.create_session(user_id, "session_token")
+        authn.create_refresh_token(session_id, "token1")
+        authn.rotate_refresh_token("token1", "token2")
+        authn.rotate_refresh_token("token2", "token3")
+
+        result = authn.cleanup_expired()
+
+        # token1 and token2 were replaced
+        assert result["refresh_tokens_deleted"] == 2
+        assert authn.validate_refresh_token("token3") is not None
+
 
 class TestGetStats:
     def test_returns_counts(self, authn):
@@ -73,6 +109,13 @@ class TestGetStats:
         authn.create_session(user1, "session1")
         authn.create_session(user1, "session2")
 
+        # Create API key
+        authn.create_api_key(user1, "api_key_hash", "My Key")
+
+        # Create refresh token
+        session3 = authn.create_session(user1, "session3")
+        authn.create_refresh_token(session3, "refresh1")
+
         # Add MFA
         authn.add_mfa(user1, "totp", "secret")
 
@@ -81,7 +124,9 @@ class TestGetStats:
         assert stats["user_count"] == 2
         assert stats["verified_user_count"] == 1
         assert stats["disabled_user_count"] == 1
-        assert stats["active_session_count"] == 2
+        assert stats["active_session_count"] == 3
+        assert stats["active_api_key_count"] == 1
+        assert stats["active_refresh_token_count"] == 1
         assert stats["mfa_enabled_user_count"] == 1
 
     def test_returns_zeros_for_empty_namespace(self, authn):
@@ -91,4 +136,6 @@ class TestGetStats:
         assert stats["verified_user_count"] == 0
         assert stats["disabled_user_count"] == 0
         assert stats["active_session_count"] == 0
+        assert stats["active_api_key_count"] == 0
+        assert stats["active_refresh_token_count"] == 0
         assert stats["mfa_enabled_user_count"] == 0

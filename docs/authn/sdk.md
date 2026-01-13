@@ -18,7 +18,7 @@ Add an MFA method for a user.
 
 **Returns:** MFA ID (UUID string)
 
-*Source: sdk/src/postkit/authn/client.py:418*
+*Source: sdk/src/postkit/authn/client.py:529*
 
 ---
 
@@ -30,7 +30,7 @@ cleanup_expired() -> dict
 
 Clean up expired sessions, tokens, and old login attempts.
 
-*Source: sdk/src/postkit/authn/client.py:521*
+*Source: sdk/src/postkit/authn/client.py:632*
 
 ---
 
@@ -42,7 +42,7 @@ clear_actor() -> None
 
 Clear actor context.
 
-*Source: sdk/src/postkit/authn/client.py:574*
+*Source: sdk/src/postkit/authn/client.py:685*
 
 ---
 
@@ -54,7 +54,7 @@ clear_attempts(email: str) -> int
 
 Clear login attempts for an email. Returns count deleted.
 
-*Source: sdk/src/postkit/authn/client.py:513*
+*Source: sdk/src/postkit/authn/client.py:624*
 
 ---
 
@@ -66,7 +66,7 @@ consume_token(token_hash: str, token_type: str) -> dict | None
 
 Consume a one-time token.
 
-*Source: sdk/src/postkit/authn/client.py:385*
+*Source: sdk/src/postkit/authn/client.py:496*
 
 ---
 
@@ -85,6 +85,25 @@ Create an API key for programmatic access.
 - `expires_in`: Optional expiration duration (None = never expires)
 
 **Returns:** API key ID (UUID string)
+
+*Source: sdk/src/postkit/authn/client.py:406*
+
+---
+
+### create_refresh_token
+
+```python
+create_refresh_token(session_id: str, token_hash: str, expires_in: timedelta | None = None) -> dict
+```
+
+Create a refresh token for a session.
+
+**Parameters:**
+- `session_id`: Session ID to associate with
+- `token_hash`: Pre-hashed refresh token (SHA-256)
+- `expires_in`: Token lifetime (default: 30 days)
+
+**Returns:** Dict with refresh_token_id, family_id, expires_at
 
 *Source: sdk/src/postkit/authn/client.py:295*
 
@@ -127,7 +146,7 @@ Create a one-time use token.
 
 **Returns:** Token ID (UUID string)
 
-*Source: sdk/src/postkit/authn/client.py:359*
+*Source: sdk/src/postkit/authn/client.py:470*
 
 ---
 
@@ -215,7 +234,7 @@ Query audit events.
 
 **Returns:** List of audit event dictionaries
 
-*Source: sdk/src/postkit/authn/client.py:580*
+*Source: sdk/src/postkit/authn/client.py:691*
 
 ---
 
@@ -239,7 +258,7 @@ get_mfa(user_id: str, mfa_type: str) -> list[dict]
 
 Get MFA secrets for verification. Returns secrets!
 
-*Source: sdk/src/postkit/authn/client.py:444*
+*Source: sdk/src/postkit/authn/client.py:555*
 
 ---
 
@@ -251,7 +270,7 @@ get_recent_attempts(email: str, limit: int = 10) -> list[dict]
 
 Get recent login attempts for an email.
 
-*Source: sdk/src/postkit/authn/client.py:506*
+*Source: sdk/src/postkit/authn/client.py:617*
 
 ---
 
@@ -263,7 +282,7 @@ get_stats() -> dict
 
 Get namespace statistics.
 
-*Source: sdk/src/postkit/authn/client.py:532*
+*Source: sdk/src/postkit/authn/client.py:643*
 
 ---
 
@@ -299,7 +318,7 @@ has_mfa(user_id: str) -> bool
 
 Check if user has any MFA method enabled.
 
-*Source: sdk/src/postkit/authn/client.py:474*
+*Source: sdk/src/postkit/authn/client.py:585*
 
 ---
 
@@ -311,7 +330,7 @@ invalidate_tokens(user_id: str, token_type: str) -> int
 
 Invalidate all unused tokens of a type for a user.
 
-*Source: sdk/src/postkit/authn/client.py:410*
+*Source: sdk/src/postkit/authn/client.py:521*
 
 ---
 
@@ -323,7 +342,7 @@ is_locked_out(email: str, window: timedelta | None = None, max_attempts: int | N
 
 Check if an email is locked out due to too many failed attempts.
 
-*Source: sdk/src/postkit/authn/client.py:494*
+*Source: sdk/src/postkit/authn/client.py:605*
 
 ---
 
@@ -335,7 +354,7 @@ list_api_keys(user_id: str) -> list[dict]
 
 List active API keys for a user. Does not return key_hash.
 
-*Source: sdk/src/postkit/authn/client.py:352*
+*Source: sdk/src/postkit/authn/client.py:463*
 
 ---
 
@@ -347,7 +366,19 @@ list_mfa(user_id: str) -> list[dict]
 
 List MFA methods. Does NOT return secrets.
 
-*Source: sdk/src/postkit/authn/client.py:451*
+*Source: sdk/src/postkit/authn/client.py:562*
+
+---
+
+### list_refresh_tokens
+
+```python
+list_refresh_tokens(user_id: str) -> list[dict]
+```
+
+List active refresh tokens for a user.
+
+*Source: sdk/src/postkit/authn/client.py:395*
 
 ---
 
@@ -383,7 +414,7 @@ record_login_attempt(email: str, success: bool, ip_address: str | None = None) -
 
 Record a login attempt.
 
-*Source: sdk/src/postkit/authn/client.py:481*
+*Source: sdk/src/postkit/authn/client.py:592*
 
 ---
 
@@ -395,7 +426,7 @@ record_mfa_use(mfa_id: str) -> bool
 
 Record that an MFA method was used.
 
-*Source: sdk/src/postkit/authn/client.py:466*
+*Source: sdk/src/postkit/authn/client.py:577*
 
 ---
 
@@ -407,7 +438,7 @@ remove_mfa(mfa_id: str) -> bool
 
 Remove an MFA method.
 
-*Source: sdk/src/postkit/authn/client.py:458*
+*Source: sdk/src/postkit/authn/client.py:569*
 
 ---
 
@@ -419,7 +450,21 @@ revoke_all_api_keys(user_id: str) -> int
 
 Revoke all API keys for a user. Returns count revoked.
 
-*Source: sdk/src/postkit/authn/client.py:344*
+*Source: sdk/src/postkit/authn/client.py:455*
+
+---
+
+### revoke_all_refresh_tokens
+
+```python
+revoke_all_refresh_tokens(user_id: str) -> int
+```
+
+Revoke all refresh tokens for a user.
+
+**Returns:** Count of tokens revoked
+
+*Source: sdk/src/postkit/authn/client.py:382*
 
 ---
 
@@ -443,7 +488,7 @@ revoke_api_key(key_id: str) -> bool
 
 Revoke an API key.
 
-*Source: sdk/src/postkit/authn/client.py:336*
+*Source: sdk/src/postkit/authn/client.py:447*
 
 ---
 
@@ -462,6 +507,20 @@ Revoke all sessions except the specified one ("sign out other devices").
 **Returns:** Count of sessions revoked (excludes the preserved session)
 
 *Source: sdk/src/postkit/authn/client.py:268*
+
+---
+
+### revoke_refresh_token_family
+
+```python
+revoke_refresh_token_family(family_id: str) -> int
+```
+
+Revoke all tokens in a family (security response).
+
+**Returns:** Count of tokens revoked
+
+*Source: sdk/src/postkit/authn/client.py:369*
 
 ---
 
@@ -486,6 +545,26 @@ revoke_session_by_id(session_id: str, user_id: str) -> bool
 Revoke a session by ID (for manage devices UI).
 
 *Source: sdk/src/postkit/authn/client.py:245*
+
+---
+
+### rotate_refresh_token
+
+```python
+rotate_refresh_token(old_token_hash: str, new_token_hash: str, expires_in: timedelta | None = None) -> dict | None
+```
+
+Rotate a refresh token (invalidate old, issue new).
+
+**Parameters:**
+- `old_token_hash`: Hash of token being rotated
+- `new_token_hash`: Hash of new token to issue
+- `expires_in`: New token lifetime (default: 30 days)
+
+**Returns:** Dict with user_id, session_id, new_refresh_token_id, family_id,
+generation, expires_at - or None if rotation failed
+
+*Source: sdk/src/postkit/authn/client.py:323*
 
 ---
 
@@ -515,7 +594,7 @@ authn.set_actor(request_id=req_id, ip_address=ip, user_agent=ua)
 authn.set_actor(actor_id="user:alice")
 ```
 
-*Source: sdk/src/postkit/authn/client.py:540*
+*Source: sdk/src/postkit/authn/client.py:651*
 
 ---
 
@@ -553,7 +632,22 @@ Validate an API key.
 
 **Returns:** Dict with user_id, key_id, name, expires_at or None if invalid
 
-*Source: sdk/src/postkit/authn/client.py:321*
+*Source: sdk/src/postkit/authn/client.py:432*
+
+---
+
+### validate_refresh_token
+
+```python
+validate_refresh_token(token_hash: str) -> dict | None
+```
+
+Validate a refresh token without rotating (read-only check).
+
+**Returns:** Dict with user_id, session_id, family_id, generation,
+expires_at, is_current - or None if invalid
+
+*Source: sdk/src/postkit/authn/client.py:354*
 
 ---
 
@@ -577,6 +671,6 @@ verify_email(token_hash: str) -> dict | None
 
 Verify email using a token.
 
-*Source: sdk/src/postkit/authn/client.py:398*
+*Source: sdk/src/postkit/authn/client.py:509*
 
 ---

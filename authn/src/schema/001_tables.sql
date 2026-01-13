@@ -51,6 +51,31 @@ CREATE TABLE authn.sessions (
 );
 
 -- =============================================================================
+-- REFRESH TOKENS TABLE
+-- =============================================================================
+-- Implements refresh token rotation per OAuth 2.0 Security BCP.
+-- Each rotation creates a new token and marks the old one as replaced.
+-- Reuse of a replaced token indicates theft - entire family is revoked.
+CREATE TABLE authn.refresh_tokens (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    namespace text NOT NULL DEFAULT 'default',
+    user_id uuid NOT NULL REFERENCES authn.users(id) ON DELETE CASCADE,
+    session_id uuid NOT NULL REFERENCES authn.sessions(id) ON DELETE CASCADE,
+    token_hash text NOT NULL,
+    family_id uuid NOT NULL,              -- Groups all tokens from same login
+    generation int NOT NULL DEFAULT 1,    -- Increments on each rotation
+    expires_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    revoked_at timestamptz,
+    replaced_by uuid REFERENCES authn.refresh_tokens(id),
+
+    CONSTRAINT refresh_tokens_namespace_token_hash_key UNIQUE (namespace, token_hash),
+    CONSTRAINT refresh_tokens_token_hash_not_empty CHECK (length(trim(token_hash)) > 0),
+    CONSTRAINT refresh_tokens_generation_positive CHECK (generation > 0),
+    CONSTRAINT refresh_tokens_not_self_replaced CHECK (id != replaced_by)
+);
+
+-- =============================================================================
 -- TOKENS TABLE
 -- =============================================================================
 -- One-time tokens for password reset, email verification, magic links.
@@ -146,6 +171,13 @@ CREATE POLICY sessions_tenant_isolation ON authn.sessions
     USING (namespace = current_setting('authn.tenant_id', TRUE))
     WITH CHECK (namespace = current_setting('authn.tenant_id', TRUE));
 
+ALTER TABLE authn.refresh_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE authn.refresh_tokens FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY refresh_tokens_tenant_isolation ON authn.refresh_tokens
+    USING (namespace = current_setting('authn.tenant_id', TRUE))
+    WITH CHECK (namespace = current_setting('authn.tenant_id', TRUE));
+
 ALTER TABLE authn.tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE authn.tokens FORCE ROW LEVEL SECURITY;
 
@@ -173,3 +205,26 @@ ALTER TABLE authn.api_keys FORCE ROW LEVEL SECURITY;
 CREATE POLICY api_keys_tenant_isolation ON authn.api_keys
     USING (namespace = current_setting('authn.tenant_id', TRUE))
     WITH CHECK (namespace = current_setting('authn.tenant_id', TRUE));
+
+-- =============================================================================
+-- TRIGGERS
+-- =============================================================================
+
+-- Cascade session revocation to refresh tokens
+-- When a session is revoked, automatically revoke its refresh tokens
+CREATE OR REPLACE FUNCTION authn._cascade_session_revocation()
+RETURNS trigger AS $$
+BEGIN
+    UPDATE authn.refresh_tokens
+    SET revoked_at = NEW.revoked_at
+    WHERE session_id = NEW.id
+      AND revoked_at IS NULL;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER session_revoked_cascade
+    AFTER UPDATE OF revoked_at ON authn.sessions
+    FOR EACH ROW
+    WHEN (OLD.revoked_at IS NULL AND NEW.revoked_at IS NOT NULL)
+    EXECUTE FUNCTION authn._cascade_session_revocation();

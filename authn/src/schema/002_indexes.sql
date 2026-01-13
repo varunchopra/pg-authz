@@ -36,6 +36,31 @@ CREATE INDEX sessions_revoked_idx ON authn.sessions (namespace)
     WHERE revoked_at IS NOT NULL;
 
 -- =============================================================================
+-- REFRESH TOKENS INDEXES
+-- =============================================================================
+
+-- Refresh token validation (hot path) - covering index for rotate_refresh_token
+CREATE INDEX refresh_tokens_lookup_idx ON authn.refresh_tokens (namespace, token_hash)
+    INCLUDE (user_id, session_id, family_id, generation, expires_at, revoked_at, replaced_by)
+    WHERE revoked_at IS NULL AND replaced_by IS NULL;
+
+-- Family revocation - find all tokens in a family for breach response
+CREATE INDEX refresh_tokens_family_idx ON authn.refresh_tokens (namespace, family_id)
+    WHERE revoked_at IS NULL;
+
+-- User tokens - list/revoke all refresh tokens for a user
+CREATE INDEX refresh_tokens_user_idx ON authn.refresh_tokens (namespace, user_id, created_at DESC)
+    WHERE revoked_at IS NULL AND replaced_by IS NULL;
+
+-- Session cascade - find tokens when session is revoked
+CREATE INDEX refresh_tokens_session_idx ON authn.refresh_tokens (session_id)
+    WHERE revoked_at IS NULL;
+
+-- Cleanup - find expired or replaced tokens for deletion
+CREATE INDEX refresh_tokens_expired_idx ON authn.refresh_tokens (namespace, expires_at)
+    WHERE revoked_at IS NULL;
+
+-- =============================================================================
 -- TOKENS INDEXES
 -- =============================================================================
 
