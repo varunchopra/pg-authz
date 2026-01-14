@@ -226,3 +226,78 @@ class TestListSessions:
 
         sessions = authn.list_sessions(user_id)
         assert len(sessions) == 1
+
+
+class TestRevokeSessionById:
+    def test_revokes_session_by_id(self, authn):
+        user_id = authn.create_user("alice@example.com", "hash")
+        session_id = authn.create_session(user_id, "token_hash")
+
+        result = authn.revoke_session_by_id(session_id, user_id)
+
+        assert result is True
+        assert authn.validate_session("token_hash") is None
+
+    def test_requires_ownership(self, authn):
+        """User cannot revoke another user's session."""
+        alice_id = authn.create_user("alice@example.com", "hash1")
+        bob_id = authn.create_user("bob@example.com", "hash2")
+        alice_session = authn.create_session(alice_id, "alice_token")
+
+        result = authn.revoke_session_by_id(alice_session, bob_id)
+
+        assert result is False
+        assert authn.validate_session("alice_token") is not None
+
+    def test_returns_false_for_unknown_session(self, authn):
+        user_id = authn.create_user("alice@example.com", "hash")
+        fake_id = "00000000-0000-0000-0000-000000000000"
+
+        result = authn.revoke_session_by_id(fake_id, user_id)
+
+        assert result is False
+
+    def test_returns_false_if_already_revoked(self, authn):
+        user_id = authn.create_user("alice@example.com", "hash")
+        session_id = authn.create_session(user_id, "token_hash")
+        authn.revoke_session("token_hash")
+
+        result = authn.revoke_session_by_id(session_id, user_id)
+
+        assert result is False
+
+
+class TestRevokeOtherSessions:
+    def test_revokes_all_except_current(self, authn):
+        user_id = authn.create_user("alice@example.com", "hash")
+        authn.create_session(user_id, "token1")
+        current_session = authn.create_session(user_id, "token2")
+        authn.create_session(user_id, "token3")
+
+        count = authn.revoke_other_sessions(user_id, current_session)
+
+        assert count == 2
+        assert authn.validate_session("token1") is None
+        assert authn.validate_session("token2") is not None
+        assert authn.validate_session("token3") is None
+
+    def test_returns_zero_if_only_current_session(self, authn):
+        user_id = authn.create_user("alice@example.com", "hash")
+        session_id = authn.create_session(user_id, "token_hash")
+
+        count = authn.revoke_other_sessions(user_id, session_id)
+
+        assert count == 0
+        assert authn.validate_session("token_hash") is not None
+
+    def test_does_not_affect_other_users(self, authn):
+        alice_id = authn.create_user("alice@example.com", "hash1")
+        bob_id = authn.create_user("bob@example.com", "hash2")
+        alice_current = authn.create_session(alice_id, "alice_current")
+        authn.create_session(alice_id, "alice_other")
+        authn.create_session(bob_id, "bob_token")
+
+        count = authn.revoke_other_sessions(alice_id, alice_current)
+
+        assert count == 1
+        assert authn.validate_session("bob_token") is not None

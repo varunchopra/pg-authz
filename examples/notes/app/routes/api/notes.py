@@ -37,7 +37,7 @@ def list_notes(ctx: OrgContext):
     # Filter by API key scope if using API key auth
     if ctx.api_key_id:
         # Check if API key has wildcard access
-        has_wildcard = authz.check(("api_key", ctx.api_key_id), "view", ("notes", "*"))
+        has_wildcard = authz.check(("api_key", ctx.api_key_id), "view", ("note", "*"))
 
         if not has_wildcard:
             # Filter to only notes the API key has specific access to

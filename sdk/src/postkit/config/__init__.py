@@ -1,15 +1,15 @@
 from postkit.config.client import (
     ConfigClient,
     ConfigError,
+    ConfigValidationError,
     SchemaViolationError,
-    ValidationError,
     ValidationResult,
 )
 
 __all__ = [
     "ConfigClient",
     "ConfigError",
+    "ConfigValidationError",
     "SchemaViolationError",
-    "ValidationError",
     "ValidationResult",
 ]
