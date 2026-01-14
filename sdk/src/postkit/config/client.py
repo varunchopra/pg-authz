@@ -15,7 +15,7 @@ class ConfigError(PostkitError):
     """Exception for config operations."""
 
 
-class ValidationError(ConfigError):
+class ConfigValidationError(ConfigError):
     """Raised when config value doesn't match schema."""
 
     def __init__(self, key: str, errors: list[str]):
@@ -106,13 +106,13 @@ class ConfigClient(BaseClient):
             New version number
 
         Raises:
-            ValidationError: If value doesn't match the schema for this key
+            ConfigValidationError: If value doesn't match the schema for this key
         """
         schema = self.get_schema(key)
         if schema is not None:
             result = self._validate_value(value, schema)
             if not result.valid:
-                raise ValidationError(key, result.errors)
+                raise ConfigValidationError(key, result.errors)
 
         return self._fetch_val(
             "SELECT config.set(%s, %s::jsonb, %s)",
@@ -200,7 +200,7 @@ class ConfigClient(BaseClient):
             New version number
 
         Raises:
-            ValidationError: If merged result doesn't match the schema
+            ConfigValidationError: If merged result doesn't match the schema
 
         Example:
             config.merge("flags/checkout", {"rollout": 0.75})
@@ -212,7 +212,7 @@ class ConfigClient(BaseClient):
             merged = {**current, **changes}
             result = self._validate_value(merged, schema)
             if not result.valid:
-                raise ValidationError(key, result.errors)
+                raise ConfigValidationError(key, result.errors)
 
         return self._fetch_val(
             "SELECT config.merge(%s, %s::jsonb, %s)",

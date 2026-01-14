@@ -492,12 +492,9 @@ def check_permission(permission: str, resource: tuple[str, str]) -> bool:
         # 1. Check specific resource access: note:abc123
         has_specific = authz.check(("api_key", api_key_id), permission, resource)
 
-        # 2. Check wildcard access: notes:* (pluralized type)
-        wildcard_type = (
-            resource_type + "s" if not resource_type.endswith("s") else resource_type
-        )
+        # 2. Check wildcard access: note:*
         has_wildcard = authz.check(
-            ("api_key", api_key_id), permission, (wildcard_type, "*")
+            ("api_key", api_key_id), permission, (resource_type, "*")
         )
 
         if not (has_specific or has_wildcard):
@@ -564,7 +561,7 @@ def grant_api_key_scopes(
 
     if notes_access == "all":
         for perm in permissions:
-            authz.grant(perm, resource=("notes", "*"), subject=("api_key", key_id))
+            authz.grant(perm, resource=("note", "*"), subject=("api_key", key_id))
     elif notes_access == "selected" and selected_note_ids:
         for note_id in selected_note_ids:
             for perm in permissions:
@@ -594,12 +591,12 @@ def get_api_key_scopes(key_id: str, org_id: str) -> dict:
     """
     authz = get_authz(org_id)
 
-    # Check wildcard access first (notes:*)
-    if authz.check(("api_key", key_id), "delete", ("notes", "*")):
+    # Check wildcard access first (note:*)
+    if authz.check(("api_key", key_id), "delete", ("note", "*")):
         return {"notes": "admin"}
-    if authz.check(("api_key", key_id), "edit", ("notes", "*")):
+    if authz.check(("api_key", key_id), "edit", ("note", "*")):
         return {"notes": "write"}
-    if authz.check(("api_key", key_id), "view", ("notes", "*")):
+    if authz.check(("api_key", key_id), "view", ("note", "*")):
         return {"notes": "read"}
 
     # Check for specific note grants using SDK

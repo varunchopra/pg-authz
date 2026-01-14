@@ -3,8 +3,8 @@
 import pytest
 from postkit.config import (
     ConfigClient,
+    ConfigValidationError,
     SchemaViolationError,
-    ValidationError,
 )
 
 
@@ -157,7 +157,7 @@ class TestValidationOnSet:
             },
         )
 
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ConfigValidationError) as exc_info:
             admin_config.set("flags/checkout", {"enabled": "yes"})
 
         assert exc_info.value.key == "flags/checkout"
@@ -173,7 +173,7 @@ class TestValidationOnSet:
             },
         )
 
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ConfigValidationError) as exc_info:
             admin_config.set("flags/checkout", {"rollout": 50})
 
         assert "enabled" in str(exc_info.value).lower()
@@ -275,7 +275,7 @@ class TestCollectionTypes:
         admin_config.set("integrations/webhook", {"url": "https://example.com/hook"})
         admin_config.set("integrations/slack", {"channel": "#alerts"})
 
-        with pytest.raises(ValidationError):
+        with pytest.raises(ConfigValidationError):
             admin_config.set("integrations/webhook", {"channel": "#wrong"})
 
 
@@ -293,7 +293,7 @@ class TestMergeValidation:
 
         admin_config.set("flags/test", {"enabled": True})
 
-        with pytest.raises(ValidationError):
+        with pytest.raises(ConfigValidationError):
             admin_config.merge("flags/test", {"enabled": "not-a-boolean"})
 
     def test_merge_validates_new_key(self, admin_config):
@@ -305,7 +305,7 @@ class TestMergeValidation:
             },
         )
 
-        with pytest.raises(ValidationError):
+        with pytest.raises(ConfigValidationError):
             admin_config.merge("flags/new", {"rollout": 50})
 
     def test_merge_valid_value_succeeds(self, admin_config):
