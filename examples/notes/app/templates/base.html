@@ -7,6 +7,18 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+    {% if is_impersonating %}
+    <div class="impersonation-banner">
+        <span class="impersonation-icon">&#128373;</span>
+        <span class="impersonation-text">
+            <strong>{{ impersonator_email }}</strong> is viewing as this user
+            {% if impersonation_reason %}<span class="impersonation-reason">- {{ impersonation_reason }}</span>{% endif %}
+        </span>
+        <form action="{{ url_for('views.orgs.end_impersonation_current') }}" method="post" class="impersonation-end">
+            <button type="submit" class="btn btn-sm btn-warning">End Impersonation</button>
+        </form>
+    </div>
+    {% endif %}
     {% if session.get('user_id') %}
     <nav class="navbar">
         <div class="nav-left">

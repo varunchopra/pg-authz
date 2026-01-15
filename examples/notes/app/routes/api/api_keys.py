@@ -5,15 +5,13 @@ from flask import Blueprint, jsonify, request
 from pydantic import ValidationError
 
 from ...auth import (
-    OrgContext,
-    authenticated,
-    create_token,
     get_api_key_scopes,
     grant_api_key_scopes,
     revoke_all_api_key_grants,
 )
 from ...db import get_authn
 from ...schemas import ApiKeyRequest
+from ...security import OrgContext, authenticated, create_token
 
 bp = Blueprint("api_api_keys", __name__, url_prefix="/api-keys")
 log = logging.getLogger(__name__)

@@ -114,3 +114,29 @@ CREATE INDEX api_keys_user_active_idx ON authn.api_keys (namespace, user_id, cre
 -- Cleanup queries - find expired keys (optional cleanup)
 CREATE INDEX api_keys_expired_idx ON authn.api_keys (namespace, expires_at)
     WHERE revoked_at IS NULL AND expires_at IS NOT NULL;
+
+-- =============================================================================
+-- IMPERSONATION SESSIONS INDEXES
+-- =============================================================================
+
+-- Context lookup (hot path) - get impersonation context from session id
+-- Used by validate_session LEFT JOIN for every impersonation session check
+CREATE INDEX impersonation_sessions_session_idx
+    ON authn.impersonation_sessions (namespace, impersonation_session_id)
+    INCLUDE (actor_id, target_user_id, reason)
+    WHERE ended_at IS NULL;
+
+-- Active impersonations by actor (admin dashboard)
+CREATE INDEX impersonation_sessions_actor_active_idx
+    ON authn.impersonation_sessions (namespace, actor_id, started_at DESC)
+    WHERE ended_at IS NULL;
+
+-- Active impersonations for target user (security auditing)
+CREATE INDEX impersonation_sessions_target_idx
+    ON authn.impersonation_sessions (namespace, target_user_id, started_at DESC)
+    WHERE ended_at IS NULL;
+
+-- Cleanup expired impersonations
+CREATE INDEX impersonation_sessions_expired_idx
+    ON authn.impersonation_sessions (namespace, expires_at)
+    WHERE ended_at IS NULL;

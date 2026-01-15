@@ -7,8 +7,8 @@ from datetime import datetime, timedelta, timezone
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from psycopg.rows import dict_row
 
-from ...auth import OrgContext, UserContext, authenticated
 from ...db import get_authn, get_authz, get_db, get_meter, get_note_org_id
+from ...security import OrgContext, UserContext, authenticated
 from .teams import get_team
 
 bp = Blueprint("notes", __name__, url_prefix="/notes")

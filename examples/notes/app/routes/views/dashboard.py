@@ -15,16 +15,18 @@ from flask import (
 from psycopg.rows import dict_row
 
 from ...auth import (
-    API_KEY_PREFIX,
-    OrgContext,
-    UserContext,
-    authenticated,
-    create_token,
     get_api_key_scope_display,
     grant_api_key_scopes,
     revoke_all_api_key_grants,
 )
 from ...db import get_authn, get_authz, get_db
+from ...security import (
+    API_KEY_PREFIX,
+    OrgContext,
+    UserContext,
+    authenticated,
+    create_token,
+)
 
 bp = Blueprint("dashboard", __name__)
 log = logging.getLogger(__name__)

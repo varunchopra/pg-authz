@@ -265,6 +265,125 @@ SELECT authn.update_password(user_id, '$argon2id$...');
 
 ---
 
+## Impersonation
+
+### authn.end_impersonation
+
+```sql
+authn.end_impersonation(p_impersonation_id: uuid, p_namespace: text) -> bool
+```
+
+End an impersonation session early (revokes the impersonation session)
+
+**Parameters:**
+- `p_impersonation_id`: The impersonation to end
+
+**Returns:** true if ended, false if not found or already ended
+
+**Example:**
+```sql
+SELECT authn.end_impersonation(impersonation_id);
+```
+
+*Source: authn/src/functions/075_impersonation.sql:149*
+
+---
+
+### authn.get_impersonation_context
+
+```sql
+authn.get_impersonation_context(p_session_id: uuid, p_namespace: text) -> table(is_impersonating: bool, impersonation_id: uuid, actor_id: uuid, actor_email: text, target_user_id: uuid, reason: text, started_at: timestamptz, expires_at: timestamptz)
+```
+
+Get impersonation context for a session (is this an impersonated session?)
+
+**Parameters:**
+- `p_session_id`: The session to check
+
+**Returns:** is_impersonating, actor_id, actor_email, target_user_id, reason Returns is_impersonating=false with NULLs if not an impersonation session
+
+**Example:**
+```sql
+SELECT * FROM authn.get_impersonation_context(session_id);
+```
+
+*Source: authn/src/functions/075_impersonation.sql:218*
+
+---
+
+### authn.list_active_impersonations
+
+```sql
+authn.list_active_impersonations(p_namespace: text) -> table(impersonation_id: uuid, actor_id: uuid, actor_email: text, target_user_id: uuid, target_email: text, reason: text, started_at: timestamptz, expires_at: timestamptz, impersonation_session_id: uuid)
+```
+
+List all active impersonations in a namespace (admin dashboard)
+
+**Parameters:**
+- `p_namespace`: Namespace to query
+
+**Returns:** Active impersonations with actor/target info
+
+**Example:**
+```sql
+SELECT * FROM authn.list_active_impersonations('production');
+```
+
+*Source: authn/src/functions/075_impersonation.sql:280*
+
+---
+
+### authn.list_impersonation_history
+
+```sql
+authn.list_impersonation_history(p_namespace: text, p_limit: int4, p_actor_id: uuid, p_target_user_id: uuid) -> table(impersonation_id: uuid, actor_id: uuid, actor_email: text, target_user_id: uuid, target_email: text, reason: text, started_at: timestamptz, expires_at: timestamptz, ended_at: timestamptz, is_active: bool)
+```
+
+List impersonation history for audit (includes ended impersonations)
+
+**Parameters:**
+- `p_namespace`: Namespace to query
+- `p_limit`: Maximum records to return
+- `p_actor_id`: Optional filter by actor
+- `p_target_user_id`: Optional filter by target user
+
+**Returns:** Impersonation history
+
+**Example:**
+```sql
+SELECT * FROM authn.list_impersonation_history('production', 100);
+```
+
+*Source: authn/src/functions/075_impersonation.sql:330*
+
+---
+
+### authn.start_impersonation
+
+```sql
+authn.start_impersonation(p_actor_session_id: uuid, p_target_user_id: uuid, p_token_hash: text, p_reason: text, p_duration: interval, p_namespace: text) -> table(impersonation_id: uuid, impersonation_session_id: uuid, expires_at: timestamptz)
+```
+
+Start impersonating a user (creates a session acting as target user)
+
+**Parameters:**
+- `p_actor_session_id`: Session ID of the admin starting impersonation (cannot be an impersonation session)
+- `p_target_user_id`: User ID to impersonate
+- `p_token_hash`: SHA-256 hash of the impersonation session token (caller generates and hashes)
+- `p_reason`: Required justification for impersonation (e.g., "Support ticket #123")
+- `p_duration`: How long the impersonation lasts (default 1 hour, max 8 hours)
+
+**Returns:** impersonation_id, impersonation_session_id, expires_at
+
+**Example:**
+```sql
+SELECT * FROM authn.start_impersonation(admin_session, target_user, sha256(token), 'Support ticket #123');
+```
+
+*Source: authn/src/functions/075_impersonation.sql:1*
+
+---
+
 ## Lockout
 
 ### authn.clear_attempts
@@ -714,7 +833,7 @@ Extend session absolute timeout (for "remember me", not idle timeout)
 SELECT authn.extend_session(token_hash, '30 days'); -- "remember me"
 ```
 
-*Source: authn/src/functions/020_sessions.sql:81*
+*Source: authn/src/functions/020_sessions.sql:126*
 
 ---
 
@@ -733,7 +852,7 @@ List active sessions for "manage devices" UI
 SELECT * FROM authn.list_sessions(user_id);
 ```
 
-*Source: authn/src/functions/020_sessions.sql:239*
+*Source: authn/src/functions/020_sessions.sql:284*
 
 ---
 
@@ -752,7 +871,7 @@ Log out all sessions for a user (password change, security concern)
 SELECT authn.revoke_all_sessions(user_id); -- "Log out everywhere"
 ```
 
-*Source: authn/src/functions/020_sessions.sql:162*
+*Source: authn/src/functions/020_sessions.sql:207*
 
 ---
 
@@ -775,7 +894,7 @@ Log out all sessions except the current one ("sign out other devices")
 SELECT authn.revoke_other_sessions(user_id, current_session_id);
 ```
 
-*Source: authn/src/functions/020_sessions.sql:197*
+*Source: authn/src/functions/020_sessions.sql:242*
 
 ---
 
@@ -792,7 +911,7 @@ Log out a specific session
 SELECT authn.revoke_session(token_hash); -- User clicks "log out"
 ```
 
-*Source: authn/src/functions/020_sessions.sql:124*
+*Source: authn/src/functions/020_sessions.sql:169*
 
 ---
 
@@ -815,19 +934,19 @@ Revoke a specific session by ID (for "manage devices" UI)
 SELECT authn.revoke_session_by_id(session_id, user_id);
 ```
 
-*Source: authn/src/functions/020_sessions.sql:275*
+*Source: authn/src/functions/020_sessions.sql:320*
 
 ---
 
 ### authn.validate_session
 
 ```sql
-authn.validate_session(p_token_hash: text, p_namespace: text) -> table(user_id: uuid, email: text, session_id: uuid)
+authn.validate_session(p_token_hash: text, p_namespace: text) -> table(user_id: uuid, email: text, session_id: uuid, is_impersonating: bool, impersonator_id: uuid, impersonator_email: text, impersonation_reason: text)
 ```
 
 Check if session is valid and get user info (hot path, no logging)
 
-**Returns:** user_id, email, session_id if valid. Empty if expired/revoked/disabled.
+**Returns:** user_id, email, session_id if valid. Empty if expired/revoked/disabled. Also returns impersonation context if this is an impersonation session. When impersonation is detected, automatically sets audit actor context.
 
 **Example:**
 ```sql

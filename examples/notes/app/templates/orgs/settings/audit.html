@@ -55,6 +55,11 @@
                 <td>
                     {% if event.actor_id %}
                     <code>{{ event.actor_id }}</code>
+                    {% if event.on_behalf_of %}
+                    <div class="impersonation-context">
+                        <span class="impersonation-badge" title="{{ event.reason or 'Impersonation' }}">⇢ as {{ event.on_behalf_of }}</span>
+                    </div>
+                    {% endif %}
                     {% else %}
                     <span class="meta">system</span>
                     {% endif %}

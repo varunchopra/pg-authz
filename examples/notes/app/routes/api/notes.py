@@ -5,8 +5,8 @@ import logging
 from flask import Blueprint, jsonify, request
 from psycopg.rows import dict_row
 
-from ...auth import OrgContext, authenticated, check_permission
 from ...db import get_authz, get_db
+from ...security import OrgContext, authenticated, check_permission
 
 bp = Blueprint("api_notes", __name__, url_prefix="/notes")
 log = logging.getLogger(__name__)
@@ -86,7 +86,7 @@ def list_notes(ctx: OrgContext):
 def get_note(ctx: OrgContext, note_id: str):
     """Get a specific note (respecting API key scopes)."""
     # Check permission using layered authorization
-    if not check_permission("view", ("note", note_id)):
+    if not check_permission(ctx, "view", ("note", note_id)):
         return jsonify({"error": "no access to this note"}), 403
 
     note = get_note_by_id(note_id, ctx.org_id)
@@ -116,7 +116,7 @@ def get_note(ctx: OrgContext, note_id: str):
 def update_note(ctx: OrgContext, note_id: str):
     """Update a note (requires edit permission and API key scope)."""
     # Check permission using layered authorization
-    if not check_permission("edit", ("note", note_id)):
+    if not check_permission(ctx, "edit", ("note", note_id)):
         return jsonify({"error": "no edit access to this note"}), 403
 
     note = get_note_by_id(note_id, ctx.org_id)
@@ -149,7 +149,7 @@ def delete_note(ctx: OrgContext, note_id: str):
     authz = get_authz(ctx.org_id)
 
     # Check permission using layered authorization (delete requires admin scope)
-    if not check_permission("delete", ("note", note_id)):
+    if not check_permission(ctx, "delete", ("note", note_id)):
         return jsonify({"error": "no delete access to this note"}), 403
 
     # Also need owner permission on the user side

@@ -17,9 +17,6 @@ from flask import (
 from psycopg.rows import dict_row
 
 from ...auth import (
-    OrgContext,
-    UserContext,
-    authenticated,
     get_org,
     get_org_by_slug,
     get_session_user,
@@ -34,6 +31,12 @@ from ...db import (
     get_meter,
     get_org_config,
     get_system_config,
+)
+from ...security import (
+    OrgContext,
+    UserContext,
+    authenticated,
+    create_token,
 )
 
 bp = Blueprint("orgs", __name__, url_prefix="/orgs")
@@ -679,11 +682,6 @@ def transfer_ownership(ctx: OrgContext, org_id: str, user_id: str):
         flash("You are already the owner", "error")
         return redirect(url_for(".settings_members", org_id=org_id))
 
-    # Verify target is an org member
-    if not is_org_member(user_id, org_id):
-        flash("User is not a member of this organization", "error")
-        return redirect(url_for(".settings_members", org_id=org_id))
-
     authz = get_authz(org_id)
 
     with get_db().transaction():
@@ -836,3 +834,100 @@ def settings_usage(ctx: OrgContext, org_id: str):
         storage_cost=total_storage * (storage_rate or 0),
         active_tab="usage",
     )
+
+
+# =============================================================================
+# IMPERSONATION
+# =============================================================================
+
+
+@bp.post("/<org_id>/users/<user_id>/impersonate")
+@authenticated(org=True, admin=True)
+def start_impersonation(ctx: OrgContext, org_id: str, user_id: str):
+    """Start impersonating a user (admin only)."""
+
+    if user_id == ctx.user_id:
+        flash("Cannot impersonate yourself", "error")
+        return redirect(url_for(".settings_members", org_id=org_id))
+
+    # Get reason from form
+    reason = request.form.get("reason", "").strip()
+    if not reason:
+        flash("Impersonation reason is required", "error")
+        return redirect(url_for(".settings_members", org_id=org_id))
+
+    authn = get_authn()
+
+    # Get current session ID (the admin's session)
+    token_hash = session.get("token_hash")
+    if not token_hash:
+        flash("Session not found", "error")
+        return redirect(url_for(".settings_members", org_id=org_id))
+
+    db_session = authn.validate_session(token_hash)
+    if not db_session:
+        flash("Invalid session", "error")
+        return redirect(url_for("views.auth.login"))
+
+    admin_session_id = db_session["session_id"]
+
+    try:
+        # Generate token hash for impersonation session
+        _, imp_token_hash = create_token()
+
+        # Create impersonation session
+        result = authn.start_impersonation(
+            actor_session_id=admin_session_id,
+            target_user_id=user_id,
+            reason=reason,
+            token_hash=imp_token_hash,
+        )
+
+        # Store original session so we can restore it
+        session["original_token_hash"] = session.get("token_hash")
+        session["impersonation_id"] = str(result["impersonation_id"])
+        # Switch to impersonation session
+        session["token_hash"] = imp_token_hash
+
+        user = authn.get_user(user_id)
+        log.info(
+            f"Impersonation started: admin={ctx.user_id[:8]}... target={user_id[:8]}... reason={reason}"
+        )
+        flash(f"Now viewing as {user['email']}", "success")
+
+    except Exception as e:
+        log.exception("Failed to start impersonation")
+        flash(f"Failed to start impersonation: {e}", "error")
+
+    return redirect(url_for("views.dashboard.index"))
+
+
+@bp.post("/impersonation/end")
+@authenticated
+def end_impersonation_current(ctx: UserContext):
+    """End the current impersonation session (called from banner)."""
+    impersonation_id = session.get("impersonation_id")
+    original_token_hash = session.get("original_token_hash")
+
+    if not impersonation_id or not original_token_hash:
+        flash("No active impersonation", "error")
+        return redirect(url_for("views.dashboard.index"))
+
+    authn = get_authn()
+
+    try:
+        authn.end_impersonation(impersonation_id)
+
+        # Restore original session
+        session["token_hash"] = original_token_hash
+        session.pop("original_token_hash", None)
+        session.pop("impersonation_id", None)
+
+        log.info(f"Impersonation ended: impersonation_id={impersonation_id[:8]}...")
+        flash("Impersonation ended", "success")
+
+    except Exception as e:
+        log.exception("Failed to end impersonation")
+        flash(f"Failed to end impersonation: {e}", "error")
+
+    return redirect(url_for("views.dashboard.index"))

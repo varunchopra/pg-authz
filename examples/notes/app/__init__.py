@@ -70,11 +70,19 @@ def create_app():
             if user_id:
                 is_admin = is_org_admin(user_id, org_id)
 
+        # Impersonation context (set by get_session_user via validate_session)
+        is_impersonating = g.get("is_impersonating", False)
+        impersonator_email = g.get("impersonator_email")
+        impersonation_reason = g.get("impersonation_reason")
+
         return {
             "app_name": Config.APP_NAME,
             "is_admin": is_admin,
             "current_org": current_org,
             "user_org_count": user_org_count,
+            "is_impersonating": is_impersonating,
+            "impersonator_email": impersonator_email,
+            "impersonation_reason": impersonation_reason,
         }
 
     # Error handlers (for API - views will render templates)

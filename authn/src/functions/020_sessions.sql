@@ -50,6 +50,8 @@ $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
 -- @function authn.validate_session
 -- @brief Check if session is valid and get user info (hot path, no logging)
 -- @returns user_id, email, session_id if valid. Empty if expired/revoked/disabled.
+--   Also returns impersonation context if this is an impersonation session.
+--   When impersonation is detected, automatically sets audit actor context.
 -- @example SELECT * FROM authn.validate_session(sha256(token_from_cookie));
 CREATE OR REPLACE FUNCTION authn.validate_session(
     p_token_hash text,
@@ -58,27 +60,70 @@ CREATE OR REPLACE FUNCTION authn.validate_session(
 RETURNS TABLE(
     user_id uuid,
     email text,
-    session_id uuid
+    session_id uuid,
+    is_impersonating boolean,
+    impersonator_id uuid,
+    impersonator_email text,
+    impersonation_reason text
 )
 AS $$
+DECLARE
+    v_result RECORD;
 BEGIN
     PERFORM authn._validate_hash(p_token_hash, 'token_hash', false);
     PERFORM authn._validate_namespace(p_namespace);
 
-    RETURN QUERY
+    -- Query session with LEFT JOIN to impersonation context
     SELECT
         u.id AS user_id,
         u.email,
-        s.id AS session_id
+        s.id AS session_id,
+        COALESCE(imp.id IS NOT NULL AND imp.ended_at IS NULL AND imp.expires_at > now(), false) AS is_impersonating,
+        imp.actor_id AS impersonator_id,
+        actor.email AS impersonator_email,
+        imp.reason AS impersonation_reason
+    INTO v_result
     FROM authn.sessions s
     JOIN authn.users u ON u.id = s.user_id AND u.namespace = s.namespace
+    LEFT JOIN authn.impersonation_sessions imp
+        ON imp.impersonation_session_id = s.id
+        AND imp.namespace = s.namespace
+        AND imp.ended_at IS NULL
+        AND imp.expires_at > now()
+    LEFT JOIN authn.users actor
+        ON actor.id = imp.actor_id
+        AND actor.namespace = imp.namespace
     WHERE s.token_hash = p_token_hash
       AND s.namespace = p_namespace
       AND s.revoked_at IS NULL
       AND s.expires_at > now()
-      AND u.disabled_at IS NULL;
+      AND u.disabled_at IS NULL
+      AND (imp.id IS NULL OR actor.disabled_at IS NULL);
+
+    -- If no session found, return nothing
+    IF v_result.user_id IS NULL THEN
+        RETURN;
+    END IF;
+
+    -- If this is an impersonation session, auto-set audit context
+    IF v_result.is_impersonating THEN
+        PERFORM authn.set_actor(
+            p_actor_id := 'user:' || v_result.impersonator_id::text,
+            p_on_behalf_of := 'user:' || v_result.user_id::text,
+            p_reason := 'Impersonation: ' || v_result.impersonation_reason
+        );
+    END IF;
+
+    RETURN QUERY SELECT
+        v_result.user_id,
+        v_result.email,
+        v_result.session_id,
+        v_result.is_impersonating,
+        v_result.impersonator_id,
+        v_result.impersonator_email,
+        v_result.impersonation_reason;
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = authn, pg_temp;
+$$ LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = authn, pg_temp;
 
 -- @function authn.extend_session
 -- @brief Extend session absolute timeout (for "remember me", not idle timeout)

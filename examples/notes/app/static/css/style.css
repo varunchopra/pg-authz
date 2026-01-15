@@ -687,6 +687,21 @@ code {
     color: var(--danger);
 }
 
+/* Impersonation Context (Audit) */
+.impersonation-context {
+    margin-top: 4px;
+}
+
+.impersonation-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 11px;
+    background: #fff3e0;
+    color: #e65100;
+    border-radius: 3px;
+    cursor: help;
+}
+
 /* =============================================================================
    CONSOLIDATED STYLES (moved from inline template styles)
    ============================================================================= */
@@ -1508,4 +1523,48 @@ label.radio-option {
     .data-table td {
         padding: 8px 12px;
     }
+}
+
+/* Impersonation Banner */
+.impersonation-banner {
+    background: linear-gradient(135deg, #ff6b35, #f7931e);
+    color: white;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
+}
+
+.impersonation-icon {
+    font-size: 20px;
+}
+
+.impersonation-text {
+    flex: 1;
+}
+
+.impersonation-text strong {
+    font-weight: 600;
+}
+
+.impersonation-reason {
+    opacity: 0.9;
+    font-style: italic;
+}
+
+.impersonation-end {
+    margin: 0;
+}
+
+.impersonation-end .btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    color: white;
+    font-weight: 500;
+}
+
+.impersonation-end .btn:hover {
+    background: rgba(255, 255, 255, 0.3);
 }

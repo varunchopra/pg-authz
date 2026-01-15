@@ -6,17 +6,7 @@ from postkit.base import UniqueViolationError
 from pydantic import ValidationError
 from werkzeug.exceptions import BadRequest
 
-from ...auth import (
-    DUMMY_HASH,
-    REFRESH_TOKEN_PREFIX,
-    UserContext,
-    authenticated,
-    create_session_with_refresh,
-    create_token,
-    hash_password,
-    hash_token,
-    verify_password,
-)
+from ...auth import create_session_with_refresh
 from ...config import Config
 from ...db import get_authn, get_db
 from ...schemas import (
@@ -25,6 +15,16 @@ from ...schemas import (
     PasswordResetRequest,
     RefreshTokenRequest,
     SignupRequest,
+)
+from ...security import (
+    DUMMY_HASH,
+    REFRESH_TOKEN_PREFIX,
+    UserContext,
+    authenticated,
+    create_token,
+    hash_password,
+    hash_token,
+    verify_password,
 )
 
 bp = Blueprint("api_users", __name__)

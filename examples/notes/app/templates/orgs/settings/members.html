@@ -87,6 +87,10 @@
                         <form action="{{ url_for('views.orgs.remove_member', org_id=org.org_id, member_id=member.user_id) }}" method="post" class="d-inline">
                             <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Remove this member from the organization?')">Remove</button>
                         </form>
+
+                        {% if not member.disabled_at %}
+                        <button type="button" class="btn btn-sm btn-warning" onclick="showImpersonateModal('{{ member.user_id }}', '{{ member.email }}')">Impersonate</button>
+                        {% endif %}
                     {% elif member.user_id == org.owner_id %}
                         <span class="text-muted">Owner</span>
                     {% endif %}
@@ -161,4 +165,128 @@
     </table>
     {% endif %}
 </div>
+
+<!-- Impersonation Modal -->
+<div id="impersonateModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Impersonate User</h3>
+            <button type="button" class="modal-close" onclick="hideImpersonateModal()">&times;</button>
+        </div>
+        <form id="impersonateForm" method="post" action="">
+            <div class="modal-body">
+                <p>You are about to view the application as <strong id="impersonateEmail"></strong>.</p>
+                <p class="text-warning">All actions during impersonation are logged for compliance.</p>
+                <div class="form-group">
+                    <label for="impersonateReason">Reason (required)</label>
+                    <input type="text" id="impersonateReason" name="reason" placeholder="e.g., Support ticket #123, Bug investigation" required>
+                    <small class="form-hint">This reason will be recorded in the audit log.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn" onclick="hideImpersonateModal()">Cancel</button>
+                <button type="submit" class="btn btn-warning">Start Impersonation</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+.modal-content {
+    background: white;
+    border-radius: 8px;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+}
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+}
+.modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+}
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+.modal-body {
+    padding: 20px;
+}
+.modal-body p {
+    margin-bottom: 16px;
+}
+.modal-footer {
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+.text-warning {
+    color: var(--warning);
+    font-size: 13px;
+}
+.form-hint {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 12px;
+    margin-top: 4px;
+}
+.btn-warning {
+    background: var(--warning-light);
+    color: white;
+    border-color: var(--warning-light);
+}
+.btn-warning:hover {
+    background: var(--warning);
+    border-color: var(--warning);
+}
+</style>
+
+<script>
+function showImpersonateModal(userId, email) {
+    document.getElementById('impersonateEmail').textContent = email;
+    document.getElementById('impersonateForm').action = '{{ url_for("views.orgs.start_impersonation", org_id=org.org_id, user_id="__USER_ID__") }}'.replace('__USER_ID__', userId);
+    document.getElementById('impersonateReason').value = '';
+    document.getElementById('impersonateModal').style.display = 'flex';
+}
+
+function hideImpersonateModal() {
+    document.getElementById('impersonateModal').style.display = 'none';
+}
+
+// Close modal on escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        hideImpersonateModal();
+    }
+});
+
+// Close modal on background click
+document.getElementById('impersonateModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        hideImpersonateModal();
+    }
+});
+</script>
 {% endblock %}

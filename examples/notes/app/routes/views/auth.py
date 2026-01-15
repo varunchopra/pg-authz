@@ -9,17 +9,7 @@ import requests as http_requests
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 from postkit.base import UniqueViolationError
 
-from ...auth import (
-    DUMMY_HASH,
-    create_token,
-    get_session_user,
-    get_user_orgs,
-    hash_password,
-    hash_token,
-    login_user,
-    logout_user,
-    verify_password,
-)
+from ...auth import get_session_user, get_user_orgs, login_user, logout_user
 from ...config import Config
 from ...db import get_authn, get_db
 from ...schemas import (
@@ -28,6 +18,13 @@ from ...schemas import (
     PasswordResetRequest,
     SignupRequest,
     validate_form,
+)
+from ...security import (
+    DUMMY_HASH,
+    create_token,
+    hash_password,
+    hash_token,
+    verify_password,
 )
 
 bp = Blueprint("auth", __name__)

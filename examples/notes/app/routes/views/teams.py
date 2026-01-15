@@ -6,8 +6,8 @@ import uuid
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from psycopg.rows import dict_row
 
-from ...auth import OrgContext, authenticated
 from ...db import get_authn, get_authz, get_db
+from ...security import OrgContext, authenticated
 
 bp = Blueprint("teams", __name__, url_prefix="/teams")
 log = logging.getLogger(__name__)
