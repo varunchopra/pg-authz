@@ -18,7 +18,7 @@ Add an MFA method for a user.
 
 **Returns:** MFA ID (UUID string)
 
-*Source: sdk/src/postkit/authn/client.py:529*
+*Source: sdk/src/postkit/authn/client.py:848*
 
 ---
 
@@ -30,7 +30,7 @@ cleanup_expired() -> dict
 
 Clean up expired sessions, tokens, and old login attempts.
 
-*Source: sdk/src/postkit/authn/client.py:632*
+*Source: sdk/src/postkit/authn/client.py:951*
 
 ---
 
@@ -42,7 +42,7 @@ clear_actor() -> None
 
 Clear actor context.
 
-*Source: sdk/src/postkit/authn/client.py:685*
+*Source: sdk/src/postkit/authn/client.py:1004*
 
 ---
 
@@ -54,7 +54,7 @@ clear_attempts(email: str) -> int
 
 Clear login attempts for an email. Returns count deleted.
 
-*Source: sdk/src/postkit/authn/client.py:624*
+*Source: sdk/src/postkit/authn/client.py:943*
 
 ---
 
@@ -66,7 +66,7 @@ consume_token(token_hash: str, token_type: str) -> dict | None
 
 Consume a one-time token.
 
-*Source: sdk/src/postkit/authn/client.py:496*
+*Source: sdk/src/postkit/authn/client.py:815*
 
 ---
 
@@ -86,7 +86,7 @@ Create an API key for programmatic access.
 
 **Returns:** API key ID (UUID string)
 
-*Source: sdk/src/postkit/authn/client.py:406*
+*Source: sdk/src/postkit/authn/client.py:725*
 
 ---
 
@@ -105,7 +105,7 @@ Create a refresh token for a session.
 
 **Returns:** Dict with refresh_token_id, family_id, expires_at
 
-*Source: sdk/src/postkit/authn/client.py:295*
+*Source: sdk/src/postkit/authn/client.py:614*
 
 ---
 
@@ -146,7 +146,7 @@ Create a one-time use token.
 
 **Returns:** Token ID (UUID string)
 
-*Source: sdk/src/postkit/authn/client.py:470*
+*Source: sdk/src/postkit/authn/client.py:789*
 
 ---
 
@@ -204,6 +204,40 @@ Re-enable a disabled user.
 
 ---
 
+### end_impersonation
+
+```python
+end_impersonation(impersonation_id: str) -> bool
+```
+
+End an impersonation session early.
+
+**Parameters:**
+- `impersonation_id`: The impersonation to end
+
+**Returns:** True if ended, False if not found or already ended
+
+*Source: sdk/src/postkit/authn/client.py:354*
+
+---
+
+### end_operator_impersonation
+
+```python
+end_operator_impersonation(impersonation_id: str) -> bool
+```
+
+End an operator impersonation session early.
+
+**Parameters:**
+- `impersonation_id`: The impersonation to end
+
+**Returns:** True if ended, False if not found or already ended
+
+*Source: sdk/src/postkit/authn/client.py:485*
+
+---
+
 ### extend_session
 
 ```python
@@ -214,7 +248,7 @@ Extend session expiration.
 
 **Returns:** New expires_at timestamp, or None if session invalid/expired/revoked.
 
-*Source: sdk/src/postkit/authn/client.py:221*
+*Source: sdk/src/postkit/authn/client.py:230*
 
 ---
 
@@ -234,7 +268,7 @@ Query audit events.
 
 **Returns:** List of audit event dictionaries
 
-*Source: sdk/src/postkit/authn/client.py:691*
+*Source: sdk/src/postkit/authn/client.py:1010*
 
 ---
 
@@ -250,6 +284,25 @@ Get credentials for login verification.
 
 ---
 
+### get_impersonation_context
+
+```python
+get_impersonation_context(session_id: str) -> dict
+```
+
+Check if a session is an impersonation session.
+
+**Parameters:**
+- `session_id`: Session ID to check
+
+**Returns:** Dict with is_impersonating (bool), and if True:
+impersonation_id, actor_id, actor_email, target_user_id,
+reason, started_at, expires_at
+
+*Source: sdk/src/postkit/authn/client.py:372*
+
+---
+
 ### get_mfa
 
 ```python
@@ -258,7 +311,47 @@ get_mfa(user_id: str, mfa_type: str) -> list[dict]
 
 Get MFA secrets for verification. Returns secrets!
 
-*Source: sdk/src/postkit/authn/client.py:555*
+*Source: sdk/src/postkit/authn/client.py:874*
+
+---
+
+### get_operator_audit_events
+
+```python
+get_operator_audit_events(limit: int = 100, event_type: str | None = None, operator_namespace: str | None = None, target_namespace: str | None = None) -> list[dict]
+```
+
+Query operator audit events.
+
+**Parameters:**
+- `limit`: Maximum records to return
+- `event_type`: Optional filter by event type
+- `operator_namespace`: Optional filter by operator namespace
+- `target_namespace`: Optional filter by target namespace
+
+**Returns:** List of operator audit event records
+
+*Source: sdk/src/postkit/authn/client.py:586*
+
+---
+
+### get_operator_impersonation_context
+
+```python
+get_operator_impersonation_context(session_id: str) -> dict
+```
+
+Check if a session is an operator impersonation session.
+
+**Parameters:**
+- `session_id`: Session ID to check
+
+**Returns:** Dict with is_operator_impersonating (bool), and if True:
+impersonation_id, operator_id, operator_email, operator_namespace,
+target_user_id, target_user_email, target_namespace, reason,
+ticket_reference, started_at, expires_at
+
+*Source: sdk/src/postkit/authn/client.py:503*
 
 ---
 
@@ -270,7 +363,7 @@ get_recent_attempts(email: str, limit: int = 10) -> list[dict]
 
 Get recent login attempts for an email.
 
-*Source: sdk/src/postkit/authn/client.py:617*
+*Source: sdk/src/postkit/authn/client.py:936*
 
 ---
 
@@ -282,7 +375,7 @@ get_stats() -> dict
 
 Get namespace statistics.
 
-*Source: sdk/src/postkit/authn/client.py:643*
+*Source: sdk/src/postkit/authn/client.py:962*
 
 ---
 
@@ -318,7 +411,7 @@ has_mfa(user_id: str) -> bool
 
 Check if user has any MFA method enabled.
 
-*Source: sdk/src/postkit/authn/client.py:585*
+*Source: sdk/src/postkit/authn/client.py:904*
 
 ---
 
@@ -330,7 +423,7 @@ invalidate_tokens(user_id: str, token_type: str) -> int
 
 Invalidate all unused tokens of a type for a user.
 
-*Source: sdk/src/postkit/authn/client.py:521*
+*Source: sdk/src/postkit/authn/client.py:840*
 
 ---
 
@@ -342,7 +435,38 @@ is_locked_out(email: str, window: timedelta | None = None, max_attempts: int | N
 
 Check if an email is locked out due to too many failed attempts.
 
-*Source: sdk/src/postkit/authn/client.py:605*
+*Source: sdk/src/postkit/authn/client.py:924*
+
+---
+
+### list_active_impersonations
+
+```python
+list_active_impersonations() -> list[dict]
+```
+
+List all active impersonations in the namespace.
+
+**Returns:** List of active impersonation records with actor/target info
+
+*Source: sdk/src/postkit/authn/client.py:393*
+
+---
+
+### list_active_operator_impersonations
+
+```python
+list_active_operator_impersonations(limit: int = 100) -> list[dict]
+```
+
+List all active operator impersonations.
+
+**Parameters:**
+- `limit`: Maximum records to return
+
+**Returns:** List of active impersonation records
+
+*Source: sdk/src/postkit/authn/client.py:568*
 
 ---
 
@@ -354,7 +478,26 @@ list_api_keys(user_id: str) -> list[dict]
 
 List active API keys for a user. Does not return key_hash.
 
-*Source: sdk/src/postkit/authn/client.py:463*
+*Source: sdk/src/postkit/authn/client.py:782*
+
+---
+
+### list_impersonation_history
+
+```python
+list_impersonation_history(limit: int = 100, actor_id: str | None = None, target_user_id: str | None = None) -> list[dict]
+```
+
+List impersonation history for audit purposes.
+
+**Parameters:**
+- `limit`: Maximum records to return
+- `actor_id`: Optional filter by actor (admin who impersonated)
+- `target_user_id`: Optional filter by target (user who was impersonated)
+
+**Returns:** List of impersonation records (including ended ones)
+
+*Source: sdk/src/postkit/authn/client.py:407*
 
 ---
 
@@ -366,7 +509,45 @@ list_mfa(user_id: str) -> list[dict]
 
 List MFA methods. Does NOT return secrets.
 
-*Source: sdk/src/postkit/authn/client.py:562*
+*Source: sdk/src/postkit/authn/client.py:881*
+
+---
+
+### list_operator_impersonations_by_operator
+
+```python
+list_operator_impersonations_by_operator(operator_id: str, operator_namespace: str, limit: int = 100) -> list[dict]
+```
+
+List impersonations performed by an operator.
+
+**Parameters:**
+- `operator_id`: Operator user ID to query
+- `operator_namespace`: Operator's namespace
+- `limit`: Maximum records to return
+
+**Returns:** List of impersonation records by the operator
+
+*Source: sdk/src/postkit/authn/client.py:546*
+
+---
+
+### list_operator_impersonations_for_target
+
+```python
+list_operator_impersonations_for_target(target_namespace: str, limit: int = 100, target_user_id: str | None = None) -> list[dict]
+```
+
+List operator impersonation history affecting a target namespace.
+
+**Parameters:**
+- `target_namespace`: Namespace to query
+- `limit`: Maximum records to return
+- `target_user_id`: Optional filter by specific target user
+
+**Returns:** List of impersonation records (including ended ones)
+
+*Source: sdk/src/postkit/authn/client.py:522*
 
 ---
 
@@ -378,7 +559,7 @@ list_refresh_tokens(user_id: str) -> list[dict]
 
 List active refresh tokens for a user.
 
-*Source: sdk/src/postkit/authn/client.py:395*
+*Source: sdk/src/postkit/authn/client.py:714*
 
 ---
 
@@ -390,7 +571,7 @@ list_sessions(user_id: str) -> list[dict]
 
 List active sessions for a user. Does not return token_hash.
 
-*Source: sdk/src/postkit/authn/client.py:288*
+*Source: sdk/src/postkit/authn/client.py:297*
 
 ---
 
@@ -414,7 +595,7 @@ record_login_attempt(email: str, success: bool, ip_address: str | None = None) -
 
 Record a login attempt.
 
-*Source: sdk/src/postkit/authn/client.py:592*
+*Source: sdk/src/postkit/authn/client.py:911*
 
 ---
 
@@ -426,7 +607,7 @@ record_mfa_use(mfa_id: str) -> bool
 
 Record that an MFA method was used.
 
-*Source: sdk/src/postkit/authn/client.py:577*
+*Source: sdk/src/postkit/authn/client.py:896*
 
 ---
 
@@ -438,7 +619,7 @@ remove_mfa(mfa_id: str) -> bool
 
 Remove an MFA method.
 
-*Source: sdk/src/postkit/authn/client.py:569*
+*Source: sdk/src/postkit/authn/client.py:888*
 
 ---
 
@@ -450,7 +631,7 @@ revoke_all_api_keys(user_id: str) -> int
 
 Revoke all API keys for a user. Returns count revoked.
 
-*Source: sdk/src/postkit/authn/client.py:455*
+*Source: sdk/src/postkit/authn/client.py:774*
 
 ---
 
@@ -464,7 +645,7 @@ Revoke all refresh tokens for a user.
 
 **Returns:** Count of tokens revoked
 
-*Source: sdk/src/postkit/authn/client.py:382*
+*Source: sdk/src/postkit/authn/client.py:701*
 
 ---
 
@@ -476,7 +657,7 @@ revoke_all_sessions(user_id: str) -> int
 
 Revoke all sessions for a user. Returns count revoked.
 
-*Source: sdk/src/postkit/authn/client.py:260*
+*Source: sdk/src/postkit/authn/client.py:269*
 
 ---
 
@@ -488,7 +669,7 @@ revoke_api_key(key_id: str) -> bool
 
 Revoke an API key.
 
-*Source: sdk/src/postkit/authn/client.py:447*
+*Source: sdk/src/postkit/authn/client.py:766*
 
 ---
 
@@ -506,7 +687,7 @@ Revoke all sessions except the specified one ("sign out other devices").
 
 **Returns:** Count of sessions revoked (excludes the preserved session)
 
-*Source: sdk/src/postkit/authn/client.py:268*
+*Source: sdk/src/postkit/authn/client.py:277*
 
 ---
 
@@ -520,7 +701,7 @@ Revoke all tokens in a family (security response).
 
 **Returns:** Count of tokens revoked
 
-*Source: sdk/src/postkit/authn/client.py:369*
+*Source: sdk/src/postkit/authn/client.py:688*
 
 ---
 
@@ -532,7 +713,7 @@ revoke_session(token_hash: str) -> bool
 
 Revoke a session.
 
-*Source: sdk/src/postkit/authn/client.py:237*
+*Source: sdk/src/postkit/authn/client.py:246*
 
 ---
 
@@ -544,7 +725,7 @@ revoke_session_by_id(session_id: str, user_id: str) -> bool
 
 Revoke a session by ID (for manage devices UI).
 
-*Source: sdk/src/postkit/authn/client.py:245*
+*Source: sdk/src/postkit/authn/client.py:254*
 
 ---
 
@@ -564,7 +745,7 @@ Rotate a refresh token (invalidate old, issue new).
 **Returns:** Dict with user_id, session_id, new_refresh_token_id, family_id,
 generation, expires_at - or None if rotation failed
 
-*Source: sdk/src/postkit/authn/client.py:323*
+*Source: sdk/src/postkit/authn/client.py:642*
 
 ---
 
@@ -594,7 +775,51 @@ authn.set_actor(request_id=req_id, ip_address=ip, user_agent=ua)
 authn.set_actor(actor_id="user:alice")
 ```
 
-*Source: sdk/src/postkit/authn/client.py:651*
+*Source: sdk/src/postkit/authn/client.py:970*
+
+---
+
+### start_impersonation
+
+```python
+start_impersonation(actor_session_id: str, target_user_id: str, reason: str, token_hash: str, duration: timedelta | None = None) -> dict
+```
+
+Start impersonating a user.
+
+**Parameters:**
+- `actor_session_id`: Session ID of the admin starting impersonation (cannot be an impersonation session - chaining is prevented)
+- `target_user_id`: User ID to impersonate
+- `reason`: Required justification (cannot be empty)
+- `token_hash`: SHA-256 hash of the impersonation session token
+- `duration`: How long the impersonation lasts (default 1 hour, max 8 hours)
+
+**Returns:** Dict with impersonation_id, impersonation_session_id, expires_at
+
+*Source: sdk/src/postkit/authn/client.py:308*
+
+---
+
+### start_operator_impersonation
+
+```python
+start_operator_impersonation(operator_session_id: str, target_user_id: str, target_namespace: str, token_hash: str, reason: str, duration: timedelta | None = None, ticket_reference: str | None = None) -> dict
+```
+
+Start cross-namespace operator impersonation.
+
+**Parameters:**
+- `operator_session_id`: Session ID of the operator starting impersonation (cannot be an impersonation session - chaining is prevented)
+- `target_user_id`: User ID to impersonate
+- `target_namespace`: Namespace of the target user
+- `token_hash`: SHA-256 hash of the impersonation session token
+- `reason`: Required justification (cannot be empty)
+- `duration`: How long the impersonation lasts (default 30 min, max 4 hours)
+- `ticket_reference`: Optional external ticket reference (Zendesk, Jira, etc.)
+
+**Returns:** Dict with impersonation_id, impersonation_session_id, expires_at
+
+*Source: sdk/src/postkit/authn/client.py:433*
 
 ---
 
@@ -632,7 +857,7 @@ Validate an API key.
 
 **Returns:** Dict with user_id, key_id, name, expires_at or None if invalid
 
-*Source: sdk/src/postkit/authn/client.py:432*
+*Source: sdk/src/postkit/authn/client.py:751*
 
 ---
 
@@ -647,7 +872,7 @@ Validate a refresh token without rotating (read-only check).
 **Returns:** Dict with user_id, session_id, family_id, generation,
 expires_at, is_current - or None if invalid
 
-*Source: sdk/src/postkit/authn/client.py:354*
+*Source: sdk/src/postkit/authn/client.py:673*
 
 ---
 
@@ -658,6 +883,10 @@ validate_session(token_hash: str) -> dict | None
 ```
 
 Validate a session token.
+
+**Returns:** Dict with user_id, email, session_id, is_impersonating,
+impersonator_id, impersonator_email, impersonation_reason
+- or None if session invalid/expired/revoked.
 
 *Source: sdk/src/postkit/authn/client.py:209*
 
@@ -671,6 +900,6 @@ verify_email(token_hash: str) -> dict | None
 
 Verify email using a token.
 
-*Source: sdk/src/postkit/authn/client.py:509*
+*Source: sdk/src/postkit/authn/client.py:828*
 
 ---

@@ -53,6 +53,18 @@ def _cleanup(cursor, namespace: str):
     cursor.execute(
         "DELETE FROM authn.refresh_tokens WHERE namespace = %s", (namespace,)
     )
+    cursor.execute(
+        "DELETE FROM authn.impersonation_sessions WHERE namespace = %s", (namespace,)
+    )
+    # Operator impersonation (cross-namespace) - clean up where namespace is operator or target
+    cursor.execute(
+        "DELETE FROM authn.operator_audit_events WHERE operator_namespace = %s OR target_namespace = %s",
+        (namespace, namespace),
+    )
+    cursor.execute(
+        "DELETE FROM authn.operator_impersonation_sessions WHERE operator_namespace = %s OR target_namespace = %s",
+        (namespace, namespace),
+    )
     cursor.execute("DELETE FROM authn.sessions WHERE namespace = %s", (namespace,))
     cursor.execute("DELETE FROM authn.users WHERE namespace = %s", (namespace,))
 

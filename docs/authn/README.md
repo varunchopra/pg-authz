@@ -17,10 +17,15 @@
 | [`delete_user`](sdk.md#delete_user) | Permanently delete a user and all associated data. |
 | [`disable_user`](sdk.md#disable_user) | Disable user and revoke all their sessions. |
 | [`enable_user`](sdk.md#enable_user) | Re-enable a disabled user. |
+| [`end_impersonation`](sdk.md#end_impersonation) | End an impersonation session early. |
+| [`end_operator_impersonation`](sdk.md#end_operator_impersonation) | End an operator impersonation session early. |
 | [`extend_session`](sdk.md#extend_session) | Extend session expiration. |
 | [`get_audit_events`](sdk.md#get_audit_events) | Query audit events. |
 | [`get_credentials`](sdk.md#get_credentials) | Get credentials for login verification. |
+| [`get_impersonation_context`](sdk.md#get_impersonation_context) | Check if a session is an impersonation session. |
 | [`get_mfa`](sdk.md#get_mfa) | Get MFA secrets for verification. Returns secrets! |
+| [`get_operator_audit_events`](sdk.md#get_operator_audit_events) | Query operator audit events. |
+| [`get_operator_impersonation_context`](sdk.md#get_operator_impersonation_context) | Check if a session is an operator impersonation session. |
 | [`get_recent_attempts`](sdk.md#get_recent_attempts) | Get recent login attempts for an email. |
 | [`get_stats`](sdk.md#get_stats) | Get namespace statistics. |
 | [`get_user`](sdk.md#get_user) | Get user by ID. Does not return password_hash. |
@@ -28,8 +33,13 @@
 | [`has_mfa`](sdk.md#has_mfa) | Check if user has any MFA method enabled. |
 | [`invalidate_tokens`](sdk.md#invalidate_tokens) | Invalidate all unused tokens of a type for a user. |
 | [`is_locked_out`](sdk.md#is_locked_out) | Check if an email is locked out due to too many failed attempts. |
+| [`list_active_impersonations`](sdk.md#list_active_impersonations) | List all active impersonations in the namespace. |
+| [`list_active_operator_impersonations`](sdk.md#list_active_operator_impersonations) | List all active operator impersonations. |
 | [`list_api_keys`](sdk.md#list_api_keys) | List active API keys for a user. Does not return key_hash. |
+| [`list_impersonation_history`](sdk.md#list_impersonation_history) | List impersonation history for audit purposes. |
 | [`list_mfa`](sdk.md#list_mfa) | List MFA methods. Does NOT return secrets. |
+| [`list_operator_impersonations_by_operator`](sdk.md#list_operator_impersonations_by_operator) | List impersonations performed by an operator. |
+| [`list_operator_impersonations_for_target`](sdk.md#list_operator_impersonations_for_target) | List operator impersonation history affecting a target namespace. |
 | [`list_refresh_tokens`](sdk.md#list_refresh_tokens) | List active refresh tokens for a user. |
 | [`list_sessions`](sdk.md#list_sessions) | List active sessions for a user. Does not return token_hash. |
 | [`list_users`](sdk.md#list_users) | List users with pagination. |
@@ -46,6 +56,8 @@
 | [`revoke_session_by_id`](sdk.md#revoke_session_by_id) | Revoke a session by ID (for manage devices UI). |
 | [`rotate_refresh_token`](sdk.md#rotate_refresh_token) | Rotate a refresh token (invalidate old, issue new). |
 | [`set_actor`](sdk.md#set_actor) | Set actor context for audit logging. Only updates fields that are passed. |
+| [`start_impersonation`](sdk.md#start_impersonation) | Start impersonating a user. |
+| [`start_operator_impersonation`](sdk.md#start_operator_impersonation) | Start cross-namespace operator impersonation. |
 | [`update_email`](sdk.md#update_email) | Update user's email. Clears email_verified_at. |
 | [`update_password`](sdk.md#update_password) | Update user's password hash. |
 | [`validate_api_key`](sdk.md#validate_api_key) | Validate an API key. |
@@ -69,6 +81,11 @@
 | [`authn.set_actor`](sql.md#authnset_actor) | Tag audit events with who made the change (call before user operations) |
 | [`authn.get_credentials`](sql.md#authnget_credentials) | Get password hash for login verification (only function that returns hash) |
 | [`authn.update_password`](sql.md#authnupdate_password) | Update user's password hash (after password change or reset) |
+| [`authn.end_impersonation`](sql.md#authnend_impersonation) | End an impersonation session early (revokes the impersonation session) |
+| [`authn.get_impersonation_context`](sql.md#authnget_impersonation_context) | Get impersonation context for a session (is this an impersonated session?) |
+| [`authn.list_active_impersonations`](sql.md#authnlist_active_impersonations) | List all active impersonations in a namespace (admin dashboard) |
+| [`authn.list_impersonation_history`](sql.md#authnlist_impersonation_history) | List impersonation history for audit (includes ended impersonations) |
+| [`authn.start_impersonation`](sql.md#authnstart_impersonation) | Start impersonating a user (creates a session acting as target user) |
 | [`authn.clear_attempts`](sql.md#authnclear_attempts) | Clear login attempts to unlock a user (admin function) |
 | [`authn.get_recent_attempts`](sql.md#authnget_recent_attempts) | Get recent login attempts for admin UI or user security page |
 | [`authn.is_locked_out`](sql.md#authnis_locked_out) | Check if email is locked out due to too many failed attempts |
@@ -83,6 +100,13 @@
 | [`authn.get_stats`](sql.md#authnget_stats) | Get namespace statistics for monitoring dashboards |
 | [`authn.clear_tenant`](sql.md#authnclear_tenant) | Clear tenant context. Queries return no rows (fail-closed for safety). |
 | [`authn.set_tenant`](sql.md#authnset_tenant) | Set the tenant context for Row-Level Security |
+| [`authn.end_operator_impersonation`](sql.md#authnend_operator_impersonation) | End an operator impersonation session early |
+| [`authn.get_operator_audit_events`](sql.md#authnget_operator_audit_events) | Query operator audit events |
+| [`authn.get_operator_impersonation_context`](sql.md#authnget_operator_impersonation_context) | Get operator impersonation context for a session |
+| [`authn.list_active_operator_impersonations`](sql.md#authnlist_active_operator_impersonations) | List all active operator impersonations (platform admin view) |
+| [`authn.list_operator_impersonations_by_operator`](sql.md#authnlist_operator_impersonations_by_operator) | List impersonations performed by an operator |
+| [`authn.list_operator_impersonations_for_target`](sql.md#authnlist_operator_impersonations_for_target) | List operator impersonation history affecting a target namespace |
+| [`authn.start_operator_impersonation`](sql.md#authnstart_operator_impersonation) | Start cross-namespace operator impersonation |
 | [`authn.create_refresh_token`](sql.md#authncreate_refresh_token) | Create a refresh token for a session (call after create_session) |
 | [`authn.list_refresh_tokens`](sql.md#authnlist_refresh_tokens) | List active refresh tokens for a user (for "manage devices" UI) |
 | [`authn.revoke_all_refresh_tokens`](sql.md#authnrevoke_all_refresh_tokens) | Revoke all refresh tokens for a user (password change, security concern) |

@@ -153,6 +153,30 @@ CREATE TABLE authn.api_keys (
 );
 
 -- =============================================================================
+-- IMPERSONATION SESSIONS TABLE
+-- =============================================================================
+-- Tracks admin impersonation of users for support. Fully audited, time-limited.
+-- Each impersonation creates a real session that acts as the target user,
+-- but the original actor and reason are preserved for audit.
+CREATE TABLE authn.impersonation_sessions (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    namespace text NOT NULL DEFAULT 'default',
+    actor_id uuid NOT NULL REFERENCES authn.users(id) ON DELETE CASCADE,
+    target_user_id uuid NOT NULL REFERENCES authn.users(id) ON DELETE CASCADE,
+    original_session_id uuid NOT NULL REFERENCES authn.sessions(id) ON DELETE CASCADE,
+    impersonation_session_id uuid REFERENCES authn.sessions(id) ON DELETE SET NULL,
+    reason text NOT NULL,
+    started_at timestamptz NOT NULL DEFAULT now(),
+    expires_at timestamptz NOT NULL,
+    ended_at timestamptz,
+
+    -- Prevent self-impersonation
+    CONSTRAINT impersonation_no_self CHECK (actor_id != target_user_id),
+    -- Reason cannot be empty or whitespace-only
+    CONSTRAINT impersonation_reason_not_empty CHECK (length(trim(reason)) > 0)
+);
+
+-- =============================================================================
 -- ROW-LEVEL SECURITY
 -- =============================================================================
 -- Tenant isolation using session variable authn.tenant_id
@@ -206,6 +230,13 @@ CREATE POLICY api_keys_tenant_isolation ON authn.api_keys
     USING (namespace = current_setting('authn.tenant_id', TRUE))
     WITH CHECK (namespace = current_setting('authn.tenant_id', TRUE));
 
+ALTER TABLE authn.impersonation_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE authn.impersonation_sessions FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY impersonation_sessions_tenant_isolation ON authn.impersonation_sessions
+    USING (namespace = current_setting('authn.tenant_id', TRUE))
+    WITH CHECK (namespace = current_setting('authn.tenant_id', TRUE));
+
 -- =============================================================================
 -- TRIGGERS
 -- =============================================================================
@@ -228,3 +259,23 @@ CREATE TRIGGER session_revoked_cascade
     FOR EACH ROW
     WHEN (OLD.revoked_at IS NULL AND NEW.revoked_at IS NOT NULL)
     EXECUTE FUNCTION authn._cascade_session_revocation();
+
+-- Revoke impersonation session when impersonation record is deleted
+-- This prevents orphaned sessions when original_session_id is cascade deleted
+CREATE OR REPLACE FUNCTION authn._revoke_impersonation_session_on_delete()
+RETURNS trigger AS $$
+BEGIN
+    IF OLD.impersonation_session_id IS NOT NULL THEN
+        UPDATE authn.sessions
+        SET revoked_at = now()
+        WHERE id = OLD.impersonation_session_id
+          AND revoked_at IS NULL;
+    END IF;
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER impersonation_deleted_revoke_session
+    BEFORE DELETE ON authn.impersonation_sessions
+    FOR EACH ROW
+    EXECUTE FUNCTION authn._revoke_impersonation_session_on_delete();

@@ -265,6 +265,125 @@ SELECT authn.update_password(user_id, '$argon2id$...');
 
 ---
 
+## Impersonation
+
+### authn.end_impersonation
+
+```sql
+authn.end_impersonation(p_impersonation_id: uuid, p_namespace: text) -> bool
+```
+
+End an impersonation session early (revokes the impersonation session)
+
+**Parameters:**
+- `p_impersonation_id`: The impersonation to end
+
+**Returns:** true if ended, false if not found or already ended
+
+**Example:**
+```sql
+SELECT authn.end_impersonation(impersonation_id);
+```
+
+*Source: authn/src/functions/075_impersonation.sql:154*
+
+---
+
+### authn.get_impersonation_context
+
+```sql
+authn.get_impersonation_context(p_session_id: uuid, p_namespace: text) -> table(is_impersonating: bool, impersonation_id: uuid, actor_id: uuid, actor_email: text, target_user_id: uuid, reason: text, started_at: timestamptz, expires_at: timestamptz)
+```
+
+Get impersonation context for a session (is this an impersonated session?)
+
+**Parameters:**
+- `p_session_id`: The session to check
+
+**Returns:** is_impersonating, actor_id, actor_email, target_user_id, reason Returns is_impersonating=false with NULLs if not an impersonation session
+
+**Example:**
+```sql
+SELECT * FROM authn.get_impersonation_context(session_id);
+```
+
+*Source: authn/src/functions/075_impersonation.sql:223*
+
+---
+
+### authn.list_active_impersonations
+
+```sql
+authn.list_active_impersonations(p_namespace: text) -> table(impersonation_id: uuid, actor_id: uuid, actor_email: text, target_user_id: uuid, target_email: text, reason: text, started_at: timestamptz, expires_at: timestamptz, impersonation_session_id: uuid)
+```
+
+List all active impersonations in a namespace (admin dashboard)
+
+**Parameters:**
+- `p_namespace`: Namespace to query
+
+**Returns:** Active impersonations with actor/target info
+
+**Example:**
+```sql
+SELECT * FROM authn.list_active_impersonations('production');
+```
+
+*Source: authn/src/functions/075_impersonation.sql:285*
+
+---
+
+### authn.list_impersonation_history
+
+```sql
+authn.list_impersonation_history(p_namespace: text, p_limit: int4, p_actor_id: uuid, p_target_user_id: uuid) -> table(impersonation_id: uuid, actor_id: uuid, actor_email: text, target_user_id: uuid, target_email: text, reason: text, started_at: timestamptz, expires_at: timestamptz, ended_at: timestamptz, is_active: bool)
+```
+
+List impersonation history for audit (includes ended impersonations)
+
+**Parameters:**
+- `p_namespace`: Namespace to query
+- `p_limit`: Maximum records to return
+- `p_actor_id`: Optional filter by actor
+- `p_target_user_id`: Optional filter by target user
+
+**Returns:** Impersonation history
+
+**Example:**
+```sql
+SELECT * FROM authn.list_impersonation_history('production', 100);
+```
+
+*Source: authn/src/functions/075_impersonation.sql:335*
+
+---
+
+### authn.start_impersonation
+
+```sql
+authn.start_impersonation(p_actor_session_id: uuid, p_target_user_id: uuid, p_token_hash: text, p_reason: text, p_duration: interval, p_namespace: text) -> table(impersonation_id: uuid, impersonation_session_id: uuid, expires_at: timestamptz)
+```
+
+Start impersonating a user (creates a session acting as target user)
+
+**Parameters:**
+- `p_actor_session_id`: Session ID of the admin starting impersonation (cannot be an impersonation session)
+- `p_target_user_id`: User ID to impersonate
+- `p_token_hash`: SHA-256 hash of the impersonation session token (caller generates and hashes)
+- `p_reason`: Required justification for impersonation (e.g., "Support ticket #123")
+- `p_duration`: How long the impersonation lasts (default 1 hour, max 8 hours)
+
+**Returns:** impersonation_id, impersonation_session_id, expires_at
+
+**Example:**
+```sql
+SELECT * FROM authn.start_impersonation(admin_session, target_user, sha256(token), 'Support ticket #123');
+```
+
+*Source: authn/src/functions/075_impersonation.sql:1*
+
+---
+
 ## Lockout
 
 ### authn.clear_attempts
@@ -544,6 +663,179 @@ SELECT authn.set_tenant('acme-corp');
 
 ---
 
+## Operator Impersonation
+
+### authn.end_operator_impersonation
+
+```sql
+authn.end_operator_impersonation(p_impersonation_id: uuid) -> bool
+```
+
+End an operator impersonation session early
+
+**Parameters:**
+- `p_impersonation_id`: The impersonation to end
+
+**Returns:** true if ended, false if not found or already ended
+
+**Example:**
+```sql
+SELECT authn.end_operator_impersonation(impersonation_id);
+```
+
+*Source: authn/src/functions/085_operator_impersonation.sql:308*
+
+---
+
+### authn.get_operator_audit_events
+
+```sql
+authn.get_operator_audit_events(p_limit: int4, p_event_type: text, p_operator_namespace: text, p_target_namespace: text) -> table(event_id: uuid, event_type: text, occurred_at: timestamptz, operator_namespace: text, operator_id: uuid, operator_email: text, target_namespace: text, target_user_id: uuid, target_user_email: text, reason: text, ticket_reference: text, ip_address: inet, user_agent: text, details: jsonb)
+```
+
+Query operator audit events
+
+**Parameters:**
+- `p_limit`: Maximum records to return
+- `p_event_type`: Optional filter by event type
+- `p_operator_namespace`: Optional filter by operator namespace
+- `p_target_namespace`: Optional filter by target namespace
+
+**Returns:** Operator audit event records
+
+**Example:**
+```sql
+SELECT * FROM authn.get_operator_audit_events(100, NULL, NULL, 'customer_ns');
+```
+
+*Source: authn/src/functions/085_operator_impersonation.sql:621*
+
+---
+
+### authn.get_operator_impersonation_context
+
+```sql
+authn.get_operator_impersonation_context(p_session_id: uuid) -> table(is_operator_impersonating: bool, impersonation_id: uuid, operator_id: uuid, operator_email: text, operator_namespace: text, target_user_id: uuid, target_user_email: text, target_namespace: text, reason: text, ticket_reference: text, started_at: timestamptz, expires_at: timestamptz)
+```
+
+Get operator impersonation context for a session
+
+**Parameters:**
+- `p_session_id`: The session to check
+
+**Returns:** is_operator_impersonating, impersonation details if true Returns is_operator_impersonating=false with NULLs if not an operator impersonation session
+
+**Example:**
+```sql
+SELECT * FROM authn.get_operator_impersonation_context(session_id);
+```
+
+*Source: authn/src/functions/085_operator_impersonation.sql:376*
+
+---
+
+### authn.list_active_operator_impersonations
+
+```sql
+authn.list_active_operator_impersonations(p_limit: int4) -> table(impersonation_id: uuid, operator_id: uuid, operator_email: text, operator_namespace: text, target_user_id: uuid, target_user_email: text, target_namespace: text, reason: text, ticket_reference: text, started_at: timestamptz, expires_at: timestamptz, impersonation_session_id: uuid)
+```
+
+List all active operator impersonations (platform admin view)
+
+**Parameters:**
+- `p_limit`: Maximum records to return
+
+**Returns:** Active impersonation records
+
+**Example:**
+```sql
+SELECT * FROM authn.list_active_operator_impersonations(100);
+```
+
+*Source: authn/src/functions/085_operator_impersonation.sql:566*
+
+---
+
+### authn.list_operator_impersonations_by_operator
+
+```sql
+authn.list_operator_impersonations_by_operator(p_operator_id: uuid, p_operator_namespace: text, p_limit: int4) -> table(impersonation_id: uuid, target_user_id: uuid, target_user_email: text, target_namespace: text, reason: text, ticket_reference: text, started_at: timestamptz, expires_at: timestamptz, ended_at: timestamptz, is_active: bool)
+```
+
+List impersonations performed by an operator
+
+**Parameters:**
+- `p_operator_id`: Operator user ID to query
+- `p_operator_namespace`: Operator's namespace
+- `p_limit`: Maximum records to return
+
+**Returns:** Impersonation records by the operator
+
+**Example:**
+```sql
+SELECT * FROM authn.list_operator_impersonations_by_operator(operator_id, 'platform');
+```
+
+*Source: authn/src/functions/085_operator_impersonation.sql:510*
+
+---
+
+### authn.list_operator_impersonations_for_target
+
+```sql
+authn.list_operator_impersonations_for_target(p_target_namespace: text, p_limit: int4, p_target_user_id: uuid) -> table(impersonation_id: uuid, operator_id: uuid, operator_email: text, operator_namespace: text, target_user_id: uuid, target_user_email: text, reason: text, ticket_reference: text, started_at: timestamptz, expires_at: timestamptz, ended_at: timestamptz, is_active: bool)
+```
+
+List operator impersonation history affecting a target namespace
+
+**Parameters:**
+- `p_target_namespace`: Namespace to query (tenant sees who accessed their users)
+- `p_limit`: Maximum records to return
+- `p_target_user_id`: Optional filter by specific target user
+
+**Returns:** Impersonation records affecting the namespace
+
+**Example:**
+```sql
+SELECT * FROM authn.list_operator_impersonations_for_target('customer_ns', 100);
+```
+
+*Source: authn/src/functions/085_operator_impersonation.sql:450*
+
+---
+
+### authn.start_operator_impersonation
+
+```sql
+authn.start_operator_impersonation(p_operator_session_id: uuid, p_target_user_id: uuid, p_target_namespace: text, p_token_hash: text, p_reason: text, p_duration: interval, p_ticket_reference: text) -> table(impersonation_id: uuid, impersonation_session_id: uuid, expires_at: timestamptz)
+```
+
+Start cross-namespace operator impersonation
+
+**Parameters:**
+- `p_operator_session_id`: Valid session ID of the operator (any namespace)
+- `p_target_user_id`: User ID to impersonate
+- `p_target_namespace`: Namespace of the target user
+- `p_token_hash`: SHA-256 hash of the impersonation session token
+- `p_reason`: Required justification for impersonation
+- `p_duration`: How long the impersonation lasts (default 30 minutes, max 4 hours)
+- `p_ticket_reference`: Optional external ticket reference (Zendesk, Jira, etc.)
+
+**Returns:** impersonation_id, impersonation_session_id, expires_at IMPORTANT: This function only validates MECHANISM: - Operator has valid session (not revoked, not expired, user not disabled) - Target user exists and is not disabled The calling application MUST validate POLICY: - Whether the session owner is authorized as an operator - Any other business rules about who can impersonate whom
+
+**Example:**
+```sql
+-- -- App validates operator status first, then calls:
+SELECT * FROM authn.start_operator_impersonation(
+operator_session_id, target_user_id, 'customer_ns', token_hash,
+'Support ticket #123', '30 minutes', 'ZENDESK-456'
+);
+```
+
+*Source: authn/src/functions/085_operator_impersonation.sql:128*
+
+---
+
 ## Refresh Tokens
 
 ### authn.create_refresh_token
@@ -714,7 +1006,7 @@ Extend session absolute timeout (for "remember me", not idle timeout)
 SELECT authn.extend_session(token_hash, '30 days'); -- "remember me"
 ```
 
-*Source: authn/src/functions/020_sessions.sql:81*
+*Source: authn/src/functions/020_sessions.sql:126*
 
 ---
 
@@ -733,7 +1025,7 @@ List active sessions for "manage devices" UI
 SELECT * FROM authn.list_sessions(user_id);
 ```
 
-*Source: authn/src/functions/020_sessions.sql:239*
+*Source: authn/src/functions/020_sessions.sql:284*
 
 ---
 
@@ -752,7 +1044,7 @@ Log out all sessions for a user (password change, security concern)
 SELECT authn.revoke_all_sessions(user_id); -- "Log out everywhere"
 ```
 
-*Source: authn/src/functions/020_sessions.sql:162*
+*Source: authn/src/functions/020_sessions.sql:207*
 
 ---
 
@@ -775,7 +1067,7 @@ Log out all sessions except the current one ("sign out other devices")
 SELECT authn.revoke_other_sessions(user_id, current_session_id);
 ```
 
-*Source: authn/src/functions/020_sessions.sql:197*
+*Source: authn/src/functions/020_sessions.sql:242*
 
 ---
 
@@ -792,7 +1084,7 @@ Log out a specific session
 SELECT authn.revoke_session(token_hash); -- User clicks "log out"
 ```
 
-*Source: authn/src/functions/020_sessions.sql:124*
+*Source: authn/src/functions/020_sessions.sql:169*
 
 ---
 
@@ -815,19 +1107,19 @@ Revoke a specific session by ID (for "manage devices" UI)
 SELECT authn.revoke_session_by_id(session_id, user_id);
 ```
 
-*Source: authn/src/functions/020_sessions.sql:275*
+*Source: authn/src/functions/020_sessions.sql:320*
 
 ---
 
 ### authn.validate_session
 
 ```sql
-authn.validate_session(p_token_hash: text, p_namespace: text) -> table(user_id: uuid, email: text, session_id: uuid)
+authn.validate_session(p_token_hash: text, p_namespace: text) -> table(user_id: uuid, email: text, session_id: uuid, is_impersonating: bool, impersonator_id: uuid, impersonator_email: text, impersonation_reason: text)
 ```
 
 Check if session is valid and get user info (hot path, no logging)
 
-**Returns:** user_id, email, session_id if valid. Empty if expired/revoked/disabled.
+**Returns:** user_id, email, session_id if valid. Empty if expired/revoked/disabled. Also returns impersonation context if this is an impersonation session. When impersonation is detected, automatically sets audit actor context.
 
 **Example:**
 ```sql

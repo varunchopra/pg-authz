@@ -15,6 +15,7 @@
 -- - Tokens: created, consumed
 -- - MFA: added, removed, used
 -- - Security events: login_attempt_failed, lockout_triggered
+-- - Impersonation: started, ended
 --
 -- NEVER LOGGED (security)
 -- =======================
@@ -78,7 +79,8 @@ CREATE TABLE authn.audit_events (
         'refresh_token_family_revoked', 'refresh_tokens_revoked_all',
         'api_key_created', 'api_key_revoked', 'api_keys_revoked_all',
         'mfa_added', 'mfa_removed', 'mfa_used',
-        'login_attempt_failed', 'lockout_triggered'
+        'login_attempt_failed', 'lockout_triggered',
+        'impersonation_started', 'impersonation_ended'
     ))
 ) PARTITION BY RANGE (event_time);
 

@@ -80,3 +80,35 @@ BEGIN
     );
 END;
 $$ LANGUAGE plpgsql STABLE PARALLEL SAFE SET search_path = authn, pg_temp;
+
+
+-- @function authn._impersonation_default_duration
+-- @brief Returns default impersonation duration
+-- @returns Interval (default: 1 hour)
+-- Override with SET authn.impersonation_default_duration.
+CREATE OR REPLACE FUNCTION authn._impersonation_default_duration()
+RETURNS interval
+AS $$
+BEGIN
+    RETURN COALESCE(
+        current_setting('authn.impersonation_default_duration', true)::interval,
+        '1 hour'::interval
+    );
+END;
+$$ LANGUAGE plpgsql STABLE PARALLEL SAFE SET search_path = authn, pg_temp;
+
+
+-- @function authn._impersonation_max_duration
+-- @brief Returns maximum allowed impersonation duration
+-- @returns Interval (default: 8 hours)
+-- Override with SET authn.impersonation_max_duration.
+CREATE OR REPLACE FUNCTION authn._impersonation_max_duration()
+RETURNS interval
+AS $$
+BEGIN
+    RETURN COALESCE(
+        current_setting('authn.impersonation_max_duration', true)::interval,
+        '8 hours'::interval
+    );
+END;
+$$ LANGUAGE plpgsql STABLE PARALLEL SAFE SET search_path = authn, pg_temp;

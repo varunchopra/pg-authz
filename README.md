@@ -77,6 +77,12 @@ meter.commit(res["reservation_id"], 2347)
 
 See [sdk/](sdk/) for details.
 
+## Examples
+
+| App | Description |
+|-----|-------------|
+| [postkit-notes](https://github.com/varunchopra/postkit-notes) | Multi-tenant notes app with auth, permissions, teams, and impersonation |
+
 ## Documentation
 
 See [docs/](docs/) for full API reference with function signatures, parameters, and examples.

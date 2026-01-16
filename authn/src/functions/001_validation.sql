@@ -36,7 +36,7 @@ BEGIN
 
     -- Basic email format: something@something (no spaces)
     IF v_normalized !~ '^[^\s@]+@[^\s@]+$' THEN
-        RAISE EXCEPTION 'email format is invalid'
+        RAISE EXCEPTION 'email format is invalid (got: %)', v_normalized
             USING ERRCODE = 'invalid_parameter_value';
     END IF;
 

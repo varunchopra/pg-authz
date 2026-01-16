@@ -212,6 +212,15 @@ class AuthnClient(BaseClient):
 
         Returns user info if valid, None otherwise.
         Does not log to audit (hot path).
+
+        If the session is an impersonation session, the response includes
+        impersonation context (is_impersonating, impersonator_id, impersonator_email,
+        impersonation_reason) and the audit actor context is automatically set.
+
+        Returns:
+            Dict with user_id, email, session_id, is_impersonating,
+            impersonator_id, impersonator_email, impersonation_reason
+            - or None if session invalid/expired/revoked.
         """
         return self._fetch_one(
             "SELECT * FROM authn.validate_session(%s, %s)",
@@ -291,6 +300,316 @@ class AuthnClient(BaseClient):
             "SELECT * FROM authn.list_sessions(%s::uuid, %s)",
             (user_id, self.namespace),
         )
+
+    # =========================================================================
+    # IMPERSONATION
+    # =========================================================================
+
+    def start_impersonation(
+        self,
+        actor_session_id: str,
+        target_user_id: str,
+        reason: str,
+        token_hash: str,
+        duration: timedelta | None = None,
+    ) -> dict:
+        """
+        Start impersonating a user.
+
+        Creates a new session that acts as the target user, with full audit trail.
+        The calling application MUST verify authorization before calling this method.
+
+        Args:
+            actor_session_id: Session ID of the admin starting impersonation
+                (cannot be an impersonation session - chaining is prevented)
+            target_user_id: User ID to impersonate
+            reason: Required justification (cannot be empty)
+            token_hash: SHA-256 hash of the impersonation session token
+            duration: How long the impersonation lasts (default 1 hour, max 8 hours)
+
+        Returns:
+            Dict with impersonation_id, impersonation_session_id, expires_at
+
+        Raises:
+            AuthnError: If actor session invalid, target user invalid/disabled,
+                reason empty, duration exceeds max, attempting self-impersonation,
+                or attempting to chain impersonation
+        """
+        result = self._fetch_one(
+            "SELECT * FROM authn.start_impersonation(%s::uuid, %s::uuid, %s, %s, %s, %s)",
+            (
+                actor_session_id,
+                target_user_id,
+                token_hash,
+                reason,
+                duration,
+                self.namespace,
+            ),
+            write=True,
+        )
+        if result is None:
+            raise AuthnError("Failed to start impersonation")
+        return result
+
+    def end_impersonation(self, impersonation_id: str) -> bool:
+        """
+        End an impersonation session early.
+
+        Revokes the impersonation session and marks the impersonation as ended.
+
+        Args:
+            impersonation_id: The impersonation to end
+
+        Returns:
+            True if ended, False if not found or already ended
+        """
+        return self._fetch_val(
+            "SELECT authn.end_impersonation(%s::uuid, %s)",
+            (impersonation_id, self.namespace),
+            write=True,
+        )
+
+    def get_impersonation_context(self, session_id: str) -> dict:
+        """
+        Check if a session is an impersonation session.
+
+        Note: validate_session() already returns this info and auto-sets audit context,
+        so this method is rarely needed. Use it for explicit lookups.
+
+        Args:
+            session_id: Session ID to check
+
+        Returns:
+            Dict with is_impersonating (bool), and if True:
+            impersonation_id, actor_id, actor_email, target_user_id,
+            reason, started_at, expires_at
+        """
+        result = self._fetch_one(
+            "SELECT * FROM authn.get_impersonation_context(%s::uuid, %s)",
+            (session_id, self.namespace),
+        )
+        return result or {"is_impersonating": False}
+
+    def list_active_impersonations(self) -> list[dict]:
+        """
+        List all active impersonations in the namespace.
+
+        For admin dashboard to see who is impersonating whom.
+
+        Returns:
+            List of active impersonation records with actor/target info
+        """
+        return self._fetch_all(
+            "SELECT * FROM authn.list_active_impersonations(%s)",
+            (self.namespace,),
+        )
+
+    def list_impersonation_history(
+        self,
+        limit: int = 100,
+        actor_id: str | None = None,
+        target_user_id: str | None = None,
+    ) -> list[dict]:
+        """
+        List impersonation history for audit purposes.
+
+        Args:
+            limit: Maximum records to return
+            actor_id: Optional filter by actor (admin who impersonated)
+            target_user_id: Optional filter by target (user who was impersonated)
+
+        Returns:
+            List of impersonation records (including ended ones)
+        """
+        return self._fetch_all(
+            "SELECT * FROM authn.list_impersonation_history(%s, %s, %s::uuid, %s::uuid)",
+            (self.namespace, limit, actor_id, target_user_id),
+        )
+
+    # =========================================================================
+    # OPERATOR IMPERSONATION
+    # =========================================================================
+
+    def start_operator_impersonation(
+        self,
+        operator_session_id: str,
+        target_user_id: str,
+        target_namespace: str,
+        token_hash: str,
+        reason: str,
+        duration: timedelta | None = None,
+        ticket_reference: str | None = None,
+    ) -> dict:
+        """
+        Start cross-namespace operator impersonation.
+
+        Creates a new session in the target namespace that acts as the target user,
+        with full audit trail. The calling application MUST verify the operator
+        is authorized before calling this method.
+
+        Args:
+            operator_session_id: Session ID of the operator starting impersonation
+                (cannot be an impersonation session - chaining is prevented)
+            target_user_id: User ID to impersonate
+            target_namespace: Namespace of the target user
+            token_hash: SHA-256 hash of the impersonation session token
+            reason: Required justification (cannot be empty)
+            duration: How long the impersonation lasts (default 30 min, max 4 hours)
+            ticket_reference: Optional external ticket reference (Zendesk, Jira, etc.)
+
+        Returns:
+            Dict with impersonation_id, impersonation_session_id, expires_at
+
+        Raises:
+            AuthnError: If operator session invalid, target user invalid/disabled,
+                reason empty, duration exceeds max, attempting self-impersonation,
+                or attempting to chain impersonation
+        """
+        result = self._fetch_one(
+            "SELECT * FROM authn.start_operator_impersonation(%s::uuid, %s::uuid, %s, %s, %s, %s, %s)",
+            (
+                operator_session_id,
+                target_user_id,
+                target_namespace,
+                token_hash,
+                reason,
+                duration,
+                ticket_reference,
+            ),
+            write=True,
+        )
+        if result is None:
+            raise AuthnError("Failed to start operator impersonation")
+        return result
+
+    def end_operator_impersonation(self, impersonation_id: str) -> bool:
+        """
+        End an operator impersonation session early.
+
+        Revokes the impersonation session and marks the impersonation as ended.
+
+        Args:
+            impersonation_id: The impersonation to end
+
+        Returns:
+            True if ended, False if not found or already ended
+        """
+        return self._fetch_val(
+            "SELECT authn.end_operator_impersonation(%s::uuid)",
+            (impersonation_id,),
+            write=True,
+        )
+
+    def get_operator_impersonation_context(self, session_id: str) -> dict:
+        """
+        Check if a session is an operator impersonation session.
+
+        Args:
+            session_id: Session ID to check
+
+        Returns:
+            Dict with is_operator_impersonating (bool), and if True:
+            impersonation_id, operator_id, operator_email, operator_namespace,
+            target_user_id, target_user_email, target_namespace, reason,
+            ticket_reference, started_at, expires_at
+        """
+        result = self._fetch_one(
+            "SELECT * FROM authn.get_operator_impersonation_context(%s::uuid)",
+            (session_id,),
+        )
+        return result or {"is_operator_impersonating": False}
+
+    def list_operator_impersonations_for_target(
+        self,
+        target_namespace: str,
+        limit: int = 100,
+        target_user_id: str | None = None,
+    ) -> list[dict]:
+        """
+        List operator impersonation history affecting a target namespace.
+
+        For tenant admins to see who from the platform accessed their users.
+
+        Args:
+            target_namespace: Namespace to query
+            limit: Maximum records to return
+            target_user_id: Optional filter by specific target user
+
+        Returns:
+            List of impersonation records (including ended ones)
+        """
+        return self._fetch_all(
+            "SELECT * FROM authn.list_operator_impersonations_for_target(%s, %s, %s::uuid)",
+            (target_namespace, limit, target_user_id),
+        )
+
+    def list_operator_impersonations_by_operator(
+        self,
+        operator_id: str,
+        operator_namespace: str,
+        limit: int = 100,
+    ) -> list[dict]:
+        """
+        List impersonations performed by an operator.
+
+        Args:
+            operator_id: Operator user ID to query
+            operator_namespace: Operator's namespace
+            limit: Maximum records to return
+
+        Returns:
+            List of impersonation records by the operator
+        """
+        return self._fetch_all(
+            "SELECT * FROM authn.list_operator_impersonations_by_operator(%s::uuid, %s, %s)",
+            (operator_id, operator_namespace, limit),
+        )
+
+    def list_active_operator_impersonations(self, limit: int = 100) -> list[dict]:
+        """
+        List all active operator impersonations.
+
+        For platform admin dashboard to see who is impersonating whom
+        across all namespaces.
+
+        Args:
+            limit: Maximum records to return
+
+        Returns:
+            List of active impersonation records
+        """
+        return self._fetch_all(
+            "SELECT * FROM authn.list_active_operator_impersonations(%s)",
+            (limit,),
+        )
+
+    def get_operator_audit_events(
+        self,
+        limit: int = 100,
+        event_type: str | None = None,
+        operator_namespace: str | None = None,
+        target_namespace: str | None = None,
+    ) -> list[dict]:
+        """
+        Query operator audit events.
+
+        Args:
+            limit: Maximum records to return
+            event_type: Optional filter by event type
+            operator_namespace: Optional filter by operator namespace
+            target_namespace: Optional filter by target namespace
+
+        Returns:
+            List of operator audit event records
+        """
+        return self._fetch_all(
+            "SELECT * FROM authn.get_operator_audit_events(%s, %s, %s, %s)",
+            (limit, event_type, operator_namespace, target_namespace),
+        )
+
+    # =========================================================================
+    # REFRESH TOKENS
+    # =========================================================================
 
     def create_refresh_token(
         self,
