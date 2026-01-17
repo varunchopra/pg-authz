@@ -58,6 +58,53 @@ END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = config, pg_temp;
 
 
+-- @function config.set_default
+-- @brief Set a config value only if the key doesn't exist (for seeding/defaults)
+-- @param p_key The config key
+-- @param p_value The default value as JSON
+-- @param p_namespace Namespace (default: 'default')
+-- @returns version (1 if created, existing version if already exists), created (true if new)
+-- @example -- Seed default plans
+-- @example SELECT * FROM config.set_default('plans/free', '{"tokens": 10000}');
+-- @example -- Won't overwrite existing value
+-- @example SELECT * FROM config.set_default('plans/free', '{"tokens": 5000}'); -- returns (1, false)
+CREATE OR REPLACE FUNCTION config.set_default(
+    p_key text,
+    p_value jsonb,
+    p_namespace text DEFAULT 'default'
+)
+RETURNS TABLE(
+    version int,
+    created boolean
+)
+AS $$
+DECLARE
+    v_existing_version int;
+BEGIN
+    -- Validate inputs
+    PERFORM config._validate_key(p_key);
+    PERFORM config._validate_namespace(p_namespace);
+
+    -- Check if key already exists (with lock to prevent race conditions)
+    SELECT e.version INTO v_existing_version
+    FROM config.entries e
+    WHERE e.namespace = p_namespace
+      AND e.key = p_key
+      AND e.is_active = true
+    FOR UPDATE SKIP LOCKED;
+
+    -- If exists, return existing version without creating new one
+    IF v_existing_version IS NOT NULL THEN
+        RETURN QUERY SELECT v_existing_version, false;
+        RETURN;
+    END IF;
+
+    -- Does not exist, create it via set()
+    RETURN QUERY SELECT config.set(p_key, p_value, p_namespace), true;
+END;
+$$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = config, pg_temp;
+
+
 -- @function config.get
 -- @brief Get a config entry (active version or specific version)
 -- @param p_key The config key

@@ -397,7 +397,7 @@ ARRAY['payments-api', 'internal-api', 'public-api'], 'default');
 -- Returns: ['payments-api', 'public-api'] (if alice can't see internal-api)
 ```
 
-*Source: authz/src/functions/023_list.sql:200*
+*Source: authz/src/functions/023_list.sql:204*
 
 ---
 
@@ -432,12 +432,13 @@ SELECT * FROM authz.list_resources('api_key', 'key-123', 'repo', 'read', 'defaul
 ### authz.list_subjects
 
 ```sql
-authz.list_subjects(p_resource_type: text, p_resource_id: text, p_permission: text, p_namespace: text, p_limit: int4, p_cursor_type: text, p_cursor_id: text) -> table(subject_type: text, subject_id: text)
+authz.list_subjects(p_resource_type: text, p_resource_id: text, p_permission: text, p_namespace: text, p_limit: int4, p_subject_type: text, p_cursor_type: text, p_cursor_id: text) -> table(subject_type: text, subject_id: text)
 ```
 
 List all subjects who can access a resource ("Who can read this doc?")
 
 **Parameters:**
+- `p_subject_type`: Optional filter to only return subjects of this type (e.g., 'user')
 - `p_cursor_type`: Subject type from last result for pagination (NULL for first page)
 - `p_cursor_id`: Subject ID from last result for pagination (NULL for first page)
 
@@ -447,8 +448,10 @@ List all subjects who can access a resource ("Who can read this doc?")
 ```sql
 -- First page
 SELECT * FROM authz.list_subjects('repo', 'payments', 'admin', 'default');
+-- Filter to only users
+SELECT * FROM authz.list_subjects('repo', 'payments', 'admin', 'default', 100, 'user');
 -- Next page using cursor from last result
-SELECT * FROM authz.list_subjects('repo', 'payments', 'admin', 'default', 100, 'user', 'alice');
+SELECT * FROM authz.list_subjects('repo', 'payments', 'admin', 'default', 100, NULL, 'user', 'alice');
 ```
 
 *Source: authz/src/functions/023_list.sql:97*
@@ -669,6 +672,34 @@ SELECT * FROM authz.list_subject_grants('api_key', 'key-123', 'default', 'note')
 ```
 
 *Source: authz/src/functions/035_subject_grants.sql:1*
+
+---
+
+### authz.revoke_resource_grants
+
+```sql
+authz.revoke_resource_grants(p_resource_type: text, p_resource_id: text, p_namespace: text, p_relation: text) -> int4
+```
+
+Revoke all grants on a resource (cleanup when deleting a resource)
+
+**Parameters:**
+- `p_resource_type`: Resource type (e.g., 'note', 'doc', 'repo')
+- `p_resource_id`: Resource identifier
+- `p_namespace`: Namespace to search in
+- `p_relation`: Optional filter to only revoke specific relation/permission
+
+**Returns:** Count of grants revoked
+
+**Example:**
+```sql
+-- Revoke all grants on a note before deletion
+SELECT authz.revoke_resource_grants('note', 'note-123', 'default');
+-- Revoke only 'view' grants on a note
+SELECT authz.revoke_resource_grants('note', 'note-123', 'default', 'view');
+```
+
+*Source: authz/src/functions/035_subject_grants.sql:75*
 
 ---
 

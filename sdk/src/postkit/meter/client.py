@@ -301,14 +301,45 @@ class MeterClient(BaseClient):
     ) -> dict:
         """Get current balance for an account.
 
+        Use this to check if a user can afford an operation before starting,
+        or to display remaining quota in the UI.
+
         Args:
             user_id: User ID
-            event_type: Event type
-            unit: Unit of measurement
-            resource: Optional resource identifier
+            event_type: Event type (e.g., "llm_call", "api_request")
+            unit: Unit of measurement (e.g., "tokens", "requests")
+            resource: Optional resource identifier (e.g., "claude-sonnet")
 
         Returns:
-            Dict with 'balance', 'reserved', 'available'
+            Dict with:
+            - balance: Total balance (allocations minus consumption)
+            - reserved: Amount currently held in active reservations
+            - available: balance - reserved (what can be used right now)
+
+        Example:
+            # Check if user can afford an operation before starting
+            balance = meter.get_balance(user_id, "llm_call", "tokens", "claude-sonnet")
+            if balance["available"] >= estimated_tokens:
+                # Proceed with operation
+                result = call_llm(prompt)
+                meter.consume(user_id, "llm_call", result.tokens_used, "tokens", "claude-sonnet")
+            else:
+                # Show quota exceeded message
+                raise QuotaExceededError(
+                    f"Need {estimated_tokens} tokens but only {balance['available']} available"
+                )
+
+            # Display remaining quota in UI
+            balance = meter.get_balance(user_id, "api_request", "requests")
+            print(f"API calls remaining: {balance['available']}")
+
+        Note:
+            For uncertain consumption (streaming), use reserve() and commit()
+            instead of checking balance and then consuming.
+
+        See Also:
+            reserve: Hold quota for uncertain operations
+            get_user_balances: Get all balances for a user across all event types
         """
         return self._fetch_one(
             "SELECT balance, reserved, available FROM meter.get_balance(%s, %s, %s, %s, %s)",

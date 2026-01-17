@@ -205,9 +205,10 @@ class TestPagination:
         authz.grant("read", resource=("doc", "1"), subject=("user", "bob"))
 
         # Direct SQL call with partial cursor (cursor_type set, cursor_id NULL)
+        # Parameters: resource_type, resource_id, permission, namespace, limit, subject_type, cursor_type, cursor_id
         authz.cursor.execute(
-            """SELECT * FROM authz.list_subjects(%s, %s, %s, %s, %s, %s, %s)""",
-            ("doc", "1", "read", authz.namespace, 100, "user", None),
+            """SELECT * FROM authz.list_subjects(%s, %s, %s, %s, %s, %s, %s, %s)""",
+            ("doc", "1", "read", authz.namespace, 100, None, "user", None),
         )
 
         # Should return empty (fail-safe), not all rows

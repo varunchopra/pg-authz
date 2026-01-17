@@ -269,3 +269,140 @@ class TestViewerContext:
         assert result[0] == ""
         assert result[1] == ""
         assert authz._viewer is None
+
+
+class TestResourceGrants:
+    """Tests for resource grant operations (revoke_resource_grants)."""
+
+    def test_revoke_resource_grants_removes_all_on_resource(self, authz):
+        """revoke_resource_grants removes all grants ON a resource."""
+        authz.grant("owner", resource=("note", "1"), subject=("user", "alice"))
+        authz.grant("edit", resource=("note", "1"), subject=("user", "bob"))
+        authz.grant("view", resource=("note", "1"), subject=("user", "charlie"))
+
+        count = authz.revoke_resource_grants(("note", "1"))
+
+        assert count == 3
+        assert not authz.check(("user", "alice"), "owner", ("note", "1"))
+        assert not authz.check(("user", "bob"), "edit", ("note", "1"))
+        assert not authz.check(("user", "charlie"), "view", ("note", "1"))
+
+    def test_revoke_resource_grants_filters_by_permission(self, authz):
+        """revoke_resource_grants can filter by permission."""
+        authz.grant("owner", resource=("note", "1"), subject=("user", "alice"))
+        authz.grant("view", resource=("note", "1"), subject=("user", "bob"))
+        authz.grant("view", resource=("note", "1"), subject=("user", "charlie"))
+
+        count = authz.revoke_resource_grants(("note", "1"), permission="view")
+
+        assert count == 2
+        # Owner grant should still exist
+        assert authz.check(("user", "alice"), "owner", ("note", "1"))
+        # View grants should be gone
+        assert not authz.check(("user", "bob"), "view", ("note", "1"))
+        assert not authz.check(("user", "charlie"), "view", ("note", "1"))
+
+    def test_revoke_resource_grants_doesnt_affect_other_resources(self, authz):
+        """revoke_resource_grants only affects the specified resource."""
+        authz.grant("view", resource=("note", "1"), subject=("user", "alice"))
+        authz.grant("view", resource=("note", "2"), subject=("user", "alice"))
+
+        authz.revoke_resource_grants(("note", "1"))
+
+        # note:2 should still be accessible
+        assert authz.check(("user", "alice"), "view", ("note", "2"))
+
+    def test_revoke_resource_grants_returns_zero_for_no_grants(self, authz):
+        """revoke_resource_grants returns 0 when no grants exist."""
+        count = authz.revoke_resource_grants(("note", "nonexistent"))
+        assert count == 0
+
+
+class TestTransferGrant:
+    """Tests for atomic grant transfer between subjects."""
+
+    def test_transfer_grant_moves_permission(self, authz):
+        """transfer_grant moves permission from one subject to another."""
+        authz.grant("owner", resource=("org", "1"), subject=("user", "alice"))
+
+        result = authz.transfer_grant(
+            "owner",
+            resource=("org", "1"),
+            from_subject=("user", "alice"),
+            to_subject=("user", "bob"),
+        )
+
+        assert result is True
+        assert not authz.check(("user", "alice"), "owner", ("org", "1"))
+        assert authz.check(("user", "bob"), "owner", ("org", "1"))
+
+    def test_transfer_grant_returns_false_if_source_not_found(self, authz):
+        """transfer_grant returns False if source doesn't have the grant."""
+        result = authz.transfer_grant(
+            "owner",
+            resource=("org", "1"),
+            from_subject=("user", "alice"),
+            to_subject=("user", "bob"),
+        )
+
+        assert result is False
+
+    def test_transfer_grant_overwrites_existing(self, authz):
+        """transfer_grant works even if target already has some grant."""
+        authz.grant("owner", resource=("org", "1"), subject=("user", "alice"))
+        authz.grant("member", resource=("org", "1"), subject=("user", "bob"))
+
+        authz.transfer_grant(
+            "owner",
+            resource=("org", "1"),
+            from_subject=("user", "alice"),
+            to_subject=("user", "bob"),
+        )
+
+        # Bob should now have owner (member is separate)
+        assert authz.check(("user", "bob"), "owner", ("org", "1"))
+
+
+class TestListSubjectsWithFilter:
+    """Tests for list_subjects with subject_type filter."""
+
+    def test_list_subjects_filters_by_type(self, authz):
+        """list_subjects can filter by subject_type."""
+        authz.grant("view", resource=("doc", "1"), subject=("user", "alice"))
+        authz.grant("view", resource=("doc", "1"), subject=("user", "bob"))
+        authz.grant("view", resource=("doc", "1"), subject=("api_key", "key-1"))
+
+        users = authz.list_subjects("view", ("doc", "1"), subject_type="user")
+        api_keys = authz.list_subjects("view", ("doc", "1"), subject_type="api_key")
+
+        assert len(users) == 2
+        assert all(s[0] == "user" for s in users)
+        assert len(api_keys) == 1
+        assert all(s[0] == "api_key" for s in api_keys)
+
+    def test_list_subjects_without_filter_returns_all(self, authz):
+        """list_subjects without subject_type returns all types."""
+        authz.grant("view", resource=("doc", "1"), subject=("user", "alice"))
+        authz.grant("view", resource=("doc", "1"), subject=("api_key", "key-1"))
+
+        subjects = authz.list_subjects("view", ("doc", "1"))
+
+        assert len(subjects) == 2
+        types = {s[0] for s in subjects}
+        assert types == {"user", "api_key"}
+
+    def test_list_subjects_with_filter_and_pagination(self, authz):
+        """list_subjects filters work with pagination."""
+        for i in range(5):
+            authz.grant("view", resource=("doc", "1"), subject=("user", f"user{i}"))
+            authz.grant("view", resource=("doc", "1"), subject=("api_key", f"key{i}"))
+
+        page1 = authz.list_subjects("view", ("doc", "1"), subject_type="user", limit=2)
+        page2 = authz.list_subjects(
+            "view", ("doc", "1"), subject_type="user", limit=2, cursor=page1[-1]
+        )
+
+        assert len(page1) == 2
+        assert len(page2) == 2
+        all_subjects = page1 + page2
+        assert all(s[0] == "user" for s in all_subjects)

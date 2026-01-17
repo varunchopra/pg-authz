@@ -26,10 +26,12 @@
 | [`get_mfa`](sdk.md#get_mfa) | Get MFA secrets for verification. Returns secrets! |
 | [`get_operator_audit_events`](sdk.md#get_operator_audit_events) | Query operator audit events. |
 | [`get_operator_impersonation_context`](sdk.md#get_operator_impersonation_context) | Check if a session is an operator impersonation session. |
+| [`get_or_create_user`](sdk.md#get_or_create_user) | Atomically get existing user or create new one. |
 | [`get_recent_attempts`](sdk.md#get_recent_attempts) | Get recent login attempts for an email. |
 | [`get_stats`](sdk.md#get_stats) | Get namespace statistics. |
 | [`get_user`](sdk.md#get_user) | Get user by ID. Does not return password_hash. |
 | [`get_user_by_email`](sdk.md#get_user_by_email) | Get user by email. Does not return password_hash. |
+| [`get_users_batch`](sdk.md#get_users_batch) | Get multiple users by ID in a single query. |
 | [`has_mfa`](sdk.md#has_mfa) | Check if user has any MFA method enabled. |
 | [`invalidate_tokens`](sdk.md#invalidate_tokens) | Invalidate all unused tokens of a type for a user. |
 | [`is_locked_out`](sdk.md#is_locked_out) | Check if an email is locked out due to too many failed attempts. |
@@ -129,7 +131,9 @@
 | [`authn.delete_user`](sql.md#authndelete_user) | Permanently delete user and all their data (sessions, tokens, MFA) |
 | [`authn.disable_user`](sql.md#authndisable_user) | Disable user account and revoke all active sessions |
 | [`authn.enable_user`](sql.md#authnenable_user) | Re-enable a disabled user account |
+| [`authn.get_or_create_user`](sql.md#authnget_or_create_user) | Atomically get existing user or create new one (for SSO flows) |
 | [`authn.get_user`](sql.md#authnget_user) | Get user by ID (does not return password hash) |
 | [`authn.get_user_by_email`](sql.md#authnget_user_by_email) | Look up user by email (normalized to lowercase) |
+| [`authn.get_users_batch`](sql.md#authnget_users_batch) | Get multiple users by ID in a single query |
 | [`authn.list_users`](sql.md#authnlist_users) | List users with cursor-based pagination |
 | [`authn.update_email`](sql.md#authnupdate_email) | Change user's email address (clears email_verified_at) |

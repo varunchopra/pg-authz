@@ -108,7 +108,7 @@ Activate a specific version (for rollback or promotion)
 SELECT config.activate('prompts/support-bot', 2);
 ```
 
-*Source: config/src/functions/010_entries.sql:132*
+*Source: config/src/functions/010_entries.sql:179*
 
 ---
 
@@ -127,7 +127,7 @@ Delete all versions of a config entry
 SELECT config.delete('prompts/deprecated-bot');
 ```
 
-*Source: config/src/functions/010_entries.sql:313*
+*Source: config/src/functions/010_entries.sql:360*
 
 ---
 
@@ -146,7 +146,7 @@ Delete a specific version (cannot delete active version)
 SELECT config.delete_version('prompts/support-bot', 1);
 ```
 
-*Source: config/src/functions/010_entries.sql:352*
+*Source: config/src/functions/010_entries.sql:399*
 
 ---
 
@@ -165,7 +165,7 @@ Check if a config key exists (has an active version)
 IF config.exists('flags/new-checkout') THEN ...
 ```
 
-*Source: config/src/functions/010_entries.sql:402*
+*Source: config/src/functions/010_entries.sql:449*
 
 ---
 
@@ -189,7 +189,7 @@ SELECT * FROM config.get('prompts/support-bot');
 SELECT * FROM config.get('prompts/support-bot', 3);
 ```
 
-*Source: config/src/functions/010_entries.sql:58*
+*Source: config/src/functions/010_entries.sql:105*
 
 ---
 
@@ -211,7 +211,7 @@ Get multiple config entries in one query
 SELECT * FROM config.get_batch(ARRAY['prompts/bot-a', 'prompts/bot-b', 'flags/checkout']);
 ```
 
-*Source: config/src/functions/010_entries.sql:102*
+*Source: config/src/functions/010_entries.sql:149*
 
 ---
 
@@ -235,7 +235,7 @@ SELECT config.get_path('prompts/bot', ARRAY['temperature']);
 SELECT config.get_path('flags/checkout', ARRAY['rollout']);
 ```
 
-*Source: config/src/functions/010_entries.sql:424*
+*Source: config/src/functions/010_entries.sql:471*
 
 ---
 
@@ -254,7 +254,7 @@ Get version history for a key
 SELECT * FROM config.history('prompts/support-bot');
 ```
 
-*Source: config/src/functions/010_entries.sql:277*
+*Source: config/src/functions/010_entries.sql:324*
 
 ---
 
@@ -280,7 +280,7 @@ SELECT * FROM config.list('prompts/');
 SELECT * FROM config.list('flags/');
 ```
 
-*Source: config/src/functions/010_entries.sql:234*
+*Source: config/src/functions/010_entries.sql:281*
 
 ---
 
@@ -304,7 +304,7 @@ SELECT config.merge('prompts/bot', '{"temperature": 0.8}');
 SELECT config.merge('flags/checkout', '{"rollout": 0.75}');
 ```
 
-*Source: config/src/functions/010_entries.sql:454*
+*Source: config/src/functions/010_entries.sql:501*
 
 ---
 
@@ -323,7 +323,7 @@ Activate the previous version
 SELECT config.rollback('prompts/support-bot');
 ```
 
-*Source: config/src/functions/010_entries.sql:189*
+*Source: config/src/functions/010_entries.sql:236*
 
 ---
 
@@ -347,7 +347,7 @@ SELECT * FROM config.search('{"enabled": true}');
 SELECT * FROM config.search('{"model": "claude-sonnet-4-20250514"}', 'prompts/');
 ```
 
-*Source: config/src/functions/010_entries.sql:494*
+*Source: config/src/functions/010_entries.sql:541*
 
 ---
 
@@ -374,6 +374,33 @@ SELECT config.set('secrets/OPENAI_API_KEY', '{"encrypted": "aes256gcm:..."}');
 ```
 
 *Source: config/src/functions/010_entries.sql:1*
+
+---
+
+### config.set_default
+
+```sql
+config.set_default(p_key: text, p_value: jsonb, p_namespace: text) -> table(version: int4, created: bool)
+```
+
+Set a config value only if the key doesn't exist (for seeding/defaults)
+
+**Parameters:**
+- `p_key`: The config key
+- `p_value`: The default value as JSON
+- `p_namespace`: Namespace (default: 'default')
+
+**Returns:** version (1 if created, existing version if already exists), created (true if new)
+
+**Example:**
+```sql
+-- Seed default plans
+SELECT * FROM config.set_default('plans/free', '{"tokens": 10000}');
+-- Won't overwrite existing value
+SELECT * FROM config.set_default('plans/free', '{"tokens": 5000}'); -- returns (1, false)
+```
+
+*Source: config/src/functions/010_entries.sql:58*
 
 ---
 

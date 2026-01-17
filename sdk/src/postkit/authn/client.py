@@ -158,6 +158,50 @@ class AuthnClient(BaseClient):
             (self.namespace, limit, cursor),
         )
 
+    def get_users_batch(self, user_ids: list[str]) -> dict[str, dict]:
+        """Get multiple users by ID in a single query.
+
+        Args:
+            user_ids: List of user IDs (UUIDs as strings)
+
+        Returns:
+            Dict mapping user_id -> user dict. Missing IDs are omitted.
+        """
+        if not user_ids:
+            return {}
+
+        rows = self._fetch_all(
+            "SELECT * FROM authn.get_users_batch(%s::uuid[], %s)",
+            (user_ids, self.namespace),
+        )
+        return {str(row["user_id"]): row for row in rows}
+
+    def get_or_create_user(
+        self, email: str, password_hash: str | None = None
+    ) -> tuple[str, bool]:
+        """Atomically get existing user or create new one.
+
+        Args:
+            email: User's email address (normalized to lowercase)
+            password_hash: Pre-hashed password (None for SSO-only users)
+
+        Returns:
+            Tuple of (user_id, was_created)
+
+        Raises:
+            AuthnError: If user exists but is disabled
+        """
+        result = self._fetch_one(
+            "SELECT * FROM authn.get_or_create_user(%s, %s, %s)",
+            (email, password_hash, self.namespace),
+            write=True,
+        )
+        if result is None:
+            raise AuthnError("Failed to get or create user")
+        if result["disabled"]:
+            raise AuthnError("User is disabled")
+        return str(result["user_id"]), result["created"]
+
     def get_credentials(self, email: str) -> dict | None:
         """
         Get credentials for login verification.

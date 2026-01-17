@@ -612,3 +612,106 @@ class TestKeyNamingConventions:
 
         value = config.get_value("settings/email")
         assert value["from"] == "support@acme.com"
+
+
+class TestSetDefault:
+    """Tests for config.set_default() - set only if not exists."""
+
+    def test_creates_new_key(self, config):
+        """set_default creates key if it doesn't exist."""
+        version, created = config.set_default("plans/free", {"tokens": 10000})
+
+        assert version == 1
+        assert created is True
+        assert config.get_value("plans/free")["tokens"] == 10000
+
+    def test_does_not_overwrite_existing(self, config):
+        """set_default does not overwrite existing value."""
+        config.set("plans/free", {"tokens": 10000})
+
+        version, created = config.set_default("plans/free", {"tokens": 5000})
+
+        assert version == 1  # Still version 1
+        assert created is False
+        # Original value preserved
+        assert config.get_value("plans/free")["tokens"] == 10000
+
+    def test_returns_existing_version(self, config):
+        """set_default returns existing version number."""
+        config.set("plans/free", {"tokens": 10000})
+        config.set("plans/free", {"tokens": 20000})  # Version 2
+
+        version, created = config.set_default("plans/free", {"tokens": 5000})
+
+        assert version == 2  # Current active version
+        assert created is False
+
+    def test_multiple_defaults_safe(self, config):
+        """Calling set_default multiple times is safe."""
+        v1, c1 = config.set_default("plans/free", {"tokens": 10000})
+        v2, c2 = config.set_default("plans/free", {"tokens": 5000})
+        v3, c3 = config.set_default("plans/free", {"tokens": 1000})
+
+        assert v1 == 1
+        assert c1 is True  # First call created
+        assert c2 is False  # Second call did not create
+        assert c3 is False  # Third call did not create
+        # Value still the original
+        assert config.get_value("plans/free")["tokens"] == 10000
+
+    def test_respects_schema_validation(self, config):
+        """set_default validates against schema if exists."""
+        from postkit.config import ConfigValidationError
+
+        # Register a schema
+        config.set_schema(
+            "defaults/",
+            {
+                "type": "object",
+                "required": ["tokens"],
+                "properties": {"tokens": {"type": "integer", "minimum": 0}},
+            },
+        )
+
+        try:
+            # Invalid value should fail
+            with pytest.raises(ConfigValidationError):
+                config.set_default("defaults/invalid", {"tokens": "not-a-number"})
+        finally:
+            # Clean up schema to avoid affecting other tests
+            config.delete_schema("defaults/")
+
+    def test_different_namespaces_independent(self, make_config):
+        """set_default respects namespace isolation."""
+        tenant_a = make_config("tenant_a")
+        tenant_b = make_config("tenant_b")
+
+        v_a, c_a = tenant_a.set_default("plans/free", {"tokens": 1000})
+        v_b, c_b = tenant_b.set_default("plans/free", {"tokens": 2000})
+
+        assert c_a is True
+        assert c_b is True
+        # Each tenant has their own value
+        assert tenant_a.get_value("plans/free")["tokens"] == 1000
+        assert tenant_b.get_value("plans/free")["tokens"] == 2000
+
+    def test_use_case_seeding_defaults(self, config):
+        """Demonstrates seeding default configs on app startup."""
+        DEFAULT_PLANS = {
+            "plans/free": {"tokens": 10000, "rate_limit": 10},
+            "plans/pro": {"tokens": 100000, "rate_limit": 100},
+            "plans/enterprise": {"tokens": 1000000, "rate_limit": 1000},
+        }
+
+        # First run: all created
+        results = {}
+        for key, value in DEFAULT_PLANS.items():
+            version, created = config.set_default(key, value)
+            results[key] = created
+
+        assert all(results.values())
+
+        # Second run: none created
+        for key, value in DEFAULT_PLANS.items():
+            version, created = config.set_default(key, value)
+            assert created is False

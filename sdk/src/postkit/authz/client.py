@@ -370,6 +370,7 @@ class AuthzClient(BaseClient):
         permission: str,
         resource: Entity,
         *,
+        subject_type: str | None = None,
         limit: int | None = None,
         cursor: Entity | None = None,
     ) -> list[Entity]:
@@ -379,42 +380,35 @@ class AuthzClient(BaseClient):
         Args:
             permission: The permission to check
             resource: The resource as (type, id) tuple
-            limit: Maximum number of results (optional)
-            cursor: Pagination cursor as (type, id) tuple from last result (optional)
+            subject_type: Filter to specific type (e.g., "user")
+            limit: Maximum number of results
+            cursor: Pagination cursor as (type, id) tuple from last result
 
         Returns:
             List of subjects as (type, id) tuples
 
         Example:
             subjects = authz.list_subjects("read", ("repo", "api"))
-            # [("api_key", "key-123"), ("user", "alice"), ("user", "bob")]
-
-            # Pagination:
-            page1 = authz.list_subjects("read", ("repo", "api"), limit=10)
-            page2 = authz.list_subjects("read", ("repo", "api"), limit=10, cursor=page1[-1])
+            users_only = authz.list_subjects("read", ("repo", "api"), subject_type="user")
         """
         resource_type, resource_id = resource
         cursor_type = cursor[0] if cursor else None
         cursor_id = cursor[1] if cursor else None
 
-        if limit is not None:
-            rows = self._fetch_raw(
-                "SELECT * FROM authz.list_subjects(%s, %s, %s, %s, %s, %s, %s)",
-                (
-                    resource_type,
-                    resource_id,
-                    permission,
-                    self.namespace,
-                    limit,
-                    cursor_type,
-                    cursor_id,
-                ),
-            )
-        else:
-            rows = self._fetch_raw(
-                "SELECT * FROM authz.list_subjects(%s, %s, %s, %s)",
-                (resource_type, resource_id, permission, self.namespace),
-            )
+        # Always pass all parameters to ensure consistent behavior
+        rows = self._fetch_raw(
+            "SELECT * FROM authz.list_subjects(%s, %s, %s, %s, %s, %s, %s, %s)",
+            (
+                resource_type,
+                resource_id,
+                permission,
+                self.namespace,
+                limit if limit is not None else 100,
+                subject_type,
+                cursor_type,
+                cursor_id,
+            ),
+        )
         return [(row[0], row[1]) for row in rows]
 
     def list_resources(
@@ -604,6 +598,9 @@ class AuthzClient(BaseClient):
 
             # Revoke only note-related grants
             count = authz.revoke_all_grants(("api_key", key_id), resource_type="note")
+
+        See Also:
+            revoke_resource_grants: Revoke all grants ON a resource (when deleting a resource)
         """
         subject_type, subject_id = subject
         return self._fetch_val(
@@ -611,6 +608,59 @@ class AuthzClient(BaseClient):
             (subject_type, subject_id, self.namespace, resource_type),
             write=True,
         )
+
+    def revoke_resource_grants(
+        self,
+        resource: Entity,
+        *,
+        permission: str | None = None,
+    ) -> int:
+        """Revoke all grants ON a resource. Call before deleting the resource.
+
+        Args:
+            resource: The resource as (type, id) tuple
+            permission: Specific permission to revoke, or None for all
+
+        Returns:
+            Count of grants revoked
+
+        Example:
+            authz.revoke_resource_grants(("note", note_id))
+            db.execute("DELETE FROM notes WHERE id = %s", (note_id,))
+        """
+        resource_type, resource_id = resource
+        return self._fetch_val(
+            "SELECT authz.revoke_resource_grants(%s, %s, %s, %s)",
+            (resource_type, resource_id, self.namespace, permission),
+            write=True,
+        )
+
+    def transfer_grant(
+        self,
+        permission: str,
+        *,
+        resource: Entity,
+        from_subject: Entity,
+        to_subject: Entity,
+    ) -> bool:
+        """Transfer a grant from one subject to another.
+
+        Atomically grants to the new subject then revokes from the old subject.
+
+        Args:
+            permission: The permission to transfer
+            resource: The resource as (type, id) tuple
+            from_subject: Current holder as (type, id) tuple
+            to_subject: New holder as (type, id) tuple
+
+        Returns:
+            True if revoke succeeded (grant always succeeds or raises)
+        """
+        # Grant to new subject first
+        self.grant(permission, resource=resource, subject=to_subject)
+
+        # Revoke from old subject
+        return self.revoke(permission, resource=resource, subject=from_subject)
 
     def filter_authorized(
         self,
@@ -620,11 +670,13 @@ class AuthzClient(BaseClient):
         resource_ids: list[str],
     ) -> list[str]:
         """
-        Filter resource IDs to only those the subject can access.
+        Batch-check which resources a subject can access.
+
+        Use instead of calling check() in a loop - single query regardless of list size.
 
         Args:
-            subject: The subject as (type, id) tuple (e.g., ("user", "alice"))
-            resource_type: The resource type
+            subject: The subject as (type, id) tuple
+            resource_type: The resource type to check
             permission: The permission to check
             resource_ids: List of resource IDs to filter
 
@@ -632,11 +684,7 @@ class AuthzClient(BaseClient):
             Subset of resource_ids the subject has permission on
 
         Example:
-            # Filter search results to only accessible repos
-            accessible = authz.filter_authorized(
-                ("user", "alice"), "repo", "read",
-                ["payments-api", "internal-api", "public-api"]
-            )
+            visible = authz.filter_authorized(("user", uid), "note", "view", note_ids)
         """
         subject_type, subject_id = subject
         result = self._fetch_val(

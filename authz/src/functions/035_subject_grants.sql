@@ -73,3 +73,42 @@ BEGIN
     RETURN v_deleted;
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authz, pg_temp;
+
+-- @function authz.revoke_resource_grants
+-- @brief Revoke all grants on a resource (cleanup when deleting a resource)
+-- @param p_resource_type Resource type (e.g., 'note', 'doc', 'repo')
+-- @param p_resource_id Resource identifier
+-- @param p_namespace Namespace to search in
+-- @param p_relation Optional filter to only revoke specific relation/permission
+-- @returns Count of grants revoked
+-- @example -- Revoke all grants on a note before deletion
+-- @example SELECT authz.revoke_resource_grants('note', 'note-123', 'default');
+-- @example -- Revoke only 'view' grants on a note
+-- @example SELECT authz.revoke_resource_grants('note', 'note-123', 'default', 'view');
+CREATE OR REPLACE FUNCTION authz.revoke_resource_grants(
+    p_resource_type text,
+    p_resource_id text,
+    p_namespace text DEFAULT 'default',
+    p_relation text DEFAULT NULL
+) RETURNS integer AS $$
+DECLARE
+    v_deleted integer;
+BEGIN
+    -- Validate inputs
+    PERFORM authz._validate_identifier(p_resource_type, 'resource_type');
+    PERFORM authz._validate_id(p_resource_id, 'resource_id');
+    PERFORM authz._validate_namespace(p_namespace);
+    IF p_relation IS NOT NULL THEN
+        PERFORM authz._validate_identifier(p_relation, 'relation');
+    END IF;
+
+    DELETE FROM authz.tuples
+    WHERE namespace = p_namespace
+      AND resource_type = p_resource_type
+      AND resource_id = p_resource_id
+      AND (p_relation IS NULL OR relation = p_relation);
+
+    GET DIAGNOSTICS v_deleted = ROW_COUNT;
+    RETURN v_deleted;
+END;
+$$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authz, pg_temp;

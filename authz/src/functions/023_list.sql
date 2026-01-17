@@ -98,14 +98,17 @@ STABLE PARALLEL SAFE SECURITY INVOKER SET search_path = authz, pg_temp;
 
 -- @function authz.list_subjects
 -- @brief List all subjects who can access a resource ("Who can read this doc?")
+-- @param p_subject_type Optional filter to only return subjects of this type (e.g., 'user')
 -- @param p_cursor_type Subject type from last result for pagination (NULL for first page)
 -- @param p_cursor_id Subject ID from last result for pagination (NULL for first page)
 -- @returns Subject (type, id) pairs with access (expands team memberships to leaf subjects)
 -- @example -- First page
 -- @example SELECT * FROM authz.list_subjects('repo', 'payments', 'admin', 'default');
+-- @example -- Filter to only users
+-- @example SELECT * FROM authz.list_subjects('repo', 'payments', 'admin', 'default', 100, 'user');
 -- @example -- Next page using cursor from last result
--- @example SELECT * FROM authz.list_subjects('repo', 'payments', 'admin', 'default', 100, 'user', 'alice');
-CREATE OR REPLACE FUNCTION authz.list_subjects (p_resource_type text, p_resource_id text, p_permission text, p_namespace text DEFAULT 'default', p_limit int DEFAULT 100, p_cursor_type text DEFAULT NULL, p_cursor_id text DEFAULT NULL)
+-- @example SELECT * FROM authz.list_subjects('repo', 'payments', 'admin', 'default', 100, NULL, 'user', 'alice');
+CREATE OR REPLACE FUNCTION authz.list_subjects (p_resource_type text, p_resource_id text, p_permission text, p_namespace text DEFAULT 'default', p_limit int DEFAULT 100, p_subject_type text DEFAULT NULL, p_cursor_type text DEFAULT NULL, p_cursor_id text DEFAULT NULL)
     RETURNS TABLE (
         subject_type text,
         subject_id text
@@ -190,8 +193,9 @@ SELECT
     ls.subject_id
 FROM
     leaf_subjects ls
-WHERE (p_cursor_type IS NULL AND p_cursor_id IS NULL)
-   OR (ls.subject_type, ls.subject_id) > (p_cursor_type, p_cursor_id)
+WHERE (p_subject_type IS NULL OR ls.subject_type = p_subject_type)
+  AND ((p_cursor_type IS NULL AND p_cursor_id IS NULL)
+       OR (ls.subject_type, ls.subject_id) > (p_cursor_type, p_cursor_id))
 ORDER BY
     ls.subject_type, ls.subject_id
 LIMIT p_limit;

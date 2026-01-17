@@ -242,3 +242,97 @@ class TestListUsers:
         users = authn.list_users(limit=5000)
         # Should get all 3 users (less than clamped limit of 1000)
         assert len(users) == 3
+
+
+class TestGetUsersBatch:
+    """Tests for batch user fetching."""
+
+    def test_returns_multiple_users(self, authn):
+        user1_id = authn.create_user("alice@example.com", "hash")
+        user2_id = authn.create_user("bob@example.com", "hash")
+        user3_id = authn.create_user("charlie@example.com", "hash")
+
+        users = authn.get_users_batch([user1_id, user2_id, user3_id])
+
+        assert len(users) == 3
+        assert users[user1_id]["email"] == "alice@example.com"
+        assert users[user2_id]["email"] == "bob@example.com"
+        assert users[user3_id]["email"] == "charlie@example.com"
+
+    def test_omits_missing_ids(self, authn):
+        user_id = authn.create_user("alice@example.com", "hash")
+        fake_id = "00000000-0000-0000-0000-000000000000"
+
+        users = authn.get_users_batch([user_id, fake_id])
+
+        assert len(users) == 1
+        assert user_id in users
+        assert fake_id not in users
+
+    def test_returns_empty_dict_for_empty_list(self, authn):
+        users = authn.get_users_batch([])
+        assert users == {}
+
+    def test_excludes_password_hash(self, authn):
+        user_id = authn.create_user("alice@example.com", "secret_hash")
+
+        users = authn.get_users_batch([user_id])
+
+        assert "password_hash" not in users[user_id]
+
+    def test_respects_namespace_isolation(self, make_authn):
+        tenant_a = make_authn("tenant_a")
+        tenant_b = make_authn("tenant_b")
+
+        user_a = tenant_a.create_user("alice@example.com", "hash")
+        user_b = tenant_b.create_user("bob@example.com", "hash")
+
+        # Tenant A can't see Tenant B's user
+        users = tenant_a.get_users_batch([user_a, user_b])
+        assert len(users) == 1
+        assert user_a in users
+        assert user_b not in users
+
+
+class TestGetOrCreateUser:
+    """Tests for atomic get-or-create user functionality."""
+
+    def test_creates_new_user(self, authn):
+        user_id, created = authn.get_or_create_user("alice@example.com")
+
+        assert user_id is not None
+        assert created is True
+
+        user = authn.get_user(user_id)
+        assert user["email"] == "alice@example.com"
+
+    def test_returns_existing_user(self, authn):
+        # Create user first
+        original_id = authn.create_user("alice@example.com", "hash")
+
+        # get_or_create should return existing user
+        user_id, created = authn.get_or_create_user("alice@example.com")
+
+        assert user_id == original_id
+        assert created is False
+
+    def test_creates_sso_user_without_password(self, authn):
+        user_id, created = authn.get_or_create_user("sso@example.com", None)
+
+        assert user_id is not None
+        assert created is True
+
+    def test_normalizes_email(self, authn):
+        user_id1, created1 = authn.get_or_create_user("Alice@Example.COM")
+        user_id2, created2 = authn.get_or_create_user("alice@example.com")
+
+        assert user_id1 == user_id2
+        assert created1 is True
+        assert created2 is False
+
+    def test_raises_for_disabled_user(self, authn):
+        user_id = authn.create_user("alice@example.com", "hash")
+        authn.disable_user(user_id)
+
+        with pytest.raises(AuthnError, match="disabled"):
+            authn.get_or_create_user("alice@example.com")

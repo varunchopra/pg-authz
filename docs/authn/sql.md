@@ -1293,6 +1293,31 @@ SELECT authn.enable_user(user_id);
 
 ---
 
+### authn.get_or_create_user
+
+```sql
+authn.get_or_create_user(p_email: text, p_password_hash: text, p_namespace: text) -> table(user_id: uuid, created: bool, disabled: bool)
+```
+
+Atomically get existing user or create new one (for SSO flows)
+
+**Parameters:**
+- `p_email`: User's email address (normalized to lowercase)
+- `p_password_hash`: Optional password hash (NULL for SSO-only users)
+- `p_namespace`: Namespace to use
+
+**Returns:** user_id, created (true if new user), disabled (true if user is disabled)
+
+**Example:**
+```sql
+-- SSO callback: get or create user
+SELECT * FROM authn.get_or_create_user('alice@example.com', NULL, 'default');
+```
+
+*Source: authn/src/functions/010_users.sql:365*
+
+---
+
 ### authn.get_user
 
 ```sql
@@ -1324,6 +1349,29 @@ SELECT * FROM authn.get_user_by_email('Alice@Example.com');
 ```
 
 *Source: authn/src/functions/010_users.sql:71*
+
+---
+
+### authn.get_users_batch
+
+```sql
+authn.get_users_batch(p_user_ids: uuid[], p_namespace: text) -> table(user_id: uuid, email: text, email_verified_at: timestamptz, disabled_at: timestamptz, created_at: timestamptz, updated_at: timestamptz)
+```
+
+Get multiple users by ID in a single query
+
+**Parameters:**
+- `p_user_ids`: Array of user IDs to fetch
+- `p_namespace`: Namespace to search in
+
+**Returns:** User records for each found ID (missing IDs are silently omitted)
+
+**Example:**
+```sql
+SELECT * FROM authn.get_users_batch(ARRAY['uuid1', 'uuid2']::uuid[], 'default');
+```
+
+*Source: authn/src/functions/010_users.sql:328*
 
 ---
 

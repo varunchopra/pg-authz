@@ -26,6 +26,7 @@
 | [`search`](sdk.md#search) | Find configs where value contains given JSON. |
 | [`set`](sdk.md#set) | Create a new version and activate it. |
 | [`set_actor`](sdk.md#set_actor) | Set actor context for audit logging. Only updates fields that are passed. |
+| [`set_default`](sdk.md#set_default) | Set a config value only if the key doesn't exist. |
 | [`set_schema`](sdk.md#set_schema) | Register a JSON Schema for validating config values. |
 
 ## SQL Functions
@@ -50,6 +51,7 @@
 | [`config.rollback`](sql.md#configrollback) | Activate the previous version |
 | [`config.search`](sql.md#configsearch) | Find configs where value contains given JSON |
 | [`config.set`](sql.md#configset) | Create a new version of a config entry and activate it |
+| [`config.set_default`](sql.md#configset_default) | Set a config value only if the key doesn't exist (for seeding/defaults) |
 | [`config.delete_schema`](sql.md#configdelete_schema) | Delete a schema by its key pattern |
 | [`config.get_schema`](sql.md#configget_schema) | Get the JSON Schema that applies to a config key |
 | [`config.list_schemas`](sql.md#configlist_schemas) | List all schemas, optionally filtered by prefix |

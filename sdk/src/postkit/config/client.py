@@ -107,6 +107,10 @@ class ConfigClient(BaseClient):
 
         Raises:
             ConfigValidationError: If value doesn't match the schema for this key
+
+        See Also:
+            set_default: Set only if key doesn't exist (for seeding)
+            merge: Merge changes into existing config
         """
         schema = self.get_schema(key)
         if schema is not None:
@@ -119,6 +123,39 @@ class ConfigClient(BaseClient):
             (key, json.dumps(value), self.namespace),
             write=True,
         )
+
+    def set_default(self, key: str, value: Any) -> tuple[int, bool]:
+        """Set a config value only if the key doesn't exist.
+
+        Use for seeding defaults without overwriting user customizations.
+
+        Args:
+            key: Config key (e.g., 'plans/free', 'flags/default-feature')
+            value: Default config value (will be stored as JSONB)
+
+        Returns:
+            Tuple of (version, was_created) where version is 1 if created.
+
+        Raises:
+            ConfigValidationError: If value doesn't match the schema for this key
+
+        Example:
+            version, created = config.set_default("plans/free", {"tokens": 10000})
+        """
+        schema = self.get_schema(key)
+        if schema is not None:
+            result = self._validate_value(value, schema)
+            if not result.valid:
+                raise ConfigValidationError(key, result.errors)
+
+        row = self._fetch_one(
+            "SELECT * FROM config.set_default(%s, %s::jsonb, %s)",
+            (key, json.dumps(value), self.namespace),
+            write=True,
+        )
+        if row is None:
+            raise ConfigError("Failed to set default config")
+        return row["version"], row["created"]
 
     def get(self, key: str, version: int | None = None) -> dict | None:
         """Get config entry.

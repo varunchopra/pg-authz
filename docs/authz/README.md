@@ -17,7 +17,7 @@
 | [`clear_viewer`](sdk.md#clear_viewer) | Clear the viewer context. |
 | [`explain`](sdk.md#explain) | Explain why a subject has a permission. |
 | [`extend_expiration`](sdk.md#extend_expiration) | Extend an existing expiration by a given interval. |
-| [`filter_authorized`](sdk.md#filter_authorized) | Filter resource IDs to only those the subject can access. |
+| [`filter_authorized`](sdk.md#filter_authorized) | Batch-check which resources a subject can access. |
 | [`get_audit_events`](sdk.md#get_audit_events) | Query audit events with optional filters. |
 | [`get_stats`](sdk.md#get_stats) | Get namespace statistics for monitoring. |
 | [`grant`](sdk.md#grant) | Grant a permission on a resource to a subject. |
@@ -29,10 +29,12 @@
 | [`remove_hierarchy_rule`](sdk.md#remove_hierarchy_rule) | Remove a hierarchy rule from the client's namespace. |
 | [`revoke`](sdk.md#revoke) | Revoke a permission on a resource from a subject. |
 | [`revoke_all_grants`](sdk.md#revoke_all_grants) | Revoke all grants for a subject (e.g., when deleting an API key). |
+| [`revoke_resource_grants`](sdk.md#revoke_resource_grants) | Revoke all grants ON a resource. Call before deleting the resource. |
 | [`set_actor`](sdk.md#set_actor) | Set actor context for audit logging. Only updates fields that are passed. |
 | [`set_expiration`](sdk.md#set_expiration) | Set or update expiration on an existing grant. |
 | [`set_hierarchy`](sdk.md#set_hierarchy) | Define permission hierarchy for a resource type. |
 | [`set_viewer`](sdk.md#set_viewer) | Set the viewer context for cross-namespace queries. |
+| [`transfer_grant`](sdk.md#transfer_grant) | Transfer a grant from one subject to another. |
 | [`verify`](sdk.md#verify) | Check for data integrity issues (e.g., group membership cycles). |
 
 ## SQL Functions
@@ -68,6 +70,7 @@
 | [`authz.check_all`](sql.md#authzcheck_all) | Check if a subject has all of the specified permissions |
 | [`authz.check_any`](sql.md#authzcheck_any) | Check if a subject has any of the specified permissions |
 | [`authz.list_subject_grants`](sql.md#authzlist_subject_grants) | List all grants for a subject ("What can this API key access?") |
+| [`authz.revoke_resource_grants`](sql.md#authzrevoke_resource_grants) | Revoke all grants on a resource (cleanup when deleting a resource) |
 | [`authz.revoke_subject_grants`](sql.md#authzrevoke_subject_grants) | Revoke all grants for a subject (cleanup on deletion) |
 | [`authz.write`](sql.md#authzwrite) | Simpler write_tuple when you don't need subject_relation |
 | [`authz.write_tuple`](sql.md#authzwrite_tuple) | Grant a permission to a user or team on a resource |

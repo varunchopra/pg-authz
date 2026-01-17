@@ -79,7 +79,7 @@ Close a billing period, handle expiration and carry-over.
 
 **Returns:** Dict with 'expired', 'carried_over', 'new_balance'
 
-*Source: sdk/src/postkit/meter/client.py:433*
+*Source: sdk/src/postkit/meter/client.py:464*
 
 ---
 
@@ -144,7 +144,7 @@ get_audit_events(*args, **kwargs) -> list[dict]
 
 Not supported - meter module does not have audit events.
 
-*Source: sdk/src/postkit/meter/client.py:544*
+*Source: sdk/src/postkit/meter/client.py:575*
 
 ---
 
@@ -158,11 +158,45 @@ Get current balance for an account.
 
 **Parameters:**
 - `user_id`: User ID
-- `event_type`: Event type
-- `unit`: Unit of measurement
-- `resource`: Optional resource identifier
+- `event_type`: Event type (e.g., "llm_call", "api_request")
+- `unit`: Unit of measurement (e.g., "tokens", "requests")
+- `resource`: Optional resource identifier (e.g., "claude-sonnet")
+- `else`: # Show quota exceeded message raise QuotaExceededError( f"Need {estimated_tokens} tokens but only {balance['available']} available" ) # Display remaining quota in UI balance = meter.get_balance(user_id, "api_request", "requests") print(f"API calls remaining: {balance['available']}")
+- `Note`: For uncertain consumption (streaming), use reserve() and commit() instead of checking balance and then consuming. See Also:
+- `reserve`: Hold quota for uncertain operations
+- `get_user_balances`: Get all balances for a user across all event types
 
-**Returns:** Dict with 'balance', 'reserved', 'available'
+**Returns:** Dict with:
+- balance: Total balance (allocations minus consumption)
+- reserved: Amount currently held in active reservations
+- available: balance - reserved (what can be used right now)
+
+**Example:**
+```python
+# Check if user can afford an operation before starting
+    balance = meter.get_balance(user_id, "llm_call", "tokens", "claude-sonnet")
+    if balance["available"] >= estimated_tokens:
+        # Proceed with operation
+        result = call_llm(prompt)
+        meter.consume(user_id, "llm_call", result.tokens_used, "tokens", "claude-sonnet")
+    else:
+        # Show quota exceeded message
+        raise QuotaExceededError(
+            f"Need {estimated_tokens} tokens but only {balance['available']} available"
+        )
+
+    # Display remaining quota in UI
+    balance = meter.get_balance(user_id, "api_request", "requests")
+    print(f"API calls remaining: {balance['available']}")
+
+Note:
+    For uncertain consumption (streaming), use reserve() and commit()
+    instead of checking balance and then consuming.
+
+See Also:
+    reserve: Hold quota for uncertain operations
+    get_user_balances: Get all balances for a user across all event types
+```
 
 *Source: sdk/src/postkit/meter/client.py:295*
 
@@ -187,7 +221,7 @@ Get ledger entries for an account.
 
 **Returns:** List of ledger entry dicts
 
-*Source: sdk/src/postkit/meter/client.py:357*
+*Source: sdk/src/postkit/meter/client.py:388*
 
 ---
 
@@ -201,7 +235,7 @@ Get namespace statistics.
 
 **Returns:** Dict with counts and totals
 
-*Source: sdk/src/postkit/meter/client.py:525*
+*Source: sdk/src/postkit/meter/client.py:556*
 
 ---
 
@@ -221,7 +255,7 @@ Get aggregated consumption for a user.
 **Returns:** List of dicts with 'event_type', 'resource', 'unit',
 'total_consumed', 'event_count'
 
-*Source: sdk/src/postkit/meter/client.py:334*
+*Source: sdk/src/postkit/meter/client.py:365*
 
 ---
 
@@ -239,7 +273,7 @@ Get all balances for a user across all event types and resources.
 **Returns:** List of dicts with 'event_type', 'resource', 'unit', 'balance',
 'reserved', 'available'
 
-*Source: sdk/src/postkit/meter/client.py:318*
+*Source: sdk/src/postkit/meter/client.py:349*
 
 ---
 
@@ -261,7 +295,7 @@ Open a new billing period with allocation.
 
 **Returns:** New balance
 
-*Source: sdk/src/postkit/meter/client.py:459*
+*Source: sdk/src/postkit/meter/client.py:490*
 
 ---
 
@@ -276,7 +310,7 @@ Check for discrepancies in account invariants.
 **Returns:** List of dicts with 'user_id', 'event_type', 'resource', 'unit',
 'issue_type', 'expected', 'actual', 'discrepancy'
 
-*Source: sdk/src/postkit/meter/client.py:508*
+*Source: sdk/src/postkit/meter/client.py:539*
 
 ---
 
@@ -307,7 +341,7 @@ Release all expired reservations for this namespace.
 
 **Returns:** Count of reservations released
 
-*Source: sdk/src/postkit/meter/client.py:496*
+*Source: sdk/src/postkit/meter/client.py:527*
 
 ---
 
@@ -377,6 +411,6 @@ Configure period settings for an account.
 - `period_allocation`: Amount granted each period
 - `carry_over_limit`: Max unused to roll forward (None = no limit)
 
-*Source: sdk/src/postkit/meter/client.py:397*
+*Source: sdk/src/postkit/meter/client.py:428*
 
 ---

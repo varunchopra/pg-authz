@@ -327,3 +327,101 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = authn, pg_temp;
 
+-- @function authn.get_users_batch
+-- @brief Get multiple users by ID in a single query
+-- @param p_user_ids Array of user IDs to fetch
+-- @param p_namespace Namespace to search in
+-- @returns User records for each found ID (missing IDs are silently omitted)
+-- @example SELECT * FROM authn.get_users_batch(ARRAY['uuid1', 'uuid2']::uuid[], 'default');
+CREATE OR REPLACE FUNCTION authn.get_users_batch(
+    p_user_ids uuid[],
+    p_namespace text DEFAULT 'default'
+)
+RETURNS TABLE(
+    user_id uuid,
+    email text,
+    email_verified_at timestamptz,
+    disabled_at timestamptz,
+    created_at timestamptz,
+    updated_at timestamptz
+)
+AS $$
+BEGIN
+    PERFORM authn._validate_namespace(p_namespace);
+    PERFORM authn._warn_namespace_mismatch(p_namespace);
+
+    RETURN QUERY
+    SELECT
+        u.id AS user_id,
+        u.email,
+        u.email_verified_at,
+        u.disabled_at,
+        u.created_at,
+        u.updated_at
+    FROM authn.users u
+    WHERE u.id = ANY(p_user_ids)
+      AND u.namespace = p_namespace;
+END;
+$$ LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = authn, pg_temp;
+
+-- @function authn.get_or_create_user
+-- @brief Atomically get existing user or create new one (for SSO flows)
+-- @param p_email User's email address (normalized to lowercase)
+-- @param p_password_hash Optional password hash (NULL for SSO-only users)
+-- @param p_namespace Namespace to use
+-- @returns user_id, created (true if new user), disabled (true if user is disabled)
+-- @example -- SSO callback: get or create user
+-- @example SELECT * FROM authn.get_or_create_user('alice@example.com', NULL, 'default');
+CREATE OR REPLACE FUNCTION authn.get_or_create_user(
+    p_email text,
+    p_password_hash text DEFAULT NULL,
+    p_namespace text DEFAULT 'default'
+)
+RETURNS TABLE(
+    user_id uuid,
+    created boolean,
+    disabled boolean
+)
+AS $$
+DECLARE
+    v_user_id uuid;
+    v_disabled_at timestamptz;
+    v_normalized_email text;
+    v_created boolean := false;
+BEGIN
+    -- Validate inputs
+    v_normalized_email := authn._validate_email(p_email);
+    PERFORM authn._validate_hash(p_password_hash, 'password_hash', true);  -- allow null
+    PERFORM authn._validate_namespace(p_namespace);
+
+    -- Try to insert, do nothing on conflict (atomic upsert pattern)
+    INSERT INTO authn.users (namespace, email, password_hash)
+    VALUES (p_namespace, v_normalized_email, p_password_hash)
+    ON CONFLICT (namespace, email) DO NOTHING
+    RETURNING id INTO v_user_id;
+
+    -- If insert succeeded, we created a new user
+    IF v_user_id IS NOT NULL THEN
+        v_created := true;
+
+        -- Audit log
+        PERFORM authn._log_event(
+            'user_created', p_namespace, 'user', v_user_id::text,
+            NULL, jsonb_build_object('email', v_normalized_email, 'via', 'get_or_create')
+        );
+
+        RETURN QUERY SELECT v_user_id, v_created, false;
+        RETURN;
+    END IF;
+
+    -- Insert failed due to conflict, fetch existing user
+    SELECT u.id, u.disabled_at
+    INTO v_user_id, v_disabled_at
+    FROM authn.users u
+    WHERE u.email = v_normalized_email
+      AND u.namespace = p_namespace;
+
+    RETURN QUERY SELECT v_user_id, false, (v_disabled_at IS NOT NULL);
+END;
+$$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = authn, pg_temp;
+
